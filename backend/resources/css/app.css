@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+
+  /* ── Typography scale ─────────────────────────────────────────── */
+  .text-page-title    { @apply text-2xl font-bold text-ink-900; }
+  .text-section-title { @apply text-lg font-semibold text-ink-900; }
+  .text-table-header  { @apply text-xs font-medium uppercase tracking-wide text-ink-400; }
+  .text-body          { @apply text-sm font-normal text-ink-900; }
+  .text-body-emphasis { @apply text-sm font-medium text-ink-900; }
+  .text-caption       { @apply text-xs font-normal text-ink-600; }
+  .text-breadcrumb    { @apply text-xs font-medium uppercase tracking-wider text-ink-400; }
+
+  /* ── Shell ────────────────────────────────────────────────────── */
+  .admin-shell {
+    @apply min-h-screen bg-surface-muted text-ink-900 font-sans;
+  }
+
+  /* ── Sidebar ──────────────────────────────────────────────────── */
+  .admin-sidebar {
+    @apply fixed inset-y-0 left-0 z-30 flex flex-col bg-white border-r border-surface-border shadow-sm transition-all duration-200;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-600 transition-colors hover:bg-surface-muted;
+  }
+
+  .sidebar-link-active {
+    @apply bg-brand-50 text-brand-700 border-l-2 border-brand-600 rounded-l-none;
+  }
+
+  .sidebar-section-label {
+    @apply text-caption px-3 mb-1 mt-5 first:mt-3;
+  }
+
+  /* ── Topbar ───────────────────────────────────────────────────── */
+  .topbar {
+    @apply sticky top-0 z-20 border-b border-surface-border bg-white/90 shadow-sm backdrop-blur;
+  }
+
+  /* ── Card / Panel ─────────────────────────────────────────────── */
+  .panel {
+    @apply bg-white border border-surface-border rounded-xl shadow-sm;
+  }
+
+  .panel-header {
+    @apply border-b border-surface-border px-6 py-4;
+  }
+
+  /* ── Metric cards ─────────────────────────────────────────────── */
+  .metric-card {
+    @apply bg-white border border-surface-border rounded-xl shadow-sm p-6;
+  }
+
+  .metric-label {
+    @apply text-table-header;
+  }
+
+  .metric-icon {
+    @apply flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold;
+  }
+
+  /* ── Data Table ───────────────────────────────────────────────── */
+  .table-wrap {
+    @apply overflow-x-auto;
+  }
+
+  .data-table {
+    @apply min-w-full divide-y divide-surface-border text-sm;
+  }
+
+  .data-table thead {
+    @apply bg-surface-muted sticky top-0 z-10;
+  }
+
+  .data-table th {
+    @apply whitespace-nowrap px-5 py-3 text-left text-table-header;
+  }
+
+  .data-table td {
+    @apply px-5 py-4 align-top text-ink-600;
+  }
+
+  .data-table tbody {
+    @apply divide-y divide-surface-border bg-white;
+  }
+
+  .data-table tbody tr {
+    @apply transition-colors hover:bg-surface-muted;
+  }
+
+  /* ── Forms ────────────────────────────────────────────────────── */
+  .form-input {
+    @apply w-full rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-ink-900 shadow-sm outline-none transition placeholder:text-ink-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
+  }
+
+  .form-label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-ink-600 mb-1;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-1;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-surface-border bg-white px-4 py-2 text-sm font-semibold text-ink-600 shadow-sm transition hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-surface-border;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-danger-bg px-4 py-2 text-sm font-semibold text-danger-text shadow-sm transition hover:bg-red-100 focus:outline-none;
+  }
+
+  /* ── Badges ───────────────────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-success-bg text-success-text;
+  }
+
+  .badge-warning {
+    @apply bg-warning-bg text-warning-text;
+  }
+
+  .badge-danger {
+    @apply bg-danger-bg text-danger-text;
+  }
+
+  .badge-info {
+    @apply bg-info-bg text-info-text;
+  }
+
+  .badge-neutral {
+    @apply bg-surface-muted text-ink-600 ring-1 ring-surface-border;
+  }
+
+  .badge-muted {
+    @apply bg-surface-muted text-ink-400 ring-1 ring-surface-border;
+  }
+
+  /* ── Dashboard hero ───────────────────────────────────────────── */
+  .dashboard-hero {
+    @apply rounded-xl bg-brand-600 p-6 text-white shadow-sm;
+  }
+
+  /* ── Skeleton loading ─────────────────────────────────────────── */
+  .skeleton-row td {
+    @apply py-4 px-5;
+  }
+
+  .skeleton-bar {
+    @apply h-4 bg-surface-border rounded animate-pulse;
+  }
+}

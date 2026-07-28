@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "3e4f7a64-cc21-45fc-a0c5-a9075728c836"
+      }
+    },
+    "android": {
+      "package": "com.adarsh55.amplfieldworkmobile",
+      "usesCleartextTraffic": true
+    }
+  }
+}

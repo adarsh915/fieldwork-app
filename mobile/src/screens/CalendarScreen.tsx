@@ -1,0 +1,68 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import AppBottomBar from "../components/AppBottomBar";
+import type { RootStackParamList } from "../navigation/RootNavigator";
+
+type Nav = NativeStackNavigationProp<RootStackParamList, "Calendar">;
+
+export default function CalendarScreen() {
+  const navigation = useNavigation<Nav>();
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Calender</Text>
+      </View>
+
+      <View style={styles.body}>
+        <MaterialCommunityIcons
+          name="calendar-month-outline"
+          size={54}
+          color="#7367F0"
+        />
+        <Text style={styles.text}>
+          Calendar screen (UI will be added from your design)
+        </Text>
+      </View>
+
+      <AppBottomBar
+        activeKey="Calendar"
+        onTabPress={(key) => {
+          if (key === "Home") navigation.replace("Dashboard");
+          if (key === "Track") navigation.replace("Track");
+          if (key === "Reward") navigation.replace("Reward");
+          if (key === "Calendar") return;
+        }}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#EDEDED" },
+  header: {
+    backgroundColor: "#7367F0",
+    paddingVertical: 18,
+    alignItems: "center",
+  },
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  body: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  text: {
+    marginTop: 12,
+    fontWeight: "800",
+    color: "#111827",
+  },
+});

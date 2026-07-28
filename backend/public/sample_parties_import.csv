@@ -1,0 +1,10 @@
+name,mobile,email,address,employee_email
+ABC Traders,9876543210,abc@example.com,"123 MG Road, Mumbai",
+XYZ Distributors,9123456780,xyz@example.com,"45 Nehru Nagar, Pune",
+PQR Enterprises,9012345678,pqr@example.com,"78 Gandhi Street, Ahmedabad",
+LMN Stores,,lmn@example.com,"12 Station Road, Surat",
+Ravi General Store,8765432109,,"Near Bus Stand, Rajkot",
+Sunita Traders,7654321098,sunita@example.com,"Old Market, Vadodara",
+Mehta & Sons,6543210987,mehta@example.com,"Ring Road, Jaipur",
+Krishna Enterprises,9876001234,,,
+New India Suppliers,9001234567,newindia@example.com,"Civil Lines, Nagpur",

@@ -1,0 +1,28 @@
+# Node
+node_modules/
+
+# React Native / Android
+android/.gradle/
+android/app/build/
+android/build/
+
+# iOS
+ios/build/
+
+# Expo
+.expo/
+.expo-shared/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# Build
+dist/
+build/
+
+# Cache
+.cache/
