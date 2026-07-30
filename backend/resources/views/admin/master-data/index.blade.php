@@ -35,6 +35,12 @@
                 <input type="checkbox" name="is_active" value="1" checked class="h-4 w-4 rounded border-surface-border text-brand-600">
                 <span class="text-sm font-medium text-ink-900">Active</span>
             </label>
+            @if(isset($config['has_rate']))
+            <div>
+                <label class="form-label">Rate per KM (₹) <span class="text-danger-text">*</span></label>
+                <input type="number" step="0.01" name="rate_per_km" value="{{ old('rate_per_km', '0') }}" class="form-input" required>
+            </div>
+            @endif
             <x-button type="submit" variant="primary" class="w-full justify-center">
                 <x-lucide-plus class="w-4 h-4" />
                 Add Record
@@ -51,6 +57,9 @@
                         <th>Name</th>
                         <th>{{ $config['boolean_label'] }}</th>
                         <th>Status</th>
+                        @if(isset($config['has_rate']))
+                        <th>Rate (₹/km)</th>
+                        @endif
                         <th class="text-right">Actions</th>
                     </tr>
                 </thead>
@@ -72,6 +81,11 @@
                                     <span class="badge badge-muted">Inactive</span>
                                 @endif
                             </td>
+                            @if(isset($config['has_rate']))
+                            <td class="font-bold text-brand-600">
+                                ₹{{ number_format($record->rate_per_km ?? 0, 2) }}
+                            </td>
+                            @endif
                             <td class="text-right">
                                 <div x-data="{ editing: false }" class="relative flex justify-end">
                                     <x-button variant="secondary" class="text-xs px-2.5 py-1.5" @click="editing = !editing">
@@ -104,6 +118,12 @@
                                                     @checked($record->is_active) class="h-4 w-4 rounded border-surface-border text-brand-600">
                                                 <span class="text-sm">Active</span>
                                             </label>
+                                            @if(isset($config['has_rate']))
+                                            <div>
+                                                <label class="form-label">Rate per KM (₹)</label>
+                                                <input type="number" step="0.01" name="rate_per_km" value="{{ $record->rate_per_km ?? '0' }}" class="form-input" required>
+                                            </div>
+                                            @endif
                                             <x-button type="submit" variant="primary" class="w-full justify-center">Save</x-button>
                                         </form>
                                         <form method="POST" action="{{ route('admin.master-data.destroy', [$type, $record->id]) }}"

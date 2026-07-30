@@ -11,7 +11,7 @@
  * └──────────────────────────────────────────────────────────────┘
  */
 
-export const API_BASE_URL = "http://192.168.1.17:8000";
+export const API_BASE_URL = "http://192.168.1.12:8000";
 
 /** Laravel API prefix */
 export const API_PREFIX = "/api";

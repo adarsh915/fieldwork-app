@@ -113,28 +113,10 @@ export default function DayStartScreen() {
     }
   }
 
-  async function openGallery() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Gallery access is required.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets.length > 0) {
-      setKmPhotoUri(result.assets[0].uri);
-    }
-  }
+  // Removed openGallery for fraud prevention
 
   function showPhotoOptions() {
-    Alert.alert("Opening KM Photo", "Choose photo source", [
-      { text: "Camera", onPress: openCamera },
-      { text: "Gallery", onPress: openGallery },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    openCamera();
   }
 
   // ── Parties ───────────────────────────────────────────────────────────────

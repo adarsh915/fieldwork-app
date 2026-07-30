@@ -6,6 +6,8 @@ import {
 } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -25,6 +27,7 @@ import {
   getPartyVisitStatus,
   type Visit,
 } from "../api/visit";
+import { getOrders } from "../api/order";
 import type { AppStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "Visit">;
@@ -40,15 +43,22 @@ export default function VisitScreen() {
   const [activeVisit, setActiveVisit] = useState<Visit | null>(null);
   const [hasOtherVisit, setHasOtherVisit] = useState(false);
   const [showTxMenu, setShowTxMenu] = useState(false);
+  const [orders, setOrders] = useState<any[]>([]);
 
   // Fetch visit status for this party
   const loadStatus = useCallback(() => {
     setLoading(true);
-    getPartyVisitStatus(partyId)
-      .then((res) => {
-        if (res.success) {
-          setActiveVisit(res.active_visit);
-          setHasOtherVisit(res.has_other_active_visit);
+    Promise.all([
+      getPartyVisitStatus(partyId),
+      getOrders(partyId).catch(() => ({ data: [] }))
+    ])
+      .then(([statusRes, ordersRes]) => {
+        if (statusRes.success) {
+          setActiveVisit(statusRes.active_visit);
+          setHasOtherVisit(statusRes.has_other_active_visit);
+        }
+        if (ordersRes && ordersRes.data) {
+          setOrders(ordersRes.data);
         }
       })
       .catch((err) => {
@@ -79,10 +89,41 @@ export default function VisitScreen() {
       return;
     }
 
+    // Force party meet photo
+    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+    if (cameraStatus !== "granted") {
+      Alert.alert("Permission needed", "Camera access is required to take a party meet photo.");
+      return;
+    }
+
+    const imageResult = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: false,
+    });
+
+    if (imageResult.canceled || imageResult.assets.length === 0) {
+      return; // user cancelled camera
+    }
+
+    const checkInPhotoUri = imageResult.assets[0].uri;
+
     setSubmitting(true);
     try {
-      // In a real app, you would get GPS coords here
-      const res = await checkIn({ party_id: partyId });
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Location access is required to check in.");
+        setSubmitting(false);
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({});
+      
+      const res = await checkIn({ 
+        party_id: partyId,
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+        check_in_photo_uri: checkInPhotoUri
+      });
       if (res.success) {
         setActiveVisit(res.data);
       }
@@ -98,9 +139,20 @@ export default function VisitScreen() {
 
     setSubmitting(true);
     try {
-      // In a real app, you would get GPS coords here
+      let lat: number | undefined;
+      let lng: number | undefined;
+      try {
+        const location = await Location.getCurrentPositionAsync({});
+        lat = location.coords.latitude;
+        lng = location.coords.longitude;
+      } catch (e) {
+        // ignore location error on checkout if it fails
+      }
+
       const res = await checkOut(activeVisit.id, {
         remarks: "Visit completed",
+        lat,
+        lng
       });
       if (res.success) {
         setActiveVisit(null);
@@ -119,6 +171,8 @@ export default function VisitScreen() {
     setShowTxMenu(false);
     if (option === "Order" && activeVisit) {
       navigation.navigate("Order", { visitId: activeVisit.id, partyId });
+    } else if (option === "Customer Profile") {
+      navigation.navigate("CustomerProfile", { partyId });
     } else {
       Alert.alert("Coming Soon", `${option} functionality will be built next.`);
     }
@@ -220,17 +274,42 @@ export default function VisitScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Order History Placeholder */}
+        {/* Order History */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Order History</Text>
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons
-              name="clipboard-text-outline"
-              size={32}
-              color="#ccc"
-            />
-            <Text style={styles.emptyStateText}>No recent orders</Text>
-          </View>
+          {orders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons
+                name="clipboard-text-outline"
+                size={32}
+                color="#ccc"
+              />
+              <Text style={styles.emptyStateText}>No recent orders</Text>
+            </View>
+          ) : (
+            orders.map((order, index) => (
+              <TouchableOpacity
+                key={order.id || index}
+                style={styles.orderRow}
+                onPress={() => navigation.navigate("OrderDetails", { order })}
+              >
+                <View style={styles.orderHeader}>
+                  <Text style={styles.orderNo}>{order.order_no}</Text>
+                  <Text style={[styles.orderStatus, order.status === 'completed' ? {color: '#10B981'} : {}]}>
+                    {(order.status || 'pending').toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.orderBody}>
+                  <Text style={styles.orderDate}>
+                    {new Date(order.created_at).toLocaleDateString()}
+                  </Text>
+                  <Text style={styles.orderAmount}>
+                    ₹ {Number(order.total_amount).toFixed(2)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
         {/* Tech History Placeholder */}
@@ -456,6 +535,42 @@ const styles = StyleSheet.create({
   },
   emptyState: { alignItems: "center", paddingVertical: 20 },
   emptyStateText: { color: "#8e8e8e", marginTop: 8, fontWeight: "600" },
+
+  orderRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  orderNo: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#374151",
+  },
+  orderStatus: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#F59E0B",
+  },
+  orderBody: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  orderDate: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  orderAmount: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#111827",
+  },
 
   bottomBar: {
     position: "absolute",

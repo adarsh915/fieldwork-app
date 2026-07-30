@@ -26,3 +26,11 @@ build/
 
 # Cache
 .cache/
+
+mobile/node_modules/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+
+backend/vendor/
+backend/node_modules/

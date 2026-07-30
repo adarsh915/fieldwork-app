@@ -62,8 +62,8 @@
                     <th>Employee</th>
                     <th>Date</th>
                     <th>Tour Purpose</th>
-                    <th>Tour Type</th>
-                    <th>Visit Place</th>
+                    <th>Opening KM</th>
+                    <th>Closing KM</th>
                     <th>Status</th>
                     <th class="text-right">View</th>
                 </tr>
@@ -74,13 +74,13 @@
                         <td class="text-body-emphasis">{{ $dayStart->user->name }}</td>
                         <td class="text-body">{{ $dayStart->date->format('d M Y') }}</td>
                         <td class="text-body">{{ $dayStart->tourPurpose->name }}</td>
-                        <td class="text-body">{{ $dayStart->tourType->name }}</td>
-                        <td class="text-body">{{ $dayStart->visit_place ?? '—' }}</td>
+                        <td class="text-body">{{ $dayStart->opening_km ?? '—' }}</td>
+                        <td class="text-body">{{ $dayStart->closing_km ?? '—' }}</td>
                         <td>
                             <div class="flex flex-col gap-1">
                                 <x-status-badge :status="$dayStart->status" :map="['approved' => 'success', 'flagged' => 'danger', 'submitted' => 'warning']" />
-                                @if($dayStart->day_end_at)
-                                    <span class="badge badge-neutral text-[10px]">Day Ended</span>
+                                @if($dayStart->end_time)
+                                    <span class="badge badge-neutral text-[10px]">Ended: {{ $dayStart->end_time }}</span>
                                 @endif
                             </div>
                         </td>

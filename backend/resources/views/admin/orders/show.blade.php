@@ -41,14 +41,18 @@
             </div>
             <div>
                 <span class="block text-xs font-semibold text-gray-500 uppercase">Status</span>
-                <span class="inline-block mt-1 px-2.5 py-1 rounded-full text-xs font-medium 
-                    @if($order->status == 'pending') bg-yellow-100 text-yellow-800
-                    @elseif($order->status == 'approved') bg-blue-100 text-blue-800
-                    @elseif($order->status == 'dispatched') bg-green-100 text-green-800
-                    @else bg-gray-100 text-gray-800 @endif
-                ">
-                    {{ ucfirst($order->status) }}
-                </span>
+                <form action="{{ route('admin.orders.update-status', $order->id) }}" method="POST" class="mt-1 flex items-center gap-2">
+                    @csrf
+                    @method('PATCH')
+                    <select name="status" class="text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1 pl-2 pr-8">
+                        <option value="pending" {{ $order->status == 'pending' ? 'selected' : '' }}>Pending</option>
+                        <option value="approved" {{ $order->status == 'approved' ? 'selected' : '' }}>Approved</option>
+                        <option value="dispatched" {{ $order->status == 'dispatched' ? 'selected' : '' }}>Dispatched</option>
+                        <option value="delivered" {{ $order->status == 'delivered' ? 'selected' : '' }}>Delivered</option>
+                        <option value="cancelled" {{ $order->status == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                    </select>
+                    <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded-md text-xs font-bold hover:bg-indigo-700 transition">Save</button>
+                </form>
             </div>
         </div>
     </div>

@@ -12,6 +12,28 @@ use Illuminate\Support\Facades\Log;
 class OrderController extends Controller
 {
     /**
+     * Get list of orders
+     */
+    public function index(Request $request)
+    {
+        // Only fetch orders created by the logged-in field worker
+        $query = Order::query()
+            ->with('items.product')
+            ->where('user_id', $request->user()->id);
+
+        if ($request->has('party_id')) {
+            $query->where('party_id', $request->party_id);
+        }
+
+        // Return latest orders first
+        $orders = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $orders
+        ]);
+    }
+    /**
      * Submit a new order
      */
     public function store(Request $request)

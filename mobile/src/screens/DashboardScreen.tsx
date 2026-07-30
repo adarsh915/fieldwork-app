@@ -42,11 +42,8 @@ export default function DashboardScreen() {
         .then((res) => {
           if (isActive && res.success) {
             if (res.day_started && res.data) {
-              // If day_end_at is set, the day is completed
-              if (
-                res.data.status === "submitted" &&
-                (res.data as any).day_end_at
-              ) {
+              // If end_time is set, the day is completed
+              if (res.data.end_time) {
                 setDayCompleted(true);
                 setDayActive(false);
               } else {
@@ -109,7 +106,7 @@ export default function DashboardScreen() {
   // ── Employee (Hr/Reporting) grid ────────────────────────────────────────────
   const employeeMenu: MenuItem[] = [
     { label: "Activities", icon: "run-fast" },
-    { label: "My Expense\nBill", icon: "receipt" },
+    { label: "My Expense\nBill", icon: "receipt", onPress: () => navigation.navigate("ExpenseList") },
     { label: "Leave", icon: "calendar-remove-outline" },
     { label: "Product\nPlaning", icon: "chart-bar" },
     { label: "Coll.\nPlaning", icon: "briefcase-outline" },

@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DayStart;
+use App\Models\ExpenseBill;
+use App\Models\GpsTrackingLog;
+use App\Models\VehicleType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -176,10 +179,83 @@ class DayController extends Controller
             // status can remain pending until approved by admin
         ]);
 
+        // --- Fraud Prevention & Automated Expense Generation ---
+        if ($request->closing_km && $dayStart->opening_km) {
+            $claimedKm = $request->closing_km - $dayStart->opening_km;
+            $gpsDistance = 0;
+
+            // Calculate GPS Distance
+            $logs = GpsTrackingLog::where('user_id', $user->id)
+                ->whereDate('created_at', $today)
+                ->orderBy('created_at', 'asc')
+                ->get();
+            
+            if ($logs->count() > 1) {
+                for ($i = 1; $i < $logs->count(); $i++) {
+                    $gpsDistance += $this->getDistanceInMeters(
+                        $logs[$i - 1]->latitude, $logs[$i - 1]->longitude,
+                        $logs[$i]->latitude, $logs[$i]->longitude
+                    );
+                }
+            }
+            
+            $gpsKm = $gpsDistance / 1000;
+            $dayStart->gps_calculated_km = $gpsKm;
+            
+            // Check Deviation (> 20%)
+            if ($claimedKm > 0 && $gpsKm > 0) {
+                $deviation = abs($claimedKm - $gpsKm) / $claimedKm;
+                if ($deviation > 0.20) {
+                    $dayStart->flagged_reason = "Suspicious KM: Claimed {$claimedKm}KM, but GPS calculated {$gpsKm}KM.";
+                }
+            }
+            $dayStart->save();
+
+            // Generate Travel Expense
+            if ($dayStart->vehicle_type_id) {
+                $vehicle = VehicleType::find($dayStart->vehicle_type_id);
+                if ($vehicle && $vehicle->rate_per_km > 0) {
+                    $expenseAmount = $claimedKm * $vehicle->rate_per_km;
+                    
+                    if ($expenseAmount > 0) {
+                        $travelCategory = \App\Models\ExpenseCategory::where('name', 'Travel')->first();
+                        ExpenseBill::create([
+                            'user_id' => $user->id,
+                            'day_start_id' => $dayStart->id,
+                            'date' => $today,
+                            'amount' => $expenseAmount,
+                            'status' => 'pending', // Admin must approve manually after checking meter photo
+                            'is_system_generated' => true,
+                            'category_id' => $travelCategory ? $travelCategory->id : null,
+                        ]);
+                    }
+                }
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Day ended successfully!',
             'data'    => $dayStart,
         ]);
+    }
+
+    /**
+     * Calculate distance between two points in meters using Haversine formula.
+     */
+    private function getDistanceInMeters($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371000; // meters
+
+        $latDelta = deg2rad($lat2 - $lat1);
+        $lonDelta = deg2rad($lon2 - $lon1);
+
+        $a = sin($latDelta / 2) * sin($latDelta / 2) +
+             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+             sin($lonDelta / 2) * sin($lonDelta / 2);
+             
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadius * $c;
     }
 }

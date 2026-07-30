@@ -5,6 +5,72 @@
 @section('page_title', 'Orders')
 
 @section('content')
+
+<!-- Compact Filter Form & Status Pills -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-100 mb-6 p-4">
+    <!-- Filter Form (Single Row) -->
+    <form method="GET" action="{{ route('admin.orders.index') }}" class="flex flex-wrap md:flex-nowrap gap-3 items-end mb-4">
+        <div class="w-full md:w-1/4">
+            <select name="user_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5" onchange="this.form.submit()">
+                <option value="">All Field Workers</option>
+                @foreach($fieldWorkers as $worker)
+                    <option value="{{ $worker->id }}" {{ request('user_id') == $worker->id ? 'selected' : '' }}>
+                        {{ $worker->name }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+        <div class="w-full md:w-1/4">
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Search Order No or Party..." class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-1.5 rounded-md hover:bg-indigo-700 transition font-medium text-sm">
+                Filter
+            </button>
+            <a href="{{ route('admin.orders.index') }}" class="bg-gray-100 text-gray-700 px-4 py-1.5 rounded-md hover:bg-gray-200 transition font-medium text-sm text-center">
+                Reset
+            </a>
+        </div>
+        
+        <!-- Keep status hidden input so we don't lose it on form submit -->
+        <input type="hidden" name="status" value="{{ request('status') }}">
+    </form>
+
+    <!-- Status Pills (Compact) -->
+    <div class="flex flex-wrap gap-2">
+        <a href="{{ route('admin.orders.index', array_merge(request()->query(), ['status' => null])) }}" 
+           class="px-3 py-1 text-xs font-semibold rounded-full border transition-colors 
+           {{ !request('status') ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50' }}">
+            All <span class="ml-1 bg-gray-100 px-1.5 py-0.5 rounded-full {{ !request('status') ? 'bg-indigo-100' : '' }}">{{ $counts['all'] ?? 0 }}</span>
+        </a>
+        <a href="{{ route('admin.orders.index', array_merge(request()->query(), ['status' => 'pending'])) }}" 
+           class="px-3 py-1 text-xs font-semibold rounded-full border transition-colors 
+           {{ request('status') == 'pending' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50' }}">
+            Pending <span class="ml-1 bg-gray-100 px-1.5 py-0.5 rounded-full {{ request('status') == 'pending' ? 'bg-yellow-100' : '' }}">{{ $counts['pending'] ?? 0 }}</span>
+        </a>
+        <a href="{{ route('admin.orders.index', array_merge(request()->query(), ['status' => 'approved'])) }}" 
+           class="px-3 py-1 text-xs font-semibold rounded-full border transition-colors 
+           {{ request('status') == 'approved' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50' }}">
+            Approved <span class="ml-1 bg-gray-100 px-1.5 py-0.5 rounded-full {{ request('status') == 'approved' ? 'bg-blue-100' : '' }}">{{ $counts['approved'] ?? 0 }}</span>
+        </a>
+        <a href="{{ route('admin.orders.index', array_merge(request()->query(), ['status' => 'dispatched'])) }}" 
+           class="px-3 py-1 text-xs font-semibold rounded-full border transition-colors 
+           {{ request('status') == 'dispatched' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50' }}">
+            Dispatched <span class="ml-1 bg-gray-100 px-1.5 py-0.5 rounded-full {{ request('status') == 'dispatched' ? 'bg-green-100' : '' }}">{{ $counts['dispatched'] ?? 0 }}</span>
+        </a>
+        <a href="{{ route('admin.orders.index', array_merge(request()->query(), ['status' => 'delivered'])) }}" 
+           class="px-3 py-1 text-xs font-semibold rounded-full border transition-colors 
+           {{ request('status') == 'delivered' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50' }}">
+            Delivered <span class="ml-1 bg-gray-100 px-1.5 py-0.5 rounded-full {{ request('status') == 'delivered' ? 'bg-emerald-100' : '' }}">{{ $counts['delivered'] ?? 0 }}</span>
+        </a>
+        <a href="{{ route('admin.orders.index', array_merge(request()->query(), ['status' => 'cancelled'])) }}" 
+           class="px-3 py-1 text-xs font-semibold rounded-full border transition-colors 
+           {{ request('status') == 'cancelled' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50' }}">
+            Cancelled <span class="ml-1 bg-gray-100 px-1.5 py-0.5 rounded-full {{ request('status') == 'cancelled' ? 'bg-red-100' : '' }}">{{ $counts['cancelled'] ?? 0 }}</span>
+        </a>
+    </div>
+</div>
+
 <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
     <div class="p-6">
         <div class="overflow-x-auto">

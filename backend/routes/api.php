@@ -31,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('tour-types',     [MasterController::class, 'tourTypes'])->name('tour-types');
         Route::get('vehicle-types',  [MasterController::class, 'vehicleTypes'])->name('vehicle-types');
         Route::get('parties',        [MasterController::class, 'parties'])->name('parties');
+        Route::get('parties/{id}',   [MasterController::class, 'partyDetails'])->name('party.details');
     });
 
     // Day Lifecycle
@@ -44,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products', [\App\Http\Controllers\Api\ProductController::class, 'index']);
 
     // Orders
+    Route::get('/orders', [\App\Http\Controllers\Api\OrderController::class, 'index']);
     Route::post('/orders', [\App\Http\Controllers\Api\OrderController::class, 'store']);
 
     // Visits
@@ -52,5 +54,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/party/{partyId}/status', [\App\Http\Controllers\Api\VisitController::class, 'status'])->name('status');
         Route::post('/check-in', [\App\Http\Controllers\Api\VisitController::class, 'checkIn'])->name('check-in');
         Route::patch('/{id}/check-out', [\App\Http\Controllers\Api\VisitController::class, 'checkOut'])->name('check-out');
+    });
+
+    // Expenses
+    Route::prefix('expenses')->name('api.expenses.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\ExpenseController::class, 'index'])->name('index');
+        Route::get('/categories', [\App\Http\Controllers\Api\ExpenseController::class, 'categories'])->name('categories');
+        Route::post('/', [\App\Http\Controllers\Api\ExpenseController::class, 'store'])->name('store');
     });
 });

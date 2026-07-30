@@ -107,7 +107,25 @@ class DayStartController extends Controller
             ->with(['user', 'tourPurpose', 'tourType', 'vehicleType', 'party'])
             ->findOrFail($id);
 
-        return view('admin.day-starts.show', compact('dayStart'));
+        $visits = \App\Models\Visit::with('party')
+            ->where('user_id', $dayStart->user_id)
+            ->where('day_start_id', $dayStart->id)
+            ->orderBy('check_in_time')
+            ->get();
+
+        $orders = \App\Models\Order::with('party')
+            ->where('user_id', $dayStart->user_id)
+            ->whereDate('created_at', $dayStart->date)
+            ->orderBy('created_at')
+            ->get();
+
+        $expenses = \App\Models\ExpenseBill::with('category')
+            ->where('user_id', $dayStart->user_id)
+            ->where('day_start_id', $dayStart->id)
+            ->orderBy('created_at')
+            ->get();
+
+        return view('admin.day-starts.show', compact('dayStart', 'visits', 'orders', 'expenses'));
     }
 
     protected function formData(?User $user = null): array

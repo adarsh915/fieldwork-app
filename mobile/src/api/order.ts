@@ -25,3 +25,8 @@ export const submitOrder = async (payload: OrderPayload): Promise<any> => {
   const data = await requestJson("/orders", { method: "POST", body: payload });
   return data;
 };
+
+export const getOrders = async (partyId?: number): Promise<any> => {
+  const url = partyId ? `/orders?party_id=${partyId}` : "/orders";
+  return await requestJson(url, { method: "GET" });
+};

@@ -26,11 +26,15 @@ import DayStartScreen from "../screens/DayStartScreen";
 import DealerListScreen from "../screens/DealerListScreen";
 import LoginScreen from "../screens/LoginScreen";
 import OrderScreen from "../screens/OrderScreen";
+import OrderDetailsScreen from "../screens/OrderDetailsScreen";
+import CustomerProfileScreen from "../screens/CustomerProfileScreen";
 import ProductListScreen from "../screens/ProductListScreen";
 import RewardScreen from "../screens/RewardScreen";
 import SplashScreen from "../screens/SplashScreen";
 import TrackScreen from "../screens/TrackScreen";
 import VisitScreen from "../screens/VisitScreen";
+import ExpenseListScreen from "../screens/ExpenseListScreen";
+import AddExpenseScreen from "../screens/AddExpenseScreen";
 
 export type RootStackParamList = {
   // App screens
@@ -46,9 +50,13 @@ export type RootStackParamList = {
     partyAddress: string | null;
   };
   Order: { visitId: number; partyId: number };
+  OrderDetails: { order: any };
+  CustomerProfile: { partyId: number };
   Track: undefined;
   Reward: undefined;
   Calendar: undefined;
+  ExpenseList: undefined;
+  AddExpense: undefined;
   // Admin screens (future)
   AdminDashboard: undefined;
   EmployeeList: undefined;
@@ -74,9 +82,13 @@ export type AppStackParamList = {
     partyAddress: string | null;
   };
   Order: { visitId: number; partyId: number };
+  OrderDetails: { order: any };
+  CustomerProfile: { partyId: number };
   Track: undefined;
   Reward: undefined;
   Calendar: undefined;
+  ExpenseList: undefined;
+  AddExpense: undefined;
 };
 
 // ─── Stacks ────────────────────────────────────────────────────────────────────
@@ -105,9 +117,13 @@ function AppNavigator() {
       <AppStack.Screen name="ProductList" component={ProductListScreen} />
       <AppStack.Screen name="Visit" component={VisitScreen} />
       <AppStack.Screen name="Order" component={OrderScreen} />
+      <AppStack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+      <AppStack.Screen name="CustomerProfile" component={CustomerProfileScreen} />
       <AppStack.Screen name="Track" component={TrackScreen} />
       <AppStack.Screen name="Reward" component={RewardScreen} />
       <AppStack.Screen name="Calendar" component={CalendarScreen} />
+      <AppStack.Screen name="ExpenseList" component={ExpenseListScreen} />
+      <AppStack.Screen name="AddExpense" component={AddExpenseScreen} />
     </AppStack.Navigator>
   );
 }

@@ -173,6 +173,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // Fieldwork UI Modules (Frontend-only mock data pages)
         Route::resource('orders', \App\Http\Controllers\Admin\OrderController::class)->only(['index', 'show'])->middleware('permission:orders.view');
+        Route::patch('orders/{order}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->name('orders.update-status')->middleware('permission:orders.view');
         Route::get('/payments', fn() => view('admin.payments.index'))->middleware('permission:payments.view')->name('payments.index');
         Route::get('/visits', [\App\Http\Controllers\Admin\VisitController::class, 'index'])->middleware('permission:visits.view')->name('visits.index');
         Route::get('/dealers', fn() => view('admin.dealers.index'))->middleware('permission:dealers.view')->name('dealers.index');
@@ -181,7 +182,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('index');
             Route::get('/fieldworker-parties', [\App\Http\Controllers\Admin\ReportController::class, 'fieldworkerParties'])->name('fieldworker-parties');
         });
-        Route::get('/expenses', fn() => view('admin.expenses.index'))->middleware('permission:expenses.view')->name('expenses.index');
+        Route::get('/expenses', [\App\Http\Controllers\Admin\ExpenseController::class, 'index'])->middleware('permission:expenses.view')->name('expenses.index');
+        Route::patch('/expenses/{expense}/status', [\App\Http\Controllers\Admin\ExpenseController::class, 'updateStatus'])->middleware('permission:expenses.view')->name('expenses.updateStatus');
+        
+        // Expense Reports
+        Route::get('/expenses/reports/monthly', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'monthlySummary'])->middleware('permission:expenses.view')->name('expenses.reports.monthly');
+        Route::get('/expenses/reports/daily/{day_start_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'dailyReceipt'])->middleware('permission:expenses.view')->name('expenses.reports.daily');
+
         Route::get('/leave', fn() => view('admin.leave.index'))->middleware('permission:leave.view')->name('leave.index');
         Route::get('/meetings', fn() => view('admin.meetings.index'))->middleware('permission:meetings.view')->name('meetings.index');
         Route::get('/product-demo', fn() => view('admin.product-demo.index'))->middleware('permission:product-demo.view')->name('product-demo.index');

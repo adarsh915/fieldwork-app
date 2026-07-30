@@ -68,6 +68,16 @@ class User extends Authenticatable
         return $this->hasMany(User::class, 'reporting_to');
     }
 
+    public function leaves()
+    {
+        return $this->hasMany(Leave::class);
+    }
+
+    public function expenses()
+    {
+        return $this->hasMany(ExpenseBill::class);
+    }
+
     public function dayStarts()
     {
         return $this->hasMany(DayStart::class);

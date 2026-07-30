@@ -1,4 +1,6 @@
 import { requestJson } from "./http";
+import { API_BASE_URL, API_PREFIX } from "./config";
+import { getAuthToken } from "../auth/tokenStore";
 
 export type Visit = {
   id: number;
@@ -34,8 +36,46 @@ export async function checkIn(payload: {
   party_id: number | string;
   lat?: number;
   lng?: number;
+  check_in_photo_uri?: string;
 }): Promise<{ success: boolean; data: Visit; message: string }> {
-  return requestJson("/visits/check-in", { method: "POST", body: payload });
+  const token = await getAuthToken();
+  const url = `${API_BASE_URL}${API_PREFIX}/visits/check-in`;
+
+  const form = new FormData();
+  form.append("party_id", String(payload.party_id));
+  if (payload.lat !== undefined) form.append("lat", String(payload.lat));
+  if (payload.lng !== undefined) form.append("lng", String(payload.lng));
+
+  if (payload.check_in_photo_uri) {
+    const filename = payload.check_in_photo_uri.split("/").pop() ?? "party_meet.jpg";
+    const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
+    const mime = ext === "png" ? "image/png" : "image/jpeg";
+    form.append("check_in_photo", {
+      uri: payload.check_in_photo_uri,
+      name: filename,
+      type: mime,
+    } as any);
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token ?? ""}`,
+    },
+    body: form,
+  });
+
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const error: any = new Error(data?.message ?? `Request failed: ${res.status}`);
+    error.status = res.status;
+    error.errors = data?.errors;
+    throw error;
+  }
+
+  return data as { success: boolean; data: Visit; message: string };
 }
 
 export async function checkOut(

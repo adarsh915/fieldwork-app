@@ -106,6 +106,30 @@ class VisitController extends Controller
             return response()->json(['success' => false, 'message' => 'You already have an ongoing visit.'], 400);
         }
 
+        $customer = Customer::findOrFail($request->party_id);
+
+        if ($request->lat && $request->lng) {
+            if (!$customer->latitude || !$customer->longitude) {
+                // First visit: Auto-capture location
+                $customer->update([
+                    'latitude' => $request->lat,
+                    'longitude' => $request->lng,
+                ]);
+            } else {
+                // Future visits: Enforce 100-meter geo-fence
+                $distance = $this->getDistanceInMeters($request->lat, $request->lng, $customer->latitude, $customer->longitude);
+                if ($distance > 100) {
+                    return response()->json(['success' => false, 'message' => 'You must be within 100 meters of the party to check in.'], 403);
+                }
+            }
+        }
+
+        // Handle check_in_photo upload
+        $imagePath = null;
+        if ($request->hasFile('check_in_photo')) {
+            $imagePath = $request->file('check_in_photo')->store('visits/check-in-photos', 'public');
+        }
+
         $visit = Visit::create([
             'user_id' => $user->id,
             'day_start_id' => $dayStart->id,
@@ -113,6 +137,7 @@ class VisitController extends Controller
             'check_in_time' => Carbon::now(),
             'check_in_lat' => $request->lat,
             'check_in_lng' => $request->lng,
+            'check_in_photo' => $imagePath,
             'status' => 'pending',
         ]);
 
@@ -155,5 +180,24 @@ class VisitController extends Controller
             'message' => 'Checked out successfully.',
             'data' => $visit,
         ]);
+    }
+
+    /**
+     * Calculate distance between two points in meters using Haversine formula.
+     */
+    private function getDistanceInMeters($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371000; // meters
+
+        $latDelta = deg2rad($lat2 - $lat1);
+        $lonDelta = deg2rad($lon2 - $lon1);
+
+        $a = sin($latDelta / 2) * sin($latDelta / 2) +
+             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+             sin($lonDelta / 2) * sin($lonDelta / 2);
+             
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadius * $c;
     }
 }

@@ -30,6 +30,7 @@ class MasterDataController extends Controller
             'label' => 'Vehicle Types',
             'boolean_field' => 'requires_vehicle_no',
             'boolean_label' => 'Requires Vehicle No.',
+            'has_rate' => true,
         ],
     ];
 
@@ -118,10 +119,15 @@ class MasterDataController extends Controller
             ],
             $config['boolean_field'] => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
+            'rate_per_km' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $validated[$config['boolean_field']] = $request->boolean($config['boolean_field']);
         $validated['is_active'] = $request->boolean('is_active', true);
+        
+        if (!isset($config['has_rate'])) {
+            unset($validated['rate_per_km']);
+        }
 
         return $validated;
     }

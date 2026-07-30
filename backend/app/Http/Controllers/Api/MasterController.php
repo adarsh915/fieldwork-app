@@ -66,4 +66,20 @@ class MasterController extends Controller
 
         return response()->json(['success' => true, 'data' => $parties]);
     }
+
+    /**
+     * GET /api/master/parties/{id}
+     *
+     * Returns full details for a single customer.
+     */
+    public function partyDetails($id): JsonResponse
+    {
+        $party = Customer::find($id);
+        
+        if (!$party) {
+            return response()->json(['success' => false, 'message' => 'Party not found'], 404);
+        }
+
+        return response()->json(['success' => true, 'data' => $party]);
+    }
 }
