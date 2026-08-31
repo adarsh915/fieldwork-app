@@ -17,7 +17,7 @@ class ProductImageController extends Controller
         $product = Product::findOrFail($productId);
 
         $request->validate([
-            'image' => ['required', 'image', 'max:5120'], // 5MB max
+            'image' => ['required', 'image', 'max:20480'], // 20MB max
         ]);
 
         if ($request->file('image')) {

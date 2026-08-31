@@ -26,12 +26,9 @@ export default function RewardScreen() {
       </View>
 
       <AppBottomBar
-        activeKey="Reward"
+        activeKey="Home"
         onTabPress={(key) => {
           if (key === "Home") navigation.replace("Dashboard");
-          if (key === "Track") navigation.replace("Track");
-          if (key === "Reward") return;
-          if (key === "Calendar") navigation.replace("Calendar");
         }}
       />
     </SafeAreaView>

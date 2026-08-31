@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Order;
 use App\Models\Visit;
 use App\Models\Transaction;
+use App\Models\PartyEmployeeMap;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -40,7 +41,7 @@ class EmployeeWebController extends Controller
     private function syncEmployeeParties($employeeId, array $newPartyIds)
     {
         $newParties = collect($newPartyIds);
-        $currentParties = \App\Models\PartyEmployeeMap::where('employee_id', $employeeId)
+        $currentParties = PartyEmployeeMap::where('employee_id', $employeeId)
             ->where('is_active', true)
             ->pluck('party_id');
         
@@ -48,7 +49,7 @@ class EmployeeWebController extends Controller
         $toAdd = $newParties->diff($currentParties);
 
         if ($toRemove->isNotEmpty()) {
-            \App\Models\PartyEmployeeMap::where('employee_id', $employeeId)
+            PartyEmployeeMap::where('employee_id', $employeeId)
                 ->whereIn('party_id', $toRemove)
                 ->where('is_active', true)
                 ->update([
@@ -58,7 +59,7 @@ class EmployeeWebController extends Controller
         }
 
         foreach ($toAdd as $partyId) {
-            \App\Models\PartyEmployeeMap::create([
+            PartyEmployeeMap::create([
                 'party_id' => $partyId,
                 'employee_id' => $employeeId,
                 'assigned_by' => auth()->id() ?? 1,
@@ -123,7 +124,7 @@ class EmployeeWebController extends Controller
     public function create()
     {
         $roles = Role::orderBy('name')->get();
-        $customers = Customer::query()->orderBy('name')->get(['id', 'name']);
+        $customers = Customer::active()->orderBy('name')->get(['id', 'name']);
 
         return view('admin.employees.create', compact('roles', 'customers'));
     }
@@ -213,7 +214,7 @@ class EmployeeWebController extends Controller
     {
         $employee = User::with(['roles', 'parties'])->findOrFail($id);
         $roles = Role::orderBy('name')->get();
-        $customers = Customer::query()->orderBy('name')->get(['id', 'name']);
+        $customers = Customer::active()->orderBy('name')->get(['id', 'name']);
         $assignedPartyIds = $employee->parties->pluck('id')->all();
 
         return view('admin.employees.edit', compact('employee', 'roles', 'customers', 'assignedPartyIds'));
@@ -312,7 +313,7 @@ class EmployeeWebController extends Controller
 
         $search = $request->input('q');
 
-        $query = $employee->parties()->orderBy('name');
+        $query = $employee->parties()->with('submittedBy')->orderBy('name');
 
         if ($search) {
             $query->where(function ($q) use ($search) {

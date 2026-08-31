@@ -153,7 +153,7 @@ class ComprehensivePermissionsSeeder extends Seeder
             ]);
         }
 
-        $this->command->info("Created {count($permissions)} permissions!");
+        $this->command->info("Created " . count($permissions) . " permissions!");
 
         // Update Super Admin - Give ALL permissions
         $superAdmin = Role::where('name', 'Super Admin')->first();

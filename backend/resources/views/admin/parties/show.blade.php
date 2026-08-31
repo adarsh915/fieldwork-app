@@ -100,17 +100,17 @@
         {{-- Assigned Fieldworker --}}
         <div class="panel p-5">
             <h3 class="text-sm font-bold text-slate-950 mb-4 pb-3 border-b border-slate-100">Assigned Fieldworker</h3>
-            @if($party->user)
+            @if($party->activeAssignment && $party->activeAssignment->employee)
                 <div class="flex items-center gap-3 mt-1">
                     <div
                         class="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--ampl-primary)] text-white text-sm font-bold">
-                        {{ strtoupper(substr($party->user->name, 0, 1)) }}
+                        {{ strtoupper(substr($party->activeAssignment->employee->name, 0, 1)) }}
                     </div>
                     <div>
-                        <div class="font-bold text-slate-950">{{ $party->user->name }}</div>
-                        <div class="text-xs text-slate-500">{{ $party->user->email }}</div>
-                        @if($party->user->employee_id)
-                            <div class="text-xs text-slate-400 mt-0.5">ID: {{ $party->user->employee_id }}</div>
+                        <div class="font-bold text-slate-950">{{ $party->activeAssignment->employee->name }}</div>
+                        <div class="text-xs text-slate-500">{{ $party->activeAssignment->employee->email }}</div>
+                        @if($party->activeAssignment->employee->employee_id)
+                            <div class="text-xs text-slate-400 mt-0.5">ID: {{ $party->activeAssignment->employee->employee_id }}</div>
                         @endif
                     </div>
                 </div>

@@ -32,6 +32,7 @@
                     <th class="text-right">Manual Approved</th>
                     <th class="text-right">Total Approved</th>
                     <th class="text-right text-ink-500">Manual Pending</th>
+                    <th class="text-right">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -44,10 +45,15 @@
                     <td class="text-right text-success-text">₹{{ number_format($row['total_manual_approved'], 2) }}</td>
                     <td class="text-right font-black text-ink-900 text-lg">₹{{ number_format($row['grand_total'], 2) }}</td>
                     <td class="text-right text-warning-text">₹{{ number_format($row['total_manual_pending'], 2) }}</td>
+                    <td class="text-right">
+                        <a href="{{ route('admin.expenses.reports.statement', ['user_id' => $row['user']->id, 'month' => $monthInput]) }}" class="btn-primary text-xs px-3 py-1 inline-flex items-center gap-1">
+                            <x-lucide-file-text class="w-3 h-3" /> Statement
+                        </a>
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="text-center py-6 text-ink-500">No field workers found.</td>
+                    <td colspan="6" class="text-center py-6 text-ink-500">No field workers found.</td>
                 </tr>
                 @endforelse
             </tbody>

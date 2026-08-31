@@ -8,6 +8,9 @@
     "android": {
       "package": "com.adarsh55.amplfieldworkmobile",
       "usesCleartextTraffic": true
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

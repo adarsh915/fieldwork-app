@@ -2,11 +2,13 @@ import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenHeader from "../components/ScreenHeader";
 
 import { submitExpense, getExpenseCategories, type ExpenseCategory } from "../api/expense";
 import type { AppStackParamList } from "../navigation/RootNavigator";
@@ -30,42 +32,112 @@ export default function AddExpenseScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      getExpenseCategories().then(res => {
-        if(res.success) {
+  // Stationery Items State
+  const [items, setItems] = useState<{ item_name: string; quantity: number; unit_price: number; total_price: number }[]>([]);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemQty, setNewItemQty] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
+
+  useEffect(() => {
+    getExpenseCategories()
+      .then((res) => {
+        if (res.success && res.data) {
           setCategories(res.data);
         }
-      });
-    }, [])
-  );
+      })
+      .catch(() => {});
+  }, []);
 
-  async function openCamera() {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Camera access is required for expense proof.");
+  const selectedCategoryName = useMemo(() => {
+    return categories.find((c) => c.id === selectedCategory)?.name?.trim().toLowerCase();
+  }, [categories, selectedCategory]);
+
+  const isStationery = useMemo(() => {
+    return selectedCategoryName === 'stationery' || selectedCategoryName === 'stationary';
+  }, [selectedCategoryName]);
+
+  function handleAddItem() {
+    if (!newItemName.trim() || !newItemQty || !newItemPrice) {
+      Alert.alert("Validation", "Please fill item name, quantity, and price.");
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets.length > 0) {
+    const qty = parseInt(newItemQty, 10);
+    const price = parseFloat(newItemPrice);
+    if (isNaN(qty) || isNaN(price)) {
+      Alert.alert("Validation", "Invalid quantity or price.");
+      return;
+    }
+    const total = qty * price;
+    setItems((prev) => [...prev, { item_name: newItemName.trim(), quantity: qty, unit_price: price, total_price: total }]);
+    
+    // Update total amount
+    const newItems = [...items, { item_name: newItemName.trim(), quantity: qty, unit_price: price, total_price: total }];
+    const totalAmount = newItems.reduce((sum, i) => sum + i.total_price, 0);
+    setAmount(totalAmount.toString());
+
+    setNewItemName("");
+    setNewItemQty("");
+    setNewItemPrice("");
+  }
+
+  function handleRemoveItem(index: number) {
+    const newItems = items.filter((_, i) => i !== index);
+    setItems(newItems);
+    const totalAmount = newItems.reduce((sum, i) => sum + i.total_price, 0);
+    setAmount(totalAmount > 0 ? totalAmount.toString() : "");
+  }
+
+  async function showPhotoOptions() {
+    Alert.alert("Upload Bill", "Choose option", [
+      { text: "Camera", onPress: pickFromCamera },
+      { text: "Gallery", onPress: pickFromGallery },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
+  async function pickFromCamera() {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Denied", "Camera permission is required.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  }
+
+  async function pickFromGallery() {
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    if (!result.canceled && result.assets[0]) {
       setPhotoUri(result.assets[0].uri);
     }
   }
 
   async function handleSubmit() {
-    if (!selectedCategory) return Alert.alert("Missing", "Select a category.");
-    if (!amount || Number(amount) <= 0) return Alert.alert("Missing", "Enter valid amount.");
-    if (!photoUri) return Alert.alert("Missing", "Photo proof is mandatory for manual expenses.");
+    if (!selectedCategory) {
+      Alert.alert("Required", "Please select an expense category.");
+      return;
+    }
+    if (isStationery && items.length === 0) {
+      Alert.alert("Missing", "Please add at least one stationery item.");
+      return;
+    }
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      Alert.alert("Required", "Please enter a valid expense amount.");
+      return;
+    }
+    if (!photoUri) {
+      Alert.alert("Missing", "Photo proof is mandatory for expenses.");
+      return;
+    }
 
     setSubmitting(true);
     try {
-      await submitExpense(selectedCategory, amount, photoUri);
-      Alert.alert("Success", "Expense submitted for approval.", [
-        { text: "OK", onPress: () => navigation.goBack() }
+      const res = await submitExpense(selectedCategory, amount, photoUri, isStationery ? items : undefined);
+
+      Alert.alert("Success", res.message || "Expense submitted!", [
+        { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to submit.");
@@ -75,16 +147,14 @@ export default function AddExpenseScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Expense</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <View style={{ flex: 1, backgroundColor: "#F3F4F6" }}>
+      <ScreenHeader title="Add Expense" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 20 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <Text style={styles.fieldLabel}>Category</Text>
           <View style={styles.chipRow}>
@@ -101,18 +171,68 @@ export default function AddExpenseScreen() {
             ))}
           </View>
 
+          {isStationery && (
+            <View style={styles.stationeryCard}>
+              <Text style={styles.stationeryTitle}>Items List</Text>
+              
+              {items.map((item, idx) => (
+                <View key={idx} style={styles.itemRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemNameText}>{item.item_name}</Text>
+                    <Text style={styles.itemSubText}>{item.quantity} × ₹{item.unit_price.toFixed(2)}</Text>
+                  </View>
+                  <Text style={styles.itemTotalText}>₹{item.total_price.toFixed(2)}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveItem(idx)} style={styles.removeItemBtn}>
+                    <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Add New Item</Text>
+              <TextInput
+                style={styles.itemInput}
+                value={newItemName}
+                onChangeText={setNewItemName}
+                placeholder="Item name (e.g. Pen)"
+                placeholderTextColor="#A5B4FC"
+              />
+              <View style={styles.itemInputsRow}>
+                <TextInput
+                  style={[styles.itemInput, { flex: 1 }]}
+                  value={newItemQty}
+                  onChangeText={(v) => setNewItemQty(v.replace(/[^0-9]/g, ""))}
+                  keyboardType="number-pad"
+                  placeholder="Qty"
+                  placeholderTextColor="#A5B4FC"
+                />
+                <TextInput
+                  style={[styles.itemInput, { flex: 1.5 }]}
+                  value={newItemPrice}
+                  onChangeText={(v) => setNewItemPrice(v.replace(/[^0-9.]/g, ""))}
+                  keyboardType="numeric"
+                  placeholder="Price per unit"
+                  placeholderTextColor="#A5B4FC"
+                />
+                <TouchableOpacity style={styles.addItemRowBtn} onPress={handleAddItem}>
+                  <MaterialIcons name="add" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Amount (₹)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isStationery && styles.inputDisabled]}
             value={amount}
-            onChangeText={(v) => setAmount(v.replace(/[^0-9.]/g, ""))}
+            onChangeText={(v) => !isStationery && setAmount(v.replace(/[^0-9.]/g, ""))}
             keyboardType="numeric"
-            placeholder="e.g. 150"
-            placeholderTextColor="#C7D2FE"
+            placeholder={isStationery ? "Auto-calculated" : "e.g. 150"}
+            placeholderTextColor={isStationery ? "#A5B4FC" : "#C7D2FE"}
+            editable={!isStationery}
           />
 
           <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Bill Photo (Mandatory)</Text>
-          <TouchableOpacity style={styles.cameraWrap} activeOpacity={0.85} onPress={openCamera}>
+          <TouchableOpacity style={styles.cameraWrap} activeOpacity={0.85} onPress={showPhotoOptions}>
             {photoUri ? (
               <View style={styles.photoPreviewWrap}>
                 <Image source={{ uri: photoUri }} style={styles.photoPreview} />
@@ -137,12 +257,12 @@ export default function AddExpenseScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F3F4F6" },
   header: {
     backgroundColor: "#7367F0",
     paddingHorizontal: 14,
@@ -150,7 +270,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  headerIconBtn: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  headerIconBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
   headerTitle: { flex: 1, textAlign: "center", color: "#fff", fontSize: 18, fontWeight: "800" },
   scrollContent: { padding: 16, paddingBottom: 40 },
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, elevation: 3 },
@@ -221,4 +341,81 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   startBtnText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+  stationeryCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    marginTop: 16,
+  },
+  stationeryTitle: {
+    color: "#374151",
+    fontWeight: "800",
+    fontSize: 14,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingBottom: 4,
+  },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  itemNameText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  itemSubText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  itemTotalText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#10B981",
+    marginRight: 8,
+  },
+  removeItemBtn: {
+    padding: 4,
+  },
+  itemInput: {
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    borderRadius: 8,
+    height: 40,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: "#374151",
+    backgroundColor: "#fff",
+    marginBottom: 8,
+  },
+  itemInputsRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  addItemRowBtn: {
+    backgroundColor: "#10B981",
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  inputDisabled: {
+    backgroundColor: "#EEF2F6",
+    borderColor: "#CBD5E1",
+    color: "#64748B",
+  },
 });

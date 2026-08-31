@@ -123,6 +123,7 @@
                         <th>Email</th>
                         <th>Address</th>
                         <th>Assigned On</th>
+                        <th>Status</th>
                         @can('customers.view')
                             <th class="text-center">Actions</th>
                         @endcan
@@ -141,7 +142,12 @@
                                     </div>
                                     <div>
                                         <div class="font-semibold text-slate-950">{{ $party->name }}</div>
-                                        <div class="text-xs text-slate-400">ID #{{ $party->id }}</div>
+                                        <div class="text-xs text-slate-400 mb-1">ID #{{ $party->id }}</div>
+                                        @if($party->submittedBy)
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">
+                                                Added by {{ $party->submittedBy->name }}
+                                            </span>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
@@ -180,6 +186,19 @@
                                 @endif
                             </td>
 
+                            {{-- Status --}}
+                            <td>
+                                @if($party->is_active)
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                                        Active
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-500 border border-slate-200">
+                                        Inactive
+                                    </span>
+                                @endif
+                            </td>
+
                             {{-- Actions --}}
                             @can('customers.view')
                                 <td>
@@ -200,7 +219,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="py-16 text-center text-slate-500" colspan="7">
+                            <td class="py-16 text-center text-slate-500" colspan="8">
                                 <div class="flex flex-col items-center gap-3">
                                     <span class="text-5xl">🏢</span>
                                     <div>

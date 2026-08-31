@@ -5,11 +5,20 @@
 @section('page_title', 'Daily Expense Receipt')
 
 @section('content')
-<div class="mb-4">
-    <a href="{{ url()->previous() }}" class="btn-secondary text-sm px-3 py-1.5 inline-flex items-center gap-2">
-        <x-lucide-arrow-left class="w-4 h-4" /> Back
-    </a>
-</div>
+<div x-data="{ lightboxOpen: false, lightboxImage: '' }">
+    <!-- Lightbox Modal -->
+    <div x-show="lightboxOpen" style="display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background-color: rgba(15, 23, 42, 0.9); backdrop-filter: blur(4px);" x-transition>
+        <button type="button" @click="lightboxOpen = false" style="position: absolute; top: 2rem; right: 2rem; color: white; background: none; border: none; cursor: pointer; z-index: 10000;">
+            <svg style="width: 32px; height: 32px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <img :src="lightboxImage" style="max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); margin: auto; display: block;" @click.away="lightboxOpen = false">
+    </div>
+
+    <div class="mb-4">
+        <a href="{{ url()->previous() }}" class="btn-secondary text-sm px-3 py-1.5 inline-flex items-center gap-2">
+            <x-lucide-arrow-left class="w-4 h-4" /> Back
+        </a>
+    </div>
 
 {{-- Top Section: Day Start Overview --}}
 <div class="panel p-6 mb-6 border-t-4 border-brand-500">
@@ -34,11 +43,9 @@
                     <p class="text-xs text-ink-500 mt-1">Time: {{ $dayStart->start_time }}</p>
                 </div>
                 @if($dayStart->opening_km_photo)
-                <div class="w-24 h-24 rounded-lg overflow-hidden border border-surface-border">
-                    <a href="{{ asset('storage/' . $dayStart->opening_km_photo) }}" target="_blank">
-                        <img src="{{ asset('storage/' . $dayStart->opening_km_photo) }}" class="w-full h-full object-cover" alt="Opening KM Photo">
-                    </a>
-                </div>
+                <button type="button" @click="lightboxImage = '{{ asset('storage/' . $dayStart->opening_km_photo) }}'; lightboxOpen = true;" class="w-24 h-24 rounded-lg overflow-hidden border border-surface-border block hover:opacity-90 transition">
+                    <img src="{{ asset('storage/' . $dayStart->opening_km_photo) }}" class="w-full h-full object-cover" alt="Opening KM Photo">
+                </button>
                 @else
                 <div class="w-24 h-24 rounded-lg bg-surface-muted flex items-center justify-center border border-surface-border border-dashed">
                     <span class="text-xs text-ink-400">No Photo</span>
@@ -56,11 +63,9 @@
                     <p class="text-xs text-ink-500 mt-1">Time: {{ $dayStart->end_time ?? '—' }}</p>
                 </div>
                 @if($dayStart->closing_km_photo)
-                <div class="w-24 h-24 rounded-lg overflow-hidden border border-surface-border">
-                    <a href="{{ asset('storage/' . $dayStart->closing_km_photo) }}" target="_blank">
-                        <img src="{{ asset('storage/' . $dayStart->closing_km_photo) }}" class="w-full h-full object-cover" alt="Closing KM Photo">
-                    </a>
-                </div>
+                <button type="button" @click="lightboxImage = '{{ asset('storage/' . $dayStart->closing_km_photo) }}'; lightboxOpen = true;" class="w-24 h-24 rounded-lg overflow-hidden border border-surface-border block hover:opacity-90 transition">
+                    <img src="{{ asset('storage/' . $dayStart->closing_km_photo) }}" class="w-full h-full object-cover" alt="Closing KM Photo">
+                </button>
                 @else
                 <div class="w-24 h-24 rounded-lg bg-surface-muted flex items-center justify-center border border-surface-border border-dashed">
                     <span class="text-xs text-ink-400">No Photo</span>
@@ -131,11 +136,11 @@
     <div class="table-wrap mb-4">
         <table class="data-table">
             <thead>
-                <tr>
-                    <th>Type / Category</th>
-                    <th>Status</th>
-                    <th>Photo Proof</th>
-                    <th class="text-right">Amount</th>
+                <tr class="border-b border-slate-200">
+                    <th style="text-align: left; padding: 12px 16px;">Type / Category</th>
+                    <th style="text-align: center; padding: 12px 16px;">Status</th>
+                    <th style="text-align: center; padding: 12px 16px;">Photo Proof</th>
+                    <th style="text-align: right; padding: 12px 16px;">Amount</th>
                 </tr>
             </thead>
             <tbody>
@@ -147,7 +152,7 @@
                         }
                     @endphp
                     <tr>
-                        <td>
+                        <td style="text-align: left; padding: 12px 16px;">
                             @if($expense->is_system_generated)
                                 <div class="flex items-center gap-2">
                                     <span class="badge badge-primary">Auto Travel</span>
@@ -155,9 +160,16 @@
                                 </div>
                             @else
                                 <span class="font-semibold text-ink-900">{{ $expense->category->name ?? 'Manual' }}</span>
+                                @if($expense->items->count() > 0)
+                                    <div class="mt-1 pl-2 border-l-2 border-brand-200 text-xs text-ink-500 space-y-0.5 text-left" style="text-align: left;">
+                                        @foreach($expense->items as $item)
+                                            <div style="text-align: left;">• {{ $item->item_name }} ({{ $item->quantity }} × ₹{{ number_format($item->unit_price, 2) }})</div>
+                                        @endforeach
+                                    </div>
+                                @endif
                             @endif
                         </td>
-                        <td>
+                        <td style="text-align: center; padding: 12px 16px; vertical-align: middle;">
                             @if($expense->status === 'pending')
                                 <span class="badge badge-warning">Pending</span>
                             @elseif($expense->status === 'approved')
@@ -166,18 +178,18 @@
                                 <span class="badge badge-danger">Rejected</span>
                             @endif
                         </td>
-                        <td>
+                        <td style="text-align: center; padding: 12px 16px; vertical-align: middle;">
                             @if($expense->bill_photo)
-                                <a href="{{ asset('storage/' . $expense->bill_photo) }}" target="_blank" class="text-brand-600 underline text-sm flex items-center gap-1">
-                                    <x-lucide-image class="w-4 h-4" /> View Bill
-                                </a>
+                                <button type="button" @click="lightboxImage = '{{ asset('storage/' . $expense->bill_photo) }}'; lightboxOpen = true;" class="inline-block w-16 h-12 rounded border border-slate-300 overflow-hidden hover:opacity-90 transition shadow-sm">
+                                    <img src="{{ asset('storage/' . $expense->bill_photo) }}" class="w-full h-full object-cover" alt="Bill Photo">
+                                </button>
                             @elseif($expense->is_system_generated)
                                 <span class="text-xs text-ink-400 italic">Odometer photos above</span>
                             @else
                                 <span class="text-xs text-ink-400 italic">No Photo</span>
                             @endif
                         </td>
-                        <td class="text-right font-bold text-ink-900">₹{{ number_format($expense->amount, 2) }}</td>
+                        <td style="text-align: right; padding: 12px 16px; font-weight: bold; vertical-align: middle;" class="text-ink-900">₹{{ number_format($expense->amount, 2) }}</td>
                     </tr>
                 @empty
                     <tr>
@@ -193,6 +205,7 @@
             <p class="text-sm text-ink-500 uppercase tracking-wider font-bold mb-1">Total (Approved & Auto)</p>
             <p class="text-3xl font-black text-brand-600">₹{{ number_format($totalAmount, 2) }}</p>
         </div>
+    </div>
     </div>
 </div>
 @endsection

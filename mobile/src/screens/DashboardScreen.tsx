@@ -2,6 +2,7 @@ import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useState, useCallback } from "react";
+import AppBottomBar from "../components/AppBottomBar";
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +29,7 @@ type MenuItem = {
 
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
+
   const { user, logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -107,40 +109,15 @@ export default function DashboardScreen() {
   const employeeMenu: MenuItem[] = [
     { label: "Activities", icon: "run-fast" },
     { label: "My Expense\nBill", icon: "receipt", onPress: () => navigation.navigate("ExpenseList") },
+    { label: "Expense\nSummary", icon: "chart-bar-stacked", onPress: () => navigation.navigate("ExpenseMonthlySummary") },
     { label: "Leave", icon: "calendar-remove-outline" },
     { label: "Product\nPlaning", icon: "chart-bar" },
     { label: "Coll.\nPlaning", icon: "briefcase-outline" },
     { label: "My Report", icon: "file-chart-outline" },
   ];
 
-  // ── Bottom tabs ─────────────────────────────────────────────────────────────
-  const bottomTabs = [
-    { key: "Home", label: "Home", icon: "home" as const, active: true },
-    {
-      key: "Track",
-      label: "Track",
-      icon: "crosshairs-gps" as const,
-      active: false,
-      onPress: () => navigation.navigate("Track"),
-    },
-    { key: "MIS", label: "MIS", icon: "chart-pie" as const, active: false },
-    {
-      key: "Task",
-      label: "Task",
-      icon: "checkbox-marked-outline" as const,
-      active: false,
-    },
-    {
-      key: "Calendar",
-      label: "Calendar",
-      icon: "calendar-month-outline" as const,
-      active: false,
-      onPress: () => navigation.navigate("Calendar"),
-    },
-  ];
-
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={styles.safe}>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerIcon}>
@@ -310,30 +287,7 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* ── Bottom Navigation ───────────────────────────────────────────────── */}
-      <View style={styles.bottomBar}>
-        {bottomTabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={styles.bottomTab}
-            activeOpacity={0.8}
-            onPress={tab.onPress}
-          >
-            <MaterialCommunityIcons
-              name={tab.icon}
-              size={24}
-              color={tab.active ? "#7367F0" : "#9ca3af"}
-            />
-            <Text
-              style={[
-                styles.bottomLabel,
-                tab.active && styles.bottomLabelActive,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <AppBottomBar activeKey="Home" />
     </SafeAreaView>
   );
 }
@@ -510,5 +464,28 @@ const styles = StyleSheet.create({
   bottomLabelActive: {
     color: PURPLE,
     fontWeight: "800",
+  },
+  comingSoonToast: {
+    position: "absolute",
+    bottom: "100%",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: PURPLE,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    marginBottom: 8,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 99,
+  },
+  comingSoonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

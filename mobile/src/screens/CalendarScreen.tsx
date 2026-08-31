@@ -33,9 +33,6 @@ export default function CalendarScreen() {
         activeKey="Calendar"
         onTabPress={(key) => {
           if (key === "Home") navigation.replace("Dashboard");
-          if (key === "Track") navigation.replace("Track");
-          if (key === "Reward") navigation.replace("Reward");
-          if (key === "Calendar") return;
         }}
       />
     </SafeAreaView>

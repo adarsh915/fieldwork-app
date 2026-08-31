@@ -29,6 +29,8 @@ class Customer extends Model
         'land_area',
         'latitude',
         'longitude',
+        'approval_status',
+        'submitted_by',
     ];
 
     protected $casts = [
@@ -41,10 +43,15 @@ class Customer extends Model
 
     // ── Relationships ──────────────────────────────────────────────────────────
 
-    /** Primary assigned user (legacy single-assignment) */
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** User who submitted this party request (field worker) */
+    public function submittedBy()
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
     }
 
     /** Currently active assignment from history table */
@@ -86,7 +93,7 @@ class Customer extends Model
 
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
+        return $query->where('customers.is_active', true);
     }
 
     public function scopeUnassigned($query)

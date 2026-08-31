@@ -193,8 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
 (function () {
     'use strict';
 
-    // ── Datalist for unit names ──────────────────────────────────────────────
-    const COMMON_UNITS = ['Piece','Box','Carton','Kg','Gram','Liter','ML','Pack','Dozen','Set','Pair','Roll','Sheet','Bag','Can','Bottle'];
+    const COMMON_UNITS = ['Piece','Gram','Kg','ML','Liter','Box','Carton','Pack','Dozen','Set','Pair','Roll','Sheet','Bag','Can','Bottle'];
 
     const body          = document.getElementById('unitsBody');
     const addBtn        = document.getElementById('addUnitBtn');
@@ -203,6 +202,40 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let rowIndex = 0;
 
+    // Helper to parse unit name (e.g. "100 Gram" -> { value: '100', type: 'Gram' })
+    function parseUnitName(unitName) {
+        if (!unitName) return { value: '', type: 'Piece' };
+        
+        const match = unitName.trim().match(/^([0-9.]+)\s*(.*)$/);
+        if (match) {
+            let val = match[1];
+            let type = match[2].trim();
+            type = normalizeUnitType(type);
+            return { value: val, type: type };
+        }
+        
+        return { value: '', type: normalizeUnitType(unitName.trim()) };
+    }
+
+    // Helper to normalize legacy or free-text unit type strings into standard COMMON_UNITS options
+    function normalizeUnitType(type) {
+        const lower = type.toLowerCase();
+        if (lower === 'gram' || lower === 'grams' || lower === 'g') return 'Gram';
+        if (lower === 'kg' || lower === 'kgs' || lower === 'kilogram' || lower === 'kilograms') return 'Kg';
+        if (lower === 'ml' || lower === 'mls' || lower === 'milliliter' || lower === 'milliliters') return 'ML';
+        if (lower === 'l' || lower === 'liter' || lower === 'liters' || lower === 'litre' || lower === 'litres') return 'Liter';
+        if (lower === 'piece' || lower === 'pieces' || lower === 'pcs' || lower === 'pc') return 'Piece';
+        if (lower === 'box' || lower === 'boxes') return 'Box';
+        if (lower === 'pack' || lower === 'packs' || lower === 'pkt' || lower === 'packet' || lower === 'packets') return 'Pack';
+        if (lower === 'carton' || lower === 'cartons') return 'Carton';
+        if (lower === 'bottle' || lower === 'bottles') return 'Bottle';
+        if (lower === 'can' || lower === 'cans') return 'Can';
+        if (lower === 'bag' || lower === 'bags') return 'Bag';
+        
+        // Capitalize first letter as fallback
+        return type.charAt(0).toUpperCase() + type.slice(1);
+    }
+
     // ── Add a unit row ────────────────────────────────────────────────────────
     function addRow(unitName = '', price = '', isDefault = false) {
         const idx = rowIndex++;
@@ -210,17 +243,30 @@ document.addEventListener('DOMContentLoaded', function () {
         tr.className = 'unit-row hover:bg-slate-50 transition';
         tr.dataset.idx = idx;
 
-        const unitOptions = COMMON_UNITS.map(u => `<option value="${u}">`).join('');
+        const parsed = parseUnitName(unitName);
+        const unitOptions = COMMON_UNITS.map(u => `<option value="${u}">${u}</option>`).join('');
 
         tr.innerHTML = `
             <td class="px-4 py-3">
-                <input type="text"
-                       name="units[${idx}][unit_name]"
-                       value="${escHtml(unitName)}"
-                       class="form-input"
-                       placeholder="e.g., Box"
-                       list="unitDatalist"
-                       required>
+                <div class="flex items-center gap-2">
+                    {{-- Quantity/Size input --}}
+                    <input type="number"
+                           class="form-input w-24 unit-value-input"
+                           placeholder="e.g. 100"
+                           min="0"
+                           step="any">
+                    
+                    {{-- Unit Type dropdown select --}}
+                    <select class="form-input flex-1 unit-type-select">
+                        ${unitOptions}
+                    </select>
+
+                    {{-- Hidden input containing the combined unit name --}}
+                    <input type="hidden"
+                           name="units[${idx}][unit_name]"
+                           class="unit-name-hidden"
+                           required>
+                </div>
             </td>
             <td class="px-4 py-3">
                 <div class="relative">
@@ -237,9 +283,9 @@ document.addEventListener('DOMContentLoaded', function () {
             </td>
             <td class="px-4 py-3 text-center">
                 <button type="button"
-                        class="default-btn inline-flex h-7 w-7 items-center justify-center rounded-full border-2 transition
-                               ${isDefault ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-300 bg-white text-transparent'}"
-                        title="Set as default">
+                         class="default-btn inline-flex h-7 w-7 items-center justify-center rounded-full border-2 transition
+                                ${isDefault ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-300 bg-white text-transparent'}"
+                         title="Set as default">
                     ✓
                 </button>
             </td>
@@ -250,6 +296,38 @@ document.addEventListener('DOMContentLoaded', function () {
                 </button>
             </td>
         `;
+
+        const valInput = tr.querySelector('.unit-value-input');
+        const typeSelect = tr.querySelector('.unit-type-select');
+        
+        // Populate inputs
+        valInput.value = parsed.value;
+        
+        // Check if options list includes the parsed type, otherwise append it
+        let hasOption = Array.from(typeSelect.options).some(o => o.value === parsed.type);
+        if (!hasOption) {
+            const opt = document.createElement('option');
+            opt.value = parsed.type;
+            opt.textContent = parsed.type;
+            typeSelect.appendChild(opt);
+        }
+        typeSelect.value = parsed.type;
+
+        // Auto-update hidden combined name
+        const updateFn = () => {
+            const val = valInput.value.trim();
+            const type = typeSelect.value;
+            const hidden = tr.querySelector('.unit-name-hidden');
+            if (val === '' || val === '1') {
+                hidden.value = type;
+            } else {
+                hidden.value = val + ' ' + type;
+            }
+        };
+
+        valInput.addEventListener('input', updateFn);
+        typeSelect.addEventListener('change', updateFn);
+        updateFn(); // Initial set
 
         // Set as default
         tr.querySelector('.default-btn').addEventListener('click', function () {
@@ -303,14 +381,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
-    // ── Datalist element (shared) ─────────────────────────────────────────
-    (function buildDatalist() {
-        const dl = document.createElement('datalist');
-        dl.id = 'unitDatalist';
-        COMMON_UNITS.forEach(u => { const opt = document.createElement('option'); opt.value = u; dl.appendChild(opt); });
-        document.body.appendChild(dl);
-    })();
-
     // ── Wire events ───────────────────────────────────────────────────────
     addBtn.addEventListener('click', () => addRow('', '', rowIndex === 0));
 
@@ -330,7 +400,7 @@ document.addEventListener('DOMContentLoaded', function () {
             );
         @endforeach
     @else
-        addRow('Piece', '', true);   // sensible default first row
+        addRow('1 Piece', '', true);   // sensible default first row
     @endif
 
     syncNoUnitsMsg();

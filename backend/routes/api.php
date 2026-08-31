@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DayController;
 use App\Http\Controllers\Api\MasterController;
+use App\Http\Controllers\Api\PartyController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -59,7 +60,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Expenses
     Route::prefix('expenses')->name('api.expenses.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\ExpenseController::class, 'index'])->name('index');
+        Route::get('/monthly-summary', [\App\Http\Controllers\Api\ExpenseController::class, 'monthlySummary'])->name('monthly-summary');
+        Route::get('/statement', [\App\Http\Controllers\Api\ExpenseController::class, 'statement'])->name('statement');
         Route::get('/categories', [\App\Http\Controllers\Api\ExpenseController::class, 'categories'])->name('categories');
         Route::post('/', [\App\Http\Controllers\Api\ExpenseController::class, 'store'])->name('store');
     });
+
+    // Parties (field worker: view assigned + submit new)
+    Route::get('/parties',  [PartyController::class, 'index'])->name('api.parties.index');
+    Route::post('/parties', [PartyController::class, 'store'])->name('api.parties.store');
 });

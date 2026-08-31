@@ -14,15 +14,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenHeader from "../components/ScreenHeader";
 
 import ProductSelectionModal from "./ProductSelectionModal";
 import { submitOrder, OrderPayload, OrderItemPayload } from "../api/order";
 import { getProducts, Product, ProductUnit } from "../api/product";
 import type { AppStackParamList } from "../navigation/RootNavigator";
 
-type Nav = NativeStackNavigationProp<AppStackParamList, "Order">;
-type RouteType = RouteProp<AppStackParamList, "Order">;
+type OrderScreenRouteProp = RouteProp<
+  { Order: { visitId: number; partyId: number } },
+  "Order"
+>;
 
 export interface CartItem {
   product: Product;
@@ -31,11 +33,11 @@ export interface CartItem {
 }
 
 export default function OrderScreen() {
-  const navigation = useNavigation<Nav>();
-  const route = useRoute<RouteType>();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const route = useRoute<OrderScreenRouteProp>();
   const { visitId, partyId } = route.params;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -48,8 +50,8 @@ export default function OrderScreen() {
   const [dispatchDate, setDispatchDate] = useState("");
   const [remarks, setRemarks] = useState("");
   const [schema, setSchema] = useState("");
-  const [orderType, setOrderType] = useState("Sales Order");
-  const [paymentMode, setPaymentMode] = useState("Cash");
+  const [orderType, setOrderType] = useState("Standard");
+  const [paymentMode, setPaymentMode] = useState("Credit");
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -64,19 +66,18 @@ export default function OrderScreen() {
         setLoading(false);
       }
     };
-
     fetchProducts();
   }, []);
 
-  const handleAddToCart = (item: CartItem) => {
+  const handleAddProduct = (item: CartItem) => {
     setCart((prev) => {
-      const existing = prev.findIndex(
+      const existingIndex = prev.findIndex(
         (c) => c.product.id === item.product.id && c.unit.id === item.unit.id,
       );
-      if (existing >= 0) {
-        const newCart = [...prev];
-        newCart[existing].quantity += item.quantity;
-        return newCart;
+      if (existingIndex > -1) {
+        const updated = [...prev];
+        updated[existingIndex].quantity += item.quantity;
+        return updated;
       }
       return [...prev, item];
     });
@@ -103,7 +104,7 @@ export default function OrderScreen() {
     }
 
     setSubmitting(true);
-    const payload: OrderPayload = {
+    const payload: any = {
       visit_id: visitId,
       party_id: partyId,
       delivery_destination: deliveryDestination,
@@ -138,34 +139,25 @@ export default function OrderScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
+        <ScreenHeader title="New Order" onBack={() => navigation.goBack()} />
         <ActivityIndicator
           size="large"
           color="#7367F0"
           style={{ marginTop: 40 }}
         />
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerIconBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>New Order</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
+    <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
+      <ScreenHeader title="New Order" onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Selected Products Section */}
           <View style={styles.card}>
@@ -322,39 +314,38 @@ export default function OrderScreen() {
             />
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      {/* Footer Submit */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.submitBtn,
-            (cart.length === 0 || submitting) && { opacity: 0.7 },
-          ]}
-          onPress={handleSubmit}
-          disabled={cart.length === 0 || submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitBtnText}>Submit Order</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+        {/* Footer Submit */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.submitBtn,
+              (cart.length === 0 || submitting) && { opacity: 0.7 },
+            ]}
+            onPress={handleSubmit}
+            disabled={cart.length === 0 || submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitBtnText}>Submit Order</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
 
       {/* Modals */}
       <ProductSelectionModal
         visible={showProductModal}
         onClose={() => setShowProductModal(false)}
         products={products}
-        onAddToCart={handleAddToCart}
+        onAddToCart={handleAddProduct}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
     backgroundColor: "#7367F0",
     paddingHorizontal: 14,
@@ -362,13 +353,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
   headerTitle: {
     flex: 1,
     textAlign: "center",
@@ -376,7 +361,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
   },
-  scrollContent: { padding: 14, paddingBottom: 100 },
+  scrollContent: { padding: 14, paddingBottom: 20 },
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -461,10 +446,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: "600", color: "#4b5563" },
   chipTextActive: { color: "#7367F0" },
   footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: "#fff",
     padding: 16,
     borderTopWidth: 1,

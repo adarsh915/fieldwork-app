@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 /**
@@ -62,74 +63,124 @@ class DayController extends Controller
      */
     public function start(Request $request): JsonResponse
     {
-        $user  = $request->user();
-        $today = Carbon::today()->toDateString();
-
-        // Prevent duplicate day start
-        $existing = DayStart::where('user_id', $user->id)->where('date', $today)->first();
-        if ($existing) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Day already started for today.',
-                'data'    => $existing,
-            ], 409);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'tour_purpose_id' => 'required|exists:tour_purposes,id',
-            'tour_type_id'    => 'required|exists:tour_types,id',
-            'vehicle_type_id' => 'required|exists:vehicle_types,id',
-            'vehicle_no'      => 'nullable|string|max:20',
-            'opening_km'      => 'nullable|numeric|min:0',
-            'opening_km_photo' => 'nullable|image|max:5120', // max 5MB
-            'party_ids'       => 'nullable|array',
-            'party_ids.*'     => 'exists:customers,id',
-            'visit_place'     => 'nullable|string|max:500',
-            'start_latitude'  => 'nullable|numeric',
-            'start_longitude' => 'nullable|numeric',
+        Log::info('Start Day API request received', [
+            'user_id' => $request->user()?->id,
+            'ip' => $request->ip(),
+            'payload' => $request->except(['opening_km_photo']),
+            'has_opening_km_photo' => $request->hasFile('opening_km_photo'),
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        // Handle opening KM image upload
-        $imagePath = null;
         if ($request->hasFile('opening_km_photo')) {
-            $imagePath = $request->file('opening_km_photo')
-                ->store('day-starts/km-images', 'public');
+            $file = $request->file('opening_km_photo');
+            Log::info('Opening KM photo file details', [
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size_bytes' => $file->getSize(),
+                'error_code' => $file->getError(),
+                'is_valid' => $file->isValid(),
+            ]);
         }
 
-        $partyId = $request->filled('party_ids') && count($request->party_ids) > 0 ? $request->party_ids[0] : null;
+        try {
+            $user  = $request->user();
+            $today = Carbon::today()->toDateString();
 
-        $dayStart = DayStart::create([
-            'user_id'          => $user->id,
-            'date'             => $today,
-            'tour_purpose_id'  => $request->tour_purpose_id,
-            'tour_type_id'     => $request->tour_type_id,
-            'vehicle_type_id'  => $request->vehicle_type_id,
-            'vehicle_no'       => $request->vehicle_no,
-            'opening_km'       => $request->opening_km,
-            'opening_km_photo' => $imagePath,
-            'party_id'         => $partyId,
-            'visit_place'      => $request->visit_place,
-            'start_latitude'   => $request->start_latitude,
-            'start_longitude'  => $request->start_longitude,
-            'start_time'       => Carbon::now()->toTimeString(),
-            'status'           => 'pending',
-        ]);
+            // Prevent duplicate day start
+            $existing = DayStart::where('user_id', $user->id)->where('date', $today)->first();
+            if ($existing) {
+                Log::warning('Day already started for today', [
+                    'user_id' => $user->id,
+                    'day_start_id' => $existing->id,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Day already started for today.',
+                    'data'    => $existing,
+                ], 409);
+            }
 
-        $dayStart->load(['tourPurpose:id,name', 'tourType:id,name', 'vehicleType:id,name']);
+            $validator = Validator::make($request->all(), [
+                'tour_purpose_id' => 'required|exists:tour_purposes,id',
+                'tour_type_id'    => 'required|exists:tour_types,id',
+                'vehicle_type_id' => 'required|exists:vehicle_types,id',
+                'vehicle_no'      => 'nullable|string|max:20',
+                'opening_km'      => 'nullable|numeric|min:0',
+                'opening_km_photo' => 'nullable|image|max:20480', // max 20MB
+                'party_ids'       => 'nullable|array',
+                'party_ids.*'     => 'exists:customers,id',
+                'visit_place'     => 'nullable|string|max:500',
+                'start_latitude'  => 'nullable|numeric',
+                'start_longitude' => 'nullable|numeric',
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Day started successfully!',
-            'data'    => $dayStart,
-        ], 201);
+            if ($validator->fails()) {
+                Log::warning('Day start validation failed', [
+                    'user_id' => $user->id,
+                    'errors' => $validator->errors()->toArray(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors(),
+                ], 422);
+            }
+
+            // Handle opening KM image upload
+            $imagePath = null;
+            if ($request->hasFile('opening_km_photo')) {
+                Log::info('Storing opening KM photo');
+                $imagePath = $request->file('opening_km_photo')
+                    ->store('day-starts/km-images', 'public');
+                Log::info('Opening KM photo stored', ['path' => $imagePath]);
+            }
+
+            $partyId = $request->filled('party_ids') && count($request->party_ids) > 0 ? $request->party_ids[0] : null;
+
+            Log::info('Creating DayStart record in database', [
+                'user_id' => $user->id,
+                'date' => $today,
+                'opening_km' => $request->opening_km,
+            ]);
+
+            $dayStart = DayStart::create([
+                'user_id'          => $user->id,
+                'date'             => $today,
+                'tour_purpose_id'  => $request->tour_purpose_id,
+                'tour_type_id'     => $request->tour_type_id,
+                'vehicle_type_id'  => $request->vehicle_type_id,
+                'vehicle_no'       => $request->vehicle_no,
+                'opening_km'       => $request->opening_km,
+                'opening_km_photo' => $imagePath,
+                'party_id'         => $partyId,
+                'visit_place'      => $request->visit_place,
+                'start_latitude'   => $request->start_latitude,
+                'start_longitude'  => $request->start_longitude,
+                'start_time'       => Carbon::now()->toTimeString(),
+                'status'           => 'pending',
+            ]);
+
+            Log::info('DayStart record created successfully', ['id' => $dayStart->id]);
+
+            $dayStart->load(['tourPurpose:id,name', 'tourType:id,name', 'vehicleType:id,name']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Day started successfully!',
+                'data'    => $dayStart,
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('Exception in Start Day API', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal server error. Please try again later.',
+            ], 500);
+        }
     }
 
     /**
@@ -153,7 +204,7 @@ class DayController extends Controller
 
         $validator = Validator::make($request->all(), [
             'closing_km'       => 'nullable|numeric|min:0',
-            'closing_km_photo' => 'nullable|image|max:5120',
+            'closing_km_photo' => 'nullable|image|max:20480',
             'remarks'          => 'nullable|string|max:1000',
         ]);
 

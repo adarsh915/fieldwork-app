@@ -39,6 +39,8 @@ class PartyUpdateRequest extends FormRequest
             'latitude'        => ['nullable', 'numeric', 'between:-90,90'],
             'longitude'       => ['nullable', 'numeric', 'between:-180,180'],
             'land_area'       => ['nullable', 'string', 'max:100'],
+            'employee_ids'    => ['nullable', 'array'],
+            'employee_ids.*'  => ['exists:users,id'],
         ];
     }
 

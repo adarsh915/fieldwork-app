@@ -20,6 +20,7 @@ import { useAuth } from "../auth/AuthContext";
 
 // Screens
 import CalendarScreen from "../screens/CalendarScreen";
+import AddPartyScreen from "../screens/AddPartyScreen";
 import DashboardScreen from "../screens/DashboardScreen";
 import DayEndScreen from "../screens/DayEndScreen";
 import DayStartScreen from "../screens/DayStartScreen";
@@ -34,6 +35,7 @@ import SplashScreen from "../screens/SplashScreen";
 import TrackScreen from "../screens/TrackScreen";
 import VisitScreen from "../screens/VisitScreen";
 import ExpenseListScreen from "../screens/ExpenseListScreen";
+import ExpenseMonthlySummaryScreen from "../screens/ExpenseMonthlySummaryScreen";
 import AddExpenseScreen from "../screens/AddExpenseScreen";
 
 export type RootStackParamList = {
@@ -56,7 +58,10 @@ export type RootStackParamList = {
   Reward: undefined;
   Calendar: undefined;
   ExpenseList: undefined;
+  ExpenseMonthlySummary: undefined;
+  ExpenseStatement: { month: string };
   AddExpense: undefined;
+  AddParty: undefined;
   // Admin screens (future)
   AdminDashboard: undefined;
   EmployeeList: undefined;
@@ -88,7 +93,10 @@ export type AppStackParamList = {
   Reward: undefined;
   Calendar: undefined;
   ExpenseList: undefined;
+  ExpenseMonthlySummary: undefined;
+  ExpenseStatement: { month: string };
   AddExpense: undefined;
+  AddParty: undefined;
 };
 
 // ─── Stacks ────────────────────────────────────────────────────────────────────
@@ -123,7 +131,10 @@ function AppNavigator() {
       <AppStack.Screen name="Reward" component={RewardScreen} />
       <AppStack.Screen name="Calendar" component={CalendarScreen} />
       <AppStack.Screen name="ExpenseList" component={ExpenseListScreen} />
+      <AppStack.Screen name="ExpenseMonthlySummary" component={ExpenseMonthlySummaryScreen} />
+      <AppStack.Screen name="ExpenseStatement" component={require('../screens/ExpenseStatementScreen').default} />
       <AppStack.Screen name="AddExpense" component={AddExpenseScreen} />
+      <AppStack.Screen name="AddParty" component={AddPartyScreen} />
     </AppStack.Navigator>
   );
 }

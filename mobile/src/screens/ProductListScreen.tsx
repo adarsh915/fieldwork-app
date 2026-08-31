@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import ScreenHeader from "../components/ScreenHeader";
 import { getProducts, type Product } from "../api/product";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -62,28 +63,16 @@ export default function ProductListScreen() {
   }, [products, query]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerIconBtn}
-          activeOpacity={0.8}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back-ios-new" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>Product List</Text>
-
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.8}>
-            <MaterialIcons
-              name="notifications-none"
-              size={24}
-              color="#FFFFFF"
-            />
+    <View style={{ flex: 1, backgroundColor: "#EDEDED" }}>
+      <ScreenHeader
+        title="Product List"
+        onBack={() => navigation.goBack()}
+        rightElement={
+          <TouchableOpacity style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+            <MaterialIcons name="notifications-none" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
-      </View>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.searchWrap}>
@@ -149,7 +138,7 @@ export default function ProductListScreen() {
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

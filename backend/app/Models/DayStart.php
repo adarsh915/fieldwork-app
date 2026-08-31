@@ -47,4 +47,9 @@ class DayStart extends Model
     public function places() { return $this->hasMany(DayStartPlace::class); }
     public function parties() { return $this->hasMany(DayStartParty::class); }
 
+    public function expenses()
+    {
+        return $this->hasMany(ExpenseBill::class);
+    }
+
 }

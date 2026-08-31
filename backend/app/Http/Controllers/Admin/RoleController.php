@@ -8,6 +8,8 @@ use App\Http\Requests\Admin\Role\UpdateRoleRequest;
 use App\Http\Requests\Admin\Permission\StorePermissionRequest;
 use App\Services\RoleService;
 use App\Services\PermissionService;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
 
 /**
  * RoleController handles role and permission management for Super Admin
@@ -35,7 +37,7 @@ class RoleController extends Controller
     public function index()
     {
         // Authorization check
-        $this->authorize('viewAny', \Spatie\Permission\Models\Role::class);
+        $this->authorize('viewAny', Role::class);
 
         // Get data from services
         $roles = $this->roleService->getAllRoles();
@@ -50,7 +52,7 @@ class RoleController extends Controller
     public function create()
     {
         // Authorization check
-        $this->authorize('create', \Spatie\Permission\Models\Role::class);
+        $this->authorize('create', Role::class);
 
         $permissions = $this->permissionService->getAllPermissions();
         
@@ -132,7 +134,7 @@ class RoleController extends Controller
     public function createPermission()
     {
         // Authorization check
-        $this->authorize('create', \Spatie\Permission\Models\Permission::class);
+        $this->authorize('create', Permission::class);
 
         return view('admin.roles.create-permission');
     }
@@ -157,7 +159,7 @@ class RoleController extends Controller
     public function destroyPermission($id)
     {
         // Authorization check
-        $this->authorize('delete', \Spatie\Permission\Models\Permission::class);
+        $this->authorize('delete', Permission::class);
 
         $this->permissionService->deletePermission($id);
 

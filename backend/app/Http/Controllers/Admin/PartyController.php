@@ -47,7 +47,7 @@ class PartyController extends Controller
         $this->authorize('viewAny', Customer::class);
 
         $query = Customer::query()
-            ->with(['activeAssignment.employee', 'auditLogs' => function($q) {
+            ->with(['activeAssignment.employee', 'submittedBy', 'auditLogs' => function($q) {
                 $q->latest()->limit(1);
             }])
             ->select('customers.*');
@@ -65,8 +65,13 @@ class PartyController extends Controller
         }
 
         if ($request->filled('employee_id')) {
-            $query->whereHas('activeAssignment', function ($q) use ($request) {
-                $q->where('employee_id', $request->employee_id);
+            $empId = $request->employee_id;
+            $query->where(function ($q) use ($empId) {
+                $q->whereHas('assignments', function ($sq) use ($empId) {
+                    $sq->where('employee_id', $empId)->where('is_active', true);
+                })->orWhere(function ($sq) use ($empId) {
+                    $sq->where('submitted_by', $empId)->where('approval_status', 'pending');
+                });
             });
         }
 
@@ -79,7 +84,15 @@ class PartyController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
+            if ($request->status === 'pending') {
+                $query->where('approval_status', 'pending');
+            } elseif ($request->status === 'rejected') {
+                $query->where('approval_status', 'rejected');
+            } elseif ($request->status === 'active') {
+                $query->where('approval_status', 'approved')->where('is_active', true);
+            } elseif ($request->status === 'inactive') {
+                $query->where('approval_status', 'approved')->where('is_active', false);
+            }
         }
 
         return DataTables::of($query)
@@ -89,6 +102,7 @@ class PartyController extends Controller
                     'party_code' => $party->party_code ?? '—',
                     'name' => $party->name,
                     'city' => $party->city ?? '—',
+                    'submitted_by_name' => $party->submittedBy ? $party->submittedBy->name : null,
                 ];
             })
             ->addColumn('contact', function ($party) {
@@ -112,6 +126,12 @@ class PartyController extends Controller
                 ];
             })
             ->addColumn('status', function ($party) {
+                if ($party->approval_status === 'pending') {
+                    return 'pending';
+                }
+                if ($party->approval_status === 'rejected') {
+                    return 'rejected';
+                }
                 return $party->is_active ? 'active' : 'inactive';
             })
             ->addColumn('actions', function ($party) {
@@ -120,6 +140,9 @@ class PartyController extends Controller
                     'edit' => route('admin.parties.edit', $party->id),
                     'history' => route('admin.parties.assignment-history', $party->id),
                     'delete' => route('admin.parties.destroy', $party->id),
+                    'approve' => route('admin.parties.approve', $party->id),
+                    'reject' => route('admin.parties.reject', $party->id),
+                    'approval_status' => $party->approval_status,
                     'can_edit' => auth()->user()->can('update', $party),
                     'can_delete' => auth()->user()->can('delete', $party),
                 ];
@@ -133,7 +156,7 @@ class PartyController extends Controller
      */
     public function show($id)
     {
-        $party = Customer::with(['user', 'transactions', 'visits.user', 'orders.items.product'])->findOrFail($id);
+        $party = Customer::with(['activeAssignment.employee', 'transactions', 'visits.user', 'orders.items.product'])->findOrFail($id);
         
         $purchasedProducts = $party->orders->flatMap->items
             ->groupBy('product_id')
@@ -366,17 +389,37 @@ class PartyController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'      => ['required', 'string', 'max:255'],
-            'mobile'    => ['nullable', 'string', 'max:20'],
-            'email'     => ['nullable', 'email', 'max:255'],
-            'address'   => ['nullable', 'string', 'max:1000'],
-            'user_id'   => ['nullable', 'integer', 'exists:users,id'],
-            'land_area' => ['nullable', 'string', 'max:100'],
-            'latitude'  => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'name'         => ['required', 'string', 'max:255'],
+            'mobile'       => ['nullable', 'string', 'max:20'],
+            'email'        => ['nullable', 'email', 'max:255'],
+            'address'      => ['nullable', 'string', 'max:1000'],
+            'user_id'      => ['nullable', 'integer', 'exists:users,id'],
+            'land_area'    => ['nullable', 'string', 'max:100'],
+            'latitude'     => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude'    => ['nullable', 'numeric', 'between:-180,180'],
+            'is_active'    => ['nullable', 'boolean'],
+            'employee_ids' => ['nullable', 'array'],
+            'employee_ids.*' => ['exists:users,id'],
         ]);
 
-        $party = Customer::create($validated);
+        $validated['is_active'] = $request->boolean('is_active', true);
+
+        $party = Customer::create(array_filter($validated, function ($k) {
+            return $k !== 'employee_ids';
+        }, ARRAY_FILTER_USE_KEY));
+
+        // Sync employee assignments
+        $employeeIds = $request->input('employee_ids', []);
+        foreach ($employeeIds as $empId) {
+            $assignment = PartyEmployeeMap::create([
+                'party_id' => $party->id,
+                'employee_id' => $empId,
+                'assigned_by' => auth()->id() ?? 1,
+                'assigned_at' => now(),
+                'is_active' => true,
+            ]);
+            event(new PartyAssigned($party, $assignment, auth()->user()));
+        }
 
         return redirect()->route('admin.parties.index')
             ->with('status', 'Party "' . $party->name . '" created successfully!');
@@ -414,6 +457,55 @@ class PartyController extends Controller
         ]);
 
         $party->update($request->validated());
+
+        // If it was pending, auto-approve it upon saving
+        if ($party->approval_status === 'pending') {
+            $party->update([
+                'approval_status' => 'approved',
+                'is_active' => true,
+            ]);
+
+            // Activate their assignment to the worker who submitted it
+            PartyEmployeeMap::where('party_id', $party->id)
+                ->where('employee_id', $party->submitted_by)
+                ->update([
+                    'is_active' => true,
+                    'assigned_by' => auth()->id() ?? 1,
+                    'assigned_at' => now(),
+                ]);
+        }
+
+        // Sync employee assignments
+        $newEmployeeIds = $request->input('employee_ids', []);
+        
+        // Deactivate assignments that are no longer selected
+        PartyEmployeeMap::where('party_id', $party->id)
+            ->where('is_active', true)
+            ->whereNotIn('employee_id', $newEmployeeIds)
+            ->update([
+                'is_active' => false,
+                'unassigned_at' => now(),
+            ]);
+
+        // Get currently active employee IDs to avoid creating duplicates
+        $currentEmployeeIds = PartyEmployeeMap::where('party_id', $party->id)
+            ->where('is_active', true)
+            ->pluck('employee_id')
+            ->toArray();
+
+        // Create new assignments for newly selected employees
+        $employeesToAdd = array_diff($newEmployeeIds, $currentEmployeeIds);
+        
+        foreach ($employeesToAdd as $empId) {
+            $assignment = PartyEmployeeMap::create([
+                'party_id' => $party->id,
+                'employee_id' => $empId,
+                'assigned_by' => auth()->id() ?? 1,
+                'assigned_at' => now(),
+                'is_active' => true,
+            ]);
+            event(new PartyAssigned($party, $assignment, auth()->user()));
+        }
 
         $newValues = $party->only([
             'party_code', 'name', 'owner_name', 'mobile', 'email', 'address',
@@ -586,8 +678,8 @@ class PartyController extends Controller
         ];
 
         $rows = [
-            ['name', 'mobile', 'email', 'address', 'land_area', 'latitude', 'longitude', 'employee_email'],
-            ['ABC Traders',      '9876543210', 'abc@example.com', '123 MG Road', '500 sqft', '19.0760', '72.8777', 'employee@company.com'],
+            ['party_code', 'name', 'owner_name', 'mobile', 'email', 'address', 'city', 'state', 'pincode', 'party_type', 'category', 'credit_limit', 'credit_days', 'opening_balance', 'is_active', 'land_area', 'latitude', 'longitude', 'employee_email'],
+            ['PTY-001', 'ABC Traders', 'John Doe', '9876543210', 'abc@example.com', '123 MG Road', 'Mumbai', 'Maharashtra', '400001', 'Retailer', 'A', '50000', '30', '1500', '1', '500 sqft', '19.0760', '72.8777', 'employee@company.com'],
         ];
 
         $callback = function () use ($rows) {
@@ -652,13 +744,24 @@ class PartyController extends Controller
                 if ($name === '') continue;
 
                 $attributes = [
-                    'name'      => $name,
-                    'mobile'    => ($data['mobile'] ?? '') !== '' ? $data['mobile'] : null,
-                    'email'     => ($data['email'] ?? '') !== '' ? $data['email'] : null,
-                    'address'   => ($data['address'] ?? '') !== '' ? $data['address'] : null,
-                    'land_area' => ($data['land_area'] ?? '') !== '' ? $data['land_area'] : null,
-                    'latitude'  => ($data['latitude'] ?? '') !== '' ? (float) $data['latitude'] : null,
-                    'longitude' => ($data['longitude'] ?? '') !== '' ? (float) $data['longitude'] : null,
+                    'party_code'      => ($data['party_code'] ?? '') !== '' ? $data['party_code'] : null,
+                    'name'            => $name,
+                    'owner_name'      => ($data['owner_name'] ?? '') !== '' ? $data['owner_name'] : null,
+                    'mobile'          => ($data['mobile'] ?? '') !== '' ? $data['mobile'] : null,
+                    'email'           => ($data['email'] ?? '') !== '' ? $data['email'] : null,
+                    'address'         => ($data['address'] ?? '') !== '' ? $data['address'] : null,
+                    'city'            => ($data['city'] ?? '') !== '' ? $data['city'] : null,
+                    'state'           => ($data['state'] ?? '') !== '' ? $data['state'] : null,
+                    'pincode'         => ($data['pincode'] ?? '') !== '' ? $data['pincode'] : null,
+                    'party_type'      => ($data['party_type'] ?? '') !== '' ? $data['party_type'] : null,
+                    'category'        => ($data['category'] ?? '') !== '' ? $data['category'] : null,
+                    'credit_limit'    => ($data['credit_limit'] ?? '') !== '' ? (float) $data['credit_limit'] : null,
+                    'credit_days'     => ($data['credit_days'] ?? '') !== '' ? (int) $data['credit_days'] : null,
+                    'opening_balance' => ($data['opening_balance'] ?? '') !== '' ? (float) $data['opening_balance'] : null,
+                    'is_active'       => ($data['is_active'] ?? '') !== '' ? (bool) $data['is_active'] : true,
+                    'land_area'       => ($data['land_area'] ?? '') !== '' ? $data['land_area'] : null,
+                    'latitude'        => ($data['latitude'] ?? '') !== '' ? (float) $data['latitude'] : null,
+                    'longitude'       => ($data['longitude'] ?? '') !== '' ? (float) $data['longitude'] : null,
                 ];
 
                 $userId = $globalEmployeeId;
@@ -683,10 +786,29 @@ class PartyController extends Controller
                         continue;
                     }
                     $existing->update($attributes);
+                    $partyId = $existing->id;
                     $updated++;
                 } else {
-                    Customer::create($attributes);
+                    $newParty = Customer::create($attributes);
+                    $partyId = $newParty->id;
                     $created++;
+                }
+
+                if ($userId) {
+                    $currentAssignment = PartyEmployeeMap::where('party_id', $partyId)
+                        ->where('is_active', true)
+                        ->first();
+                        
+                    if (!$currentAssignment || $currentAssignment->employee_id !== $userId) {
+                        PartyEmployeeMap::where('party_id', $partyId)->update(['is_active' => false]);
+                        PartyEmployeeMap::create([
+                            'party_id' => $partyId,
+                            'employee_id' => $userId,
+                            'assigned_by' => auth()->id() ?? 1,
+                            'assigned_at' => now(),
+                            'is_active' => true,
+                        ]);
+                    }
                 }
             }
             DB::commit();
@@ -699,5 +821,80 @@ class PartyController extends Controller
         return redirect()->route('admin.parties.bulk-import')
             ->with('import_result', ['created' => $created, 'updated' => $updated, 'skipped' => $skipped, 'errors' => $rowErrors])
             ->with('status', "Import complete — {$created} created, {$updated} updated, {$skipped} skipped.");
+    }
+
+    /**
+     * Approve a pending party submitted by a field worker.
+     */
+    public function approve($id)
+    {
+        $party = Customer::findOrFail($id);
+        $this->authorize('update', $party);
+
+        if ($party->approval_status !== 'pending') {
+            return response()->json(['success' => false, 'message' => 'This party is not pending approval.'], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Update party status
+            $party->update([
+                'approval_status' => 'approved',
+                'is_active' => true,
+            ]);
+
+            // Activate their assignment to the worker who submitted it
+            PartyEmployeeMap::where('party_id', $party->id)
+                ->where('employee_id', $party->submitted_by)
+                ->update([
+                    'is_active' => true,
+                    'assigned_by' => auth()->id() ?? 1,
+                    'assigned_at' => now(),
+                ]);
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'message' => 'Party approved successfully.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Failed to approve party.'], 500);
+        }
+    }
+
+    /**
+     * Reject a pending party submitted by a field worker.
+     */
+    public function reject($id)
+    {
+        $party = Customer::findOrFail($id);
+        $this->authorize('update', $party);
+
+        if ($party->approval_status !== 'pending') {
+            return response()->json(['success' => false, 'message' => 'This party is not pending approval.'], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Update party status
+            $party->update([
+                'approval_status' => 'rejected',
+                'is_active' => false,
+            ]);
+
+            // Deactivate assignment
+            PartyEmployeeMap::where('party_id', $party->id)
+                ->where('employee_id', $party->submitted_by)
+                ->update([
+                    'is_active' => false,
+                    'unassigned_at' => now(),
+                ]);
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'message' => 'Party rejected successfully.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Failed to reject party.'], 500);
+        }
     }
 }

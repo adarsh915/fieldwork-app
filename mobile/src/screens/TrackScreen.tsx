@@ -26,12 +26,9 @@ export default function TrackScreen() {
       </View>
 
       <AppBottomBar
-        activeKey="Track"
+        activeKey="Home"
         onTabPress={(key) => {
           if (key === "Home") navigation.replace("Dashboard");
-          if (key === "Track") return;
-          if (key === "Reward") navigation.replace("Reward");
-          if (key === "Calendar") navigation.replace("Calendar");
         }}
       />
     </SafeAreaView>

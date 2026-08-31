@@ -11,7 +11,21 @@
  * └──────────────────────────────────────────────────────────────┘
  */
 
-export const API_BASE_URL = "http://192.168.1.12:8000";
+// =====================================================================
+// UNCOMMENT ONLY ONE OF THE FOLLOWING DEPENDING ON YOUR CURRENT SETUP:
+// =====================================================================
+
+import { Platform } from "react-native";
+
+/**
+ * API Base URL Configuration
+ *
+ * Automatically switches target backend host:
+ *  - Web Browser   → http://127.0.0.1:8000
+ *  - Mobile Device → EXPO_PUBLIC_API_URL or LAN IP (http://192.168.1.14:8000)
+ */
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ?? "http://192.168.1.14:8000";
 
 /** Laravel API prefix */
 export const API_PREFIX = "/api";

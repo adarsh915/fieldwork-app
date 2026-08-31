@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import ScreenHeader from "../components/ScreenHeader";
 import { getMasterParties, type Party } from "../api/master";
 import AppBottomBar from "../components/AppBottomBar";
 import type { RootStackParamList } from "../navigation/RootNavigator";
@@ -25,17 +26,17 @@ const ACTIONS: {
   label: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }[] = [
-  { label: "Ledger", icon: "clipboard-text-outline" },
-  { label: "Visit", icon: "map-marker-outline" },
-  { label: "Order", icon: "cart-outline" },
-  { label: "Payment", icon: "currency-inr" },
-  { label: "Find Location", icon: "crosshairs-gps" },
-  { label: "Party History", icon: "history" },
-  { label: "Contact Dealer", icon: "account-box-outline" },
-  { label: "Add Reminder", icon: "alarm" },
-  { label: "History", icon: "file-document-outline" },
-  { label: "Bill", icon: "receipt" },
-];
+    { label: "Ledger", icon: "clipboard-text-outline" },
+    { label: "Visit", icon: "map-marker-outline" },
+    { label: "Order", icon: "cart-outline" },
+    { label: "Payment", icon: "currency-inr" },
+    { label: "Find Location", icon: "crosshairs-gps" },
+    { label: "Party History", icon: "history" },
+    { label: "Contact Dealer", icon: "account-box-outline" },
+    { label: "Add Reminder", icon: "alarm" },
+    { label: "History", icon: "file-document-outline" },
+    { label: "Bill", icon: "receipt" },
+  ];
 
 export default function DealerListScreen() {
   const navigation = useNavigation<Nav>();
@@ -80,31 +81,21 @@ export default function DealerListScreen() {
   }, [parties, query]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerIconBtn}
-          activeOpacity={0.8}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back-ios-new" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>Dealer List</Text>
-
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.8}>
-            <MaterialIcons
-              name="notifications-none"
-              size={24}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.8}>
-            <MaterialIcons name="access-time" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View style={{ flex: 1, backgroundColor: "#EDEDED" }}>
+      <ScreenHeader
+        title="Dealer List"
+        onBack={() => navigation.goBack()}
+        rightElement={
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <TouchableOpacity style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+              <MaterialIcons name="notifications-none" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+              <MaterialIcons name="access-time" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.searchWrap}>
@@ -177,18 +168,28 @@ export default function DealerListScreen() {
               <View style={styles.dealerAccent} />
               <View style={styles.dealerBody}>
                 <View style={styles.dealerHeaderRow}>
-                  <Text style={styles.dealerTitle}>{dealer.name}</Text>
-                  <TouchableOpacity
-                    style={styles.menuBtn}
-                    activeOpacity={0.85}
-                    onPress={() => setMenuDealer(dealer)}
-                  >
-                    <MaterialCommunityIcons
-                      name="dots-vertical"
-                      size={18}
-                      color="#7367F0"
-                    />
-                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.dealerTitle}>{dealer.name}</Text>
+                    {dealer.approval_status === "pending" && (
+                      <View style={styles.pendingBadge}>
+                        <MaterialCommunityIcons name="clock-outline" size={10} color="#D97706" />
+                        <Text style={styles.pendingBadgeText}>Pending Approval</Text>
+                      </View>
+                    )}
+                  </View>
+                  {dealer.approval_status !== "pending" && (
+                    <TouchableOpacity
+                      style={styles.menuBtn}
+                      activeOpacity={0.85}
+                      onPress={() => setMenuDealer(dealer)}
+                    >
+                      <MaterialCommunityIcons
+                        name="dots-vertical"
+                        size={18}
+                        color="#7367F0"
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {dealer.mobile ? (
@@ -229,7 +230,7 @@ export default function DealerListScreen() {
       <TouchableOpacity
         style={styles.fab}
         activeOpacity={0.9}
-        onPress={() => {}}
+        onPress={() => navigation.navigate("AddParty")}
       >
         <MaterialIcons name="add" size={28} color="#FFFFFF" />
       </TouchableOpacity>
@@ -238,9 +239,6 @@ export default function DealerListScreen() {
         activeKey="Home"
         onTabPress={(key) => {
           if (key === "Home") navigation.replace("Dashboard");
-          if (key === "Track") navigation.replace("Track");
-          if (key === "Reward") navigation.replace("Reward");
-          if (key === "Calendar") navigation.replace("Calendar");
         }}
       />
 
@@ -264,7 +262,7 @@ export default function DealerListScreen() {
           }
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -479,7 +477,7 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: 18,
-    bottom: 80,
+    bottom: 100,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -518,5 +516,21 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 14,
     color: "#111827",
+  },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: "flex-start",
+    marginTop: 4,
+    gap: 3,
+  },
+  pendingBadgeText: {
+    color: "#D97706",
+    fontSize: 9,
+    fontWeight: "700",
   },
 });

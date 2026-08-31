@@ -71,6 +71,20 @@
                         @enderror
                     </div>
 
+                    <div>
+                        <label class="form-label">Status</label>
+                        <div class="mt-2 flex items-center gap-2">
+                            <input type="hidden" name="is_active" value="0">
+                            <input type="checkbox" name="is_active" value="1" id="is_active"
+                                   @checked(old('is_active', true))
+                                   class="rounded border-slate-300 text-slate-950 focus:ring-slate-300">
+                            <label for="is_active" class="text-sm font-medium text-slate-700 cursor-pointer">Active</label>
+                        </div>
+                        @error('is_active')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <div class="md:col-span-2">
                         <label class="form-label">Address</label>
                         <textarea name="address" rows="3"

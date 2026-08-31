@@ -9,9 +9,13 @@ use App\Models\TourPurpose;
 use App\Models\TourType;
 use App\Models\User;
 use App\Models\VehicleType;
+use App\Models\Visit;
+use App\Models\Order;
+use App\Models\ExpenseBill;
 use App\Notifications\TourPlanSubmitted;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Log;
 
 class DayStartController extends Controller
 {
@@ -66,29 +70,64 @@ class DayStartController extends Controller
 
     public function store(Request $request)
     {
+        $startTime = microtime(true);
         $user = $request->user();
         abort_unless($user->can('day-start.create'), 403);
 
-        $validated = $this->validateDayStart($request, $user);
+        Log::info('Admin DayStart store request initiated', [
+            'user_id' => $user->id,
+            'ip' => $request->ip(),
+            'payload' => $request->except(['opening_km_image']),
+            'has_opening_km_image' => $request->hasFile('opening_km_image'),
+        ]);
 
-        if ($request->hasFile('opening_km_image')) {
-            $validated['opening_km_image'] = $request->file('opening_km_image')
-                ->store('day-start-photos', 'public');
+        try {
+            $validated = $this->validateDayStart($request, $user);
+
+            if ($request->hasFile('opening_km_image')) {
+                $file = $request->file('opening_km_image');
+                Log::info('Admin DayStart storing photo', [
+                    'original_name' => $file->getClientOriginalName(),
+                    'size_bytes' => $file->getSize(),
+                    'mime_type' => $file->getClientMimeType(),
+                ]);
+                $validated['opening_km_image'] = $file->store('day-start-photos', 'public');
+                Log::info('Admin DayStart photo stored', ['path' => $validated['opening_km_image']]);
+            }
+
+            $validated['user_id'] = $user->id;
+            $validated['status'] = 'pending';
+
+            $dayStart = DayStart::create($validated);
+            Log::info('Admin DayStart record created', ['id' => $dayStart->id]);
+
+            $dayStart->load(['user', 'tourPurpose']);
+
+            if ($user->manager) {
+                try {
+                    $user->manager->notify(new TourPlanSubmitted($dayStart));
+                    Log::info('Admin DayStart notification sent to manager', ['manager_id' => $user->manager->id]);
+                } catch (\Exception $ne) {
+                    Log::error('Admin DayStart notification failed: ' . $ne->getMessage());
+                }
+            }
+
+            $elapsedMs = round((microtime(true) - $startTime) * 1000, 2);
+            Log::info('Admin DayStart completed successfully', ['elapsed_ms' => $elapsedMs]);
+
+            return redirect()
+                ->route('admin.day-starts.index')
+                ->with('success', 'Tour plan submitted');
+        } catch (\Exception $e) {
+            $elapsedMs = round((microtime(true) - $startTime) * 1000, 2);
+            Log::error('Admin DayStart store error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'elapsed_ms' => $elapsedMs,
+            ]);
+            throw $e;
         }
-
-        $validated['user_id'] = $user->id;
-        $validated['status'] = 'submitted';
-
-        $dayStart = DayStart::create($validated);
-        $dayStart->load(['user', 'tourPurpose']);
-
-        if ($user->manager) {
-            $user->manager->notify(new TourPlanSubmitted($dayStart));
-        }
-
-        return redirect()
-            ->route('admin.day-starts.index')
-            ->with('success', 'Tour plan submitted');
     }
 
     public function show(Request $request, int $id)
@@ -107,25 +146,51 @@ class DayStartController extends Controller
             ->with(['user', 'tourPurpose', 'tourType', 'vehicleType', 'party'])
             ->findOrFail($id);
 
-        $visits = \App\Models\Visit::with('party')
+        $visits = Visit::with('party')
             ->where('user_id', $dayStart->user_id)
             ->where('day_start_id', $dayStart->id)
             ->orderBy('check_in_time')
             ->get();
 
-        $orders = \App\Models\Order::with('party')
+        $orders = Order::with('party')
             ->where('user_id', $dayStart->user_id)
             ->whereDate('created_at', $dayStart->date)
             ->orderBy('created_at')
             ->get();
 
-        $expenses = \App\Models\ExpenseBill::with('category')
+        $expenses = ExpenseBill::with(['category', 'items'])
             ->where('user_id', $dayStart->user_id)
             ->where('day_start_id', $dayStart->id)
             ->orderBy('created_at')
             ->get();
 
         return view('admin.day-starts.show', compact('dayStart', 'visits', 'orders', 'expenses'));
+    }
+
+    public function updateStatus(Request $request, int $id)
+    {
+        $user = $request->user();
+        abort_unless($user->can('day-start.approve'), 403);
+
+        $request->validate([
+            'status' => 'required|in:approved,rejected',
+        ]);
+
+        $dayStart = DayStart::findOrFail($id);
+        $dayStart->update([
+            'status' => $request->status,
+            'approved_by' => $user->id,
+        ]);
+
+        // Auto-update system-generated travel expenses linked to this day start
+        $dayStart->expenses()
+            ->where('is_system_generated', true)
+            ->update([
+                'status' => $request->status,
+                'approved_by' => $user->id,
+            ]);
+
+        return back()->with('success', 'Day status updated to ' . ucfirst($request->status));
     }
 
     protected function formData(?User $user = null): array
@@ -171,6 +236,16 @@ class DayStartController extends Controller
             $requiresVehicleNo = false;
         }
 
+        $partyRules = ['nullable', 'exists:customers,id'];
+        if ($requiresParty) {
+            $partyRules[0] = 'required';
+            if (! $user->canSelectAllParties()) {
+                $partyRules[] = Rule::exists('party_employee_map', 'party_id')
+                    ->where('employee_id', $user->id)
+                    ->where('is_active', true);
+            }
+        }
+
         $rules = [
             'date' => [
                 'required',
@@ -183,19 +258,13 @@ class DayStartController extends Controller
             'visit_place' => ['nullable', 'string', 'max:255'],
             'start_lat' => ['nullable', 'numeric', 'between:-90,90'],
             'start_lng' => ['nullable', 'numeric', 'between:-180,180'],
-            'party_id' => array_filter([
-                $requiresParty ? 'required' : 'nullable',
-                'exists:customers,id',
-                $requiresParty && ! $user->canSelectAllParties()
-                    ? Rule::in($this->assignedPartiesFor($user)->pluck('id')->all())
-                    : null,
-            ]),
+            'party_id' => $partyRules,
             'vehicle_no' => [$requiresVehicleNo ? 'required' : 'nullable', 'string', 'max:50'],
             'opening_km' => [$requiresKmAndPhoto ? 'required' : 'nullable', 'numeric', 'min:0'],
             'opening_km_image' => [
                 $requiresKmAndPhoto ? 'required' : 'nullable',
                 'image',
-                'max:5120',
+                'max:20480',
             ],
         ];
 

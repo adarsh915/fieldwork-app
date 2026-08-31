@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\Dealer\StoreDealerRequest;
 use App\Http\Requests\Admin\Dealer\UpdateDealerRequest;
 use App\Services\DealerService;
 use App\Models\User;
+use App\Models\Dealer;
 use Illuminate\Http\Request;
 
 /**
@@ -31,7 +32,7 @@ class DealerController extends Controller
     public function index(Request $request)
     {
         // Authorization check
-        $this->authorize('viewAny', \App\Models\Dealer::class);
+        $this->authorize('viewAny', Dealer::class);
 
         // Get filters from request
         $filters = [
@@ -59,7 +60,7 @@ class DealerController extends Controller
     public function create()
     {
         // Authorization check
-        $this->authorize('create', \App\Models\Dealer::class);
+        $this->authorize('create', Dealer::class);
 
         // Generate dealer code
         $dealerCode = $this->dealerService->generateDealerCode();

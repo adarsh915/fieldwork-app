@@ -103,6 +103,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::delete('/{id}',                    [PartyController::class, 'destroy'])         ->name('destroy');
             Route::get('/{id}/assign-employees',      [PartyController::class, 'assignEmployees']) ->name('assign-employees');
             Route::post('/{id}/save-employees',       [PartyController::class, 'saveEmployees'])   ->name('save-employees');
+            Route::patch('/{id}/approve',             [PartyController::class, 'approve'])         ->name('approve');
+            Route::patch('/{id}/reject',              [PartyController::class, 'reject'])          ->name('reject');
         });
 
         // Field Worker Management - View all field workers with stats, edit, and view detailed metrics
@@ -136,6 +138,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/create', [DayStartController::class, 'create'])->name('create')->middleware('permission:day-start.create');
             Route::post('/', [DayStartController::class, 'store'])->name('store')->middleware('permission:day-start.create');
             Route::get('/{id}', [DayStartController::class, 'show'])->name('show');
+            Route::post('/{id}/status', [DayStartController::class, 'updateStatus'])->name('updateStatus')->middleware('permission:day-start.approve');
         });
 
         // Notifications
@@ -187,6 +190,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         
         // Expense Reports
         Route::get('/expenses/reports/monthly', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'monthlySummary'])->middleware('permission:expenses.view')->name('expenses.reports.monthly');
+        Route::get('/expenses/reports/statement/{user_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'workerStatement'])->middleware('permission:expenses.view')->name('expenses.reports.statement');
         Route::get('/expenses/reports/daily/{day_start_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'dailyReceipt'])->middleware('permission:expenses.view')->name('expenses.reports.daily');
 
         Route::get('/leave', fn() => view('admin.leave.index'))->middleware('permission:leave.view')->name('leave.index');

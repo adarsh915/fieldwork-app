@@ -13,6 +13,7 @@ export type Party = {
   name: string;
   mobile: string | null;
   address: string | null;
+  approval_status?: "pending" | "approved" | "rejected";
 };
 
 type ListResponse<T> = { success: boolean; data: T[] };
@@ -24,4 +25,4 @@ export const getMasterTourTypes = () =>
 export const getMasterVehicleTypes = () =>
   requestJson<ListResponse<VehicleType>>("/master/vehicle-types");
 export const getMasterParties = () =>
-  requestJson<ListResponse<Party>>("/master/parties");
+  requestJson<ListResponse<Party>>("/parties");

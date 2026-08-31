@@ -9,4 +9,5 @@ class ExpenseBill extends Model {
     public function approvedBy() { return $this->belongsTo(User::class, 'approved_by'); }
     public function dayStart() { return $this->belongsTo(DayStart::class); }
     public function category() { return $this->belongsTo(ExpenseCategory::class); }
+    public function items() { return $this->hasMany(ExpenseBillItem::class, 'expense_bill_id'); }
 }

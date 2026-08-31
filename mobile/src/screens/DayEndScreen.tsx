@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,12 +16,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenHeader from "../components/ScreenHeader";
 
 import { submitDayEnd } from "../api/day";
-import type { RootStackParamList } from "../navigation/RootNavigator";
+import type { AppStackParamList } from "../navigation/RootNavigator";
 
-type Nav = NativeStackNavigationProp<RootStackParamList, "DayEnd">;
+type Nav = NativeStackNavigationProp<AppStackParamList, "DayEnd">;
 
 export default function DayEndScreen() {
   const navigation = useNavigation<Nav>();
@@ -30,63 +32,53 @@ export default function DayEndScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   // ── Camera / Gallery ──────────────────────────────────────────────────────
-  async function openCamera() {
+  async function showPhotoOptions() {
+    Alert.alert("Upload Meter Photo", "Choose option", [
+      { text: "Camera", onPress: pickFromCamera },
+      { text: "Gallery", onPress: pickFromGallery },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
+  async function pickFromCamera() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Camera access is required to take KM photo.",
-      );
+      Alert.alert("Permission Denied", "Camera permission is required.");
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets.length > 0) {
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (!result.canceled && result.assets[0]) {
       setKmPhotoUri(result.assets[0].uri);
     }
   }
 
-  // Removed openGallery for fraud prevention
-
-  function showPhotoOptions() {
-    openCamera();
+  async function pickFromGallery() {
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    if (!result.canceled && result.assets[0]) {
+      setKmPhotoUri(result.assets[0].uri);
+    }
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
   async function handleSubmit() {
-    if (!closingKm) {
-      Alert.alert("Incomplete", "Please enter Closing KM.");
+    if (!closingKm.trim()) {
+      Alert.alert("Required", "Closing KM reading is required.");
+      return;
+    }
+
+    const kmVal = parseFloat(closingKm.trim());
+    if (isNaN(kmVal) || kmVal < 0) {
+      Alert.alert("Invalid KM", "Please enter a valid positive number for closing KM.");
       return;
     }
 
     setSubmitting(true);
     try {
-      // Create FormData to handle image upload if present
-      const form = new FormData();
-      form.append("closing_km", closingKm);
-      if (remarks) form.append("remarks", remarks);
-
-      if (kmPhotoUri) {
-        const filename = kmPhotoUri.split("/").pop() ?? "km_closing_photo.jpg";
-        const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
-        const mime = ext === "png" ? "image/png" : "image/jpeg";
-        form.append("closing_km_image", {
-          uri: kmPhotoUri,
-          name: filename,
-          type: mime,
-        } as any);
-      }
-
-      await submitDayEnd({ closing_km: closingKm, remarks });
-
-      // Since submitDayEnd currently uses requestJson which sends JSON, we need to update submitDayEnd to handle FormData for the image if we want to send the image. For now, we will just send JSON if no image API is updated yet.
-      // Assuming submitDayEnd in day.ts needs to be updated to support image, but I will send JSON for now as per current api definition, wait, I will use fetch directly here to support image, similar to submitDayStart. Let's do it right.
-
-      // Wait, let me just update submitDayEnd in day.ts next.
-      // For now, I will assume it's updated. I will update it.
+      await submitDayEnd({
+        closing_km: closingKm,
+        remarks: remarks || undefined,
+        closing_km_image_uri: kmPhotoUri ?? undefined,
+      });
 
       Alert.alert("🎉 Day Ended!", "Your day has been successfully ended.", [
         { text: "OK", onPress: () => navigation.goBack() },
@@ -102,23 +94,17 @@ export default function DayEndScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerIconBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Day End</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
+      <ScreenHeader title="Day End" onBack={() => navigation.goBack()} bgColor="#F59E0B" />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 20 }]}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.card}>
           {/* Closing KM */}
           <FieldInput
@@ -201,7 +187,8 @@ export default function DayEndScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -245,7 +232,6 @@ function FieldInput({
 const ORANGE = "#F59E0B";
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
     backgroundColor: ORANGE,
     paddingHorizontal: 14,
@@ -253,13 +239,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
   headerTitle: {
     flex: 1,
     textAlign: "center",

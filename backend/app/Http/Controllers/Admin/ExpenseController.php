@@ -12,7 +12,7 @@ class ExpenseController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ExpenseBill::with(['user', 'category']);
+        $query = ExpenseBill::with(['user', 'category', 'items']);
 
         if ($request->filled('user_id')) {
             $query->where('user_id', $request->user_id);

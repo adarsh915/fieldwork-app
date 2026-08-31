@@ -7,7 +7,9 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenHeader from "../components/ScreenHeader";
 
 import { submitDayStart } from "../api/day";
 import {
@@ -121,9 +123,10 @@ export default function DayStartScreen() {
 
   // ── Parties ───────────────────────────────────────────────────────────────
   const filteredParties = useMemo(() => {
+    const activeOnly = parties.filter((p) => p.approval_status !== "pending" && p.approval_status !== "rejected");
     const q = partySearch.trim().toLowerCase();
-    if (!q) return parties;
-    return parties.filter(
+    if (!q) return activeOnly;
+    return activeOnly.filter(
       (p) => p.name.toLowerCase().includes(q) || (p.mobile ?? "").includes(q),
     );
   }, [parties, partySearch]);
@@ -183,44 +186,29 @@ export default function DayStartScreen() {
   // ── Loading state ─────────────────────────────────────────────────────────
   if (masterLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Day Start</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
+        <ScreenHeader title="Day Start" onBack={() => navigation.goBack()} />
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#7367F0" />
           <Text style={styles.loadingText}>Loading form data…</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // ── Main form ─────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerIconBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Day Start</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
+      <ScreenHeader title="Day Start" onBack={() => navigation.goBack()} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 30 }]}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.card}>
           {/* Tour Purpose */}
           <FieldSelect
@@ -406,7 +394,8 @@ export default function DayStartScreen() {
         onDone={() => setPartyModalOpen(false)}
         onCancel={() => setPartyModalOpen(false)}
       />
-    </SafeAreaView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -603,13 +592,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
   headerTitle: {
     flex: 1,
     textAlign: "center",
@@ -618,7 +601,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
-  scrollContent: { padding: 14, paddingBottom: 40 },
+  scrollContent: { padding: 14, paddingBottom: 220 },
   card: {
     backgroundColor: "#fff",
     borderRadius: 18,

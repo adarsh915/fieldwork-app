@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import ScreenHeader from "../components/ScreenHeader";
+
 import { getExpenses, type ExpenseBill } from "../api/expense";
 import type { AppStackParamList } from "../navigation/RootNavigator";
 
@@ -22,6 +24,7 @@ export default function ExpenseListScreen() {
   const navigation = useNavigation<Nav>();
   const [expenses, setExpenses] = useState<ExpenseBill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   const fetchExpenses = async () => {
     setLoading(true);
@@ -83,21 +86,33 @@ export default function ExpenseListScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerIconBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Expenses</Text>
-        <TouchableOpacity
-          style={styles.headerAddBtn}
-          onPress={() => navigation.navigate("AddExpense")}
-        >
-          <MaterialIcons name="add" size={24} color="#fff" />
-        </TouchableOpacity>
+    <View style={{ flex: 1, backgroundColor: "#F3F4F6" }}>
+      <ScreenHeader
+        title="My Expenses"
+        onBack={() => navigation.goBack()}
+        rightElement={
+          <TouchableOpacity
+            style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}
+            onPress={() => navigation.navigate("AddExpense")}
+          >
+            <MaterialIcons name="add" size={24} color="#fff" />
+          </TouchableOpacity>
+        }
+      />
+
+      {/* Filter Tabs */}
+      <View style={styles.tabsContainer}>
+        {(['all', 'pending', 'approved', 'rejected'] as const).map(status => (
+          <TouchableOpacity 
+            key={status} 
+            style={[styles.tab, filterStatus === status && styles.activeTab]}
+            onPress={() => setFilterStatus(status)}
+          >
+            <Text style={[styles.tabText, filterStatus === status && styles.activeTabText]}>
+              {status.toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
@@ -106,16 +121,16 @@ export default function ExpenseListScreen() {
         </View>
       ) : (
         <FlatList
-          data={expenses}
+          data={expenses.filter(e => filterStatus === 'all' || e.status === filterStatus)}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
           renderItem={renderExpenseItem}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No expenses logged yet.</Text>
+            <Text style={styles.emptyText}>No expenses found.</Text>
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -147,6 +162,34 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    justifyContent: 'space-between'
+  },
+  tab: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+  },
+  activeTab: {
+    backgroundColor: '#7367F0',
+  },
+  tabText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  activeTabText: {
+    color: '#fff',
   },
   listContent: {
     padding: 16,

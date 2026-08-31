@@ -77,6 +77,20 @@
                         @enderror
                     </div>
 
+                    <div>
+                        <label class="form-label">Status</label>
+                        <div class="mt-2 flex items-center gap-2">
+                            <input type="hidden" name="is_active" value="0">
+                            <input type="checkbox" name="is_active" value="1" id="is_active"
+                                   @checked(old('is_active', $party->is_active ?? true))
+                                   class="rounded border-slate-300 text-slate-950 focus:ring-slate-300">
+                            <label for="is_active" class="text-sm font-medium text-slate-700 cursor-pointer">Active</label>
+                        </div>
+                        @error('is_active')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <div class="md:col-span-2">
                         <label class="form-label">Address</label>
                         <textarea name="address" rows="3"
@@ -130,19 +144,21 @@
             <div class="flex items-center gap-3 border-t border-slate-200 pt-6">
                 <button type="submit" class="btn-primary">Update Party</button>
                 <a href="{{ route('admin.parties.index') }}" class="btn-secondary">Cancel</a>
-
-                <form method="POST" action="{{ route('admin.parties.destroy', $party->id) }}"
-                      onsubmit="return confirm('Delete party \'{{ addslashes($party->name) }}\'? This cannot be undone.')"
-                      class="ml-auto">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit"
-                            class="rounded-md bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100">
-                        Delete Party
-                    </button>
-                </form>
             </div>
         </form>
+
+        {{-- Delete Form (Must be outside the Update form) --}}
+        <div class="p-6 pt-0 flex justify-end">
+            <form method="POST" action="{{ route('admin.parties.destroy', $party->id) }}"
+                  onsubmit="return confirm('Delete party \'{{ addslashes($party->name) }}\'? This cannot be undone.')">
+                @csrf
+                @method('DELETE')
+                <button type="submit"
+                        class="rounded-md bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100">
+                    Delete Party
+                </button>
+            </form>
+        </div>
     </section>
 @endsection
 

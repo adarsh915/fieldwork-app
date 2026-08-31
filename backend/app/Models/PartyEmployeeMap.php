@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PartyEmployeeMap extends Model
 {
@@ -28,17 +29,17 @@ class PartyEmployeeMap extends Model
 
     // ── Relationships ──────────────────────────────────────────────────────────
 
-    public function party(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function party(): BelongsTo
     {
         return $this->belongsTo(Customer::class, 'party_id');
     }
 
-    public function employee(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function employee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'employee_id');
     }
 
-    public function assignedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function assignedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_by');
     }

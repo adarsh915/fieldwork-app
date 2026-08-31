@@ -5,6 +5,15 @@
 @section('page_title', 'Day Start Details')
 
 @section('content')
+<div x-data="{ lightboxOpen: false, lightboxImage: '' }">
+    <!-- Lightbox Modal -->
+    <div x-show="lightboxOpen" style="display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background-color: rgba(15, 23, 42, 0.9); backdrop-filter: blur(4px);" x-transition>
+        <button type="button" @click="lightboxOpen = false" style="position: absolute; top: 2rem; right: 2rem; color: white; background: none; border: none; cursor: pointer; z-index: 10000;">
+            <svg style="width: 32px; height: 32px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <img :src="lightboxImage" style="max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); margin: auto; display: block;" @click.away="lightboxOpen = false">
+    </div>
+
     <section class="panel">
         <div class="panel-header">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -40,15 +49,30 @@
                 </div>
                 <div>
                     <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Status</div>
-                    <div class="mt-1">
+                    <div class="mt-1 flex items-center gap-2">
                         @php
                             $statusClass = match ($dayStart->status) {
                                 'approved' => 'badge-success',
-                                'flagged' => 'badge-danger',
+                                'flagged', 'rejected' => 'badge-danger',
                                 default => 'badge-muted',
                             };
                         @endphp
                         <span class="{{ $statusClass }}">{{ ucfirst($dayStart->status) }}</span>
+                        
+                        @if($dayStart->status === 'pending' && auth()->user()->can('day-start.approve'))
+                            <div class="flex gap-1.5 ml-2">
+                                <form action="{{ route('admin.day-starts.updateStatus', $dayStart->id) }}" method="POST" class="inline">
+                                    @csrf
+                                    <input type="hidden" name="status" value="approved">
+                                    <x-button type="submit" variant="success" class="px-2 py-1 text-[10px]">Approve</x-button>
+                                </form>
+                                <form action="{{ route('admin.day-starts.updateStatus', $dayStart->id) }}" method="POST" class="inline">
+                                    @csrf
+                                    <input type="hidden" name="status" value="rejected">
+                                    <x-button type="submit" variant="danger" class="px-2 py-1 text-[10px]">Reject</x-button>
+                                </form>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -83,9 +107,9 @@
                 @if ($dayStart->opening_km_photo)
                     <div>
                         <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Opening KM Photo</div>
-                        <a href="{{ asset('storage/' . $dayStart->opening_km_photo) }}" target="_blank">
-                            <img src="{{ asset('storage/' . $dayStart->opening_km_photo) }}" alt="Opening KM" class="mt-2 max-h-64 rounded-lg border border-slate-200">
-                        </a>
+                        <button type="button" @click="lightboxImage = '{{ asset('storage/' . $dayStart->opening_km_photo) }}'; lightboxOpen = true;" class="mt-2 block">
+                            <img src="{{ asset('storage/' . $dayStart->opening_km_photo) }}" alt="Opening KM" style="width: 192px; height: 128px; object-fit: cover;" class="rounded-lg border border-slate-200 shadow-sm hover:opacity-90 transition">
+                        </button>
                     </div>
                 @else
                     <div>
@@ -140,9 +164,9 @@
                         @if ($dayStart->closing_km_photo)
                             <div>
                                 <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Closing KM Photo</div>
-                                <a href="{{ asset('storage/' . $dayStart->closing_km_photo) }}" target="_blank">
-                                    <img src="{{ asset('storage/' . $dayStart->closing_km_photo) }}" alt="Closing KM" class="mt-2 max-h-64 rounded-lg border border-slate-200">
-                                </a>
+                                <button type="button" @click="lightboxImage = '{{ asset('storage/' . $dayStart->closing_km_photo) }}'; lightboxOpen = true;" class="mt-2 block">
+                                    <img src="{{ asset('storage/' . $dayStart->closing_km_photo) }}" alt="Closing KM" style="width: 192px; height: 128px; object-fit: cover;" class="rounded-lg border border-slate-200 shadow-sm hover:opacity-90 transition">
+                                </button>
                             </div>
                         @else
                             <div>
@@ -269,13 +293,21 @@
                                 @if($expense->is_system_generated)
                                     <span class="badge badge-primary">System Travel</span>
                                 @else
-                                    {{ $expense->category->name ?? 'N/A' }}
+                                    <div class="flex items-center gap-1.5">
+                                        <span>{{ $expense->category->name ?? 'N/A' }}</span>
+                                        @if($expense->items->count() > 0)
+                                            <button @click="expandedExpense = (expandedExpense === {{ $expense->id }} ? null : {{ $expense->id }})" type="button" class="text-brand-600 hover:text-brand-700 flex items-center gap-0.5 text-xs font-semibold bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100 transition-colors">
+                                                <span>{{ $expense->items->count() }} {{ $expense->items->count() === 1 ? 'item' : 'items' }}</span>
+                                                <x-lucide-chevron-down class="w-3.5 h-3.5 transition-transform duration-200" ::class="expandedExpense === {{ $expense->id }} ? 'rotate-180' : ''" />
+                                            </button>
+                                        @endif
+                                    </div>
                                 @endif
                             </td>
                             <td class="font-bold text-slate-900">₹{{ number_format($expense->amount, 2) }}</td>
                             <td>
                                 @if($expense->bill_photo)
-                                    <a href="{{ asset('storage/' . $expense->bill_photo) }}" target="_blank" class="text-brand-600 underline text-sm font-semibold">View Proof</a>
+                                    <button type="button" @click="lightboxImage = '{{ asset('storage/' . $expense->bill_photo) }}'; lightboxOpen = true;" class="text-brand-600 underline text-sm font-semibold hover:text-brand-700">View Proof</button>
                                 @elseif($expense->is_system_generated)
                                     <button @click="expandedExpense = (expandedExpense === {{ $expense->id }} ? null : {{ $expense->id }})" type="button" class="btn-secondary px-2 py-1 text-xs">
                                         View Meter
@@ -324,9 +356,9 @@
                                         {{-- Opening --}}
                                         <div class="flex items-center gap-4">
                                             @if ($dayStart->opening_km_photo)
-                                                <a href="{{ asset('storage/' . $dayStart->opening_km_photo) }}" target="_blank" class="shrink-0">
-                                                    <img src="{{ asset('storage/' . $dayStart->opening_km_photo) }}" alt="Opening KM" class="h-20 w-32 object-cover rounded border border-slate-300 shadow-sm hover:opacity-90 transition">
-                                                </a>
+                                                <button type="button" @click="lightboxImage = '{{ asset('storage/' . $dayStart->opening_km_photo) }}'; lightboxOpen = true;" class="shrink-0 block">
+                                                    <img src="{{ asset('storage/' . $dayStart->opening_km_photo) }}" alt="Opening KM" style="width: 128px; height: 80px; object-fit: cover;" class="rounded border border-slate-300 shadow-sm hover:opacity-90 transition">
+                                                </button>
                                             @else
                                                 <div class="h-20 w-32 rounded bg-slate-200 flex items-center justify-center border border-slate-300 border-dashed shrink-0">
                                                     <span class="text-xs font-semibold text-slate-400">No Photo</span>
@@ -341,9 +373,9 @@
                                         {{-- Closing --}}
                                         <div class="flex items-center gap-4">
                                             @if ($dayStart->closing_km_photo)
-                                                <a href="{{ asset('storage/' . $dayStart->closing_km_photo) }}" target="_blank" class="shrink-0">
-                                                    <img src="{{ asset('storage/' . $dayStart->closing_km_photo) }}" alt="Closing KM" class="h-20 w-32 object-cover rounded border border-slate-300 shadow-sm hover:opacity-90 transition">
-                                                </a>
+                                                <button type="button" @click="lightboxImage = '{{ asset('storage/' . $dayStart->closing_km_photo) }}'; lightboxOpen = true;" class="shrink-0 block">
+                                                    <img src="{{ asset('storage/' . $dayStart->closing_km_photo) }}" alt="Closing KM" style="width: 128px; height: 80px; object-fit: cover;" class="rounded border border-slate-300 shadow-sm hover:opacity-90 transition">
+                                                </button>
                                             @else
                                                 <div class="h-20 w-32 rounded bg-slate-200 flex items-center justify-center border border-slate-300 border-dashed shrink-0">
                                                     <span class="text-xs font-semibold text-slate-400">No Photo</span>
@@ -373,6 +405,37 @@
                                 </td>
                             </tr>
                         @endif
+
+                        @if(!$expense->is_system_generated && $expense->items->count() > 0)
+                            {{-- Expandable Itemized Row --}}
+                            <tr x-show="expandedExpense === {{ $expense->id }}" style="display: none;">
+                                <td colspan="5" class="bg-slate-50 p-6 border-b border-slate-200 shadow-inner">
+                                    <h4 class="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-4">Itemized Breakdown</h4>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-sm text-left text-slate-600">
+                                            <thead>
+                                                <tr class="border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                                                    <th class="pb-2">Item Name</th>
+                                                    <th class="pb-2 text-center">Qty</th>
+                                                    <th class="pb-2 text-right">Unit Price</th>
+                                                    <th class="pb-2 text-right">Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($expense->items as $item)
+                                                    <tr class="border-b border-slate-100 last:border-0">
+                                                        <td class="py-2.5 font-medium text-slate-900">{{ $item->item_name }}</td>
+                                                        <td class="py-2.5 text-center">{{ $item->quantity }}</td>
+                                                        <td class="py-2.5 text-right">₹{{ number_format($item->unit_price, 2) }}</td>
+                                                        <td class="py-2.5 text-right font-semibold text-slate-900">₹{{ number_format($item->total_price, 2) }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endif
                     @empty
                         <tr><td colspan="5" class="text-center py-6 text-slate-500">No expenses claimed today.</td></tr>
                     @endforelse
@@ -389,4 +452,5 @@
             </table>
         </div>
     </section>
+</div>
 @endsection

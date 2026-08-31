@@ -17,6 +17,7 @@ export type DayStartData = {
   tour_purpose: { id: number; name: string } | null;
   tour_type: { id: number; name: string } | null;
   vehicle_type: { id: number; name: string } | null;
+  end_time: string | null;
 };
 
 type DayStatusResponse = {
@@ -72,7 +73,7 @@ export async function submitDayStart(payload: {
       payload.opening_km_image_uri.split("/").pop() ?? "km_photo.jpg";
     const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
     const mime = ext === "png" ? "image/png" : "image/jpeg";
-    form.append("opening_km_image", {
+    form.append("opening_km_photo", {
       uri: payload.opening_km_image_uri,
       name: filename,
       type: mime,
@@ -123,7 +124,7 @@ export async function submitDayEnd(payload: {
       payload.closing_km_image_uri.split("/").pop() ?? "km_closing_photo.jpg";
     const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
     const mime = ext === "png" ? "image/png" : "image/jpeg";
-    form.append("closing_km_image", {
+    form.append("closing_km_photo", {
       uri: payload.closing_km_image_uri,
       name: filename,
       type: mime,

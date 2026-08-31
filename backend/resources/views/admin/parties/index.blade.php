@@ -29,6 +29,11 @@
                         </x-button>
                     @endcan
                     @can('customers.create')
+                        <x-button href="{{ route('admin.parties.bulk-import') }}" variant="secondary"
+                            class="border-brand-200 text-brand-700 hover:bg-brand-50">
+                            <x-lucide-upload class="w-4 h-4" />
+                            Bulk Import
+                        </x-button>
                         <x-button href="{{ route('admin.parties.create') }}" variant="primary">
                             <x-lucide-plus class="w-4 h-4" />
                             Add Party
@@ -110,6 +115,8 @@
                             <option value="">All Status</option>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
+                            <option value="pending">Pending Approval</option>
+                            <option value="rejected">Rejected</option>
                         </select>
                     </div>
                 </div>
@@ -292,6 +299,11 @@
                             return `
                                                                                         <div class="text-body-emphasis">${data.name}</div>
                                                                                         <div class="text-caption">Code: ${data.party_code} • ${data.city}</div>
+                                                                                        ${data.submitted_by_name ? `
+                                                                                            <span class="inline-flex items-center mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">
+                                                                                                Added by ${data.submitted_by_name}
+                                                                                            </span>
+                                                                                        ` : ''}
                                                                                     `;
                         }
                     },
@@ -330,6 +342,10 @@
                         render: function (data) {
                             if (data === 'active') {
                                 return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-bg text-success-text">Active</span>';
+                            } else if (data === 'pending') {
+                                return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Pending Approval</span>';
+                            } else if (data === 'rejected') {
+                                return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>';
                             }
                             return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Inactive</span>';
                         }
@@ -347,7 +363,7 @@
                                                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
                                                                                                 </svg>
                                                                                             </button>
-                                                                                            <div x-show="open" @click.outside="open = false" x-transition class="absolute right-0 mt-1 w-44 bg-white border border-surface-border rounded-xl shadow-lg z-20 py-1 top-full" style="display: none;">
+                                                                                            <div x-show="open" @click.outside="open = false" x-transition class="absolute right-0 mt-1 w-48 bg-white border border-surface-border rounded-xl shadow-lg z-20 py-1 top-full" style="display: none;">
                                                                                                 <a href="${data.view}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
                                                                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                                                                                     View Profile
@@ -362,6 +378,17 @@
                                                                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                                                                                     View History
                                                                                                 </a>
+                                                                                                ${data.approval_status === 'pending' ? `
+                                                                                                <div class="my-1 border-t border-surface-border"></div>
+                                                                                                <button type="button" onclick="approveParty('${data.approve}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-green-700 hover:bg-green-50">
+                                                                                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                                                                    Approve Party
+                                                                                                </button>
+                                                                                                <button type="button" onclick="rejectParty('${data.reject}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
+                                                                                                    <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                                                                    Reject Party
+                                                                                                </button>
+                                                                                                ` : ''}
                                                                                                 ${data.can_delete ? `
                                                                                                 <div class="my-1 border-t border-surface-border"></div>
                                                                                                 <form method="POST" action="${data.delete}" onsubmit="return confirm('Delete this party?')">
@@ -395,6 +422,58 @@
             // Helper function to get selected party IDs
             window.getSelectedPartyIds = function () {
                 return Array.from(document.querySelectorAll('.party-checkbox:checked')).map(cb => parseInt(cb.value));
+            };
+
+            window.approveParty = async function (url) {
+                if (!confirm('Are you sure you want to approve this party?')) return;
+                
+                try {
+                    const response = await fetch(url, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alert(data.message);
+                        window.partyTable.draw(false);
+                    } else {
+                        alert(data.message || 'Failed to approve party.');
+                    }
+                } catch (error) {
+                    alert('An error occurred. Please try again.');
+                }
+            };
+
+            window.rejectParty = async function (url) {
+                if (!confirm('Are you sure you want to reject this party?')) return;
+                
+                try {
+                    const response = await fetch(url, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alert(data.message);
+                        window.partyTable.draw(false);
+                    } else {
+                        alert(data.message || 'Failed to reject party.');
+                    }
+                } catch (error) {
+                    alert('An error occurred. Please try again.');
+                }
             };
         });
     </script>
