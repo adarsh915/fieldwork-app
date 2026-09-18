@@ -223,6 +223,48 @@
                         <x-lucide-database class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Master Data</span>
                     </a>
+
+                    <a href="{{ route('admin.holidays.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.holidays.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Holidays' : ''">
+                        <x-lucide-calendar-days class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Holidays</span>
+                    </a>
+
+                    <a href="{{ route('admin.attendance.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.attendance.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Attendance' : ''">
+                        <x-lucide-calendar-check class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Attendance Calendar</span>
+                    </a>
+
+                    <a href="{{ route('admin.leave-types.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.leave-types.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Leave Rules' : ''">
+                        <x-lucide-settings-2 class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Leave Rules & Policy</span>
+                    </a>
+
+                    <a href="{{ route('admin.leave-balances.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.leave-balances.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Leave Balances' : ''">
+                        <x-lucide-wallet class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Leave Balances</span>
+                    </a>
+
+                    <a href="{{ route('admin.settings.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.settings.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'System Settings' : ''">
+                        <x-lucide-sliders class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">System Settings</span>
+                    </a>
+
+                    <a href="{{ route('admin.audit-logs.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.audit-logs.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Audit Logs' : ''">
+                        <x-lucide-history class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Audit Trail & Logs</span>
+                    </a>
                     @endcan
 
                     @can('customers.view')

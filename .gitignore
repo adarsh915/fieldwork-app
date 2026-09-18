@@ -34,3 +34,22 @@ mobile/android/app/build/
 
 backend/vendor/
 backend/node_modules/
+
+# Vendor (all locations)
+vendor/
+**/vendor/
+
+# Zip / Archive files
+*.zip
+*.rar
+*.tar
+*.tar.gz
+*.7z
+
+# Uploads
+uploads/
+**/uploads/
+
+# Markdown docs (keep README tracked)
+*.md
+!README.md

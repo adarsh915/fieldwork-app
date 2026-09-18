@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('attendance:auto-close-days')->dailyAt('23:59');
+        $schedule->command('leaves:accrue-monthly')->monthlyOn(1, '00:01');
     }
 
     /**

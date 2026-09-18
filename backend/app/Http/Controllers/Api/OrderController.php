@@ -18,7 +18,7 @@ class OrderController extends Controller
     {
         // Only fetch orders created by the logged-in field worker
         $query = Order::query()
-            ->with('items.product')
+            ->with(['items.product', 'party'])
             ->where('user_id', $request->user()->id);
 
         if ($request->has('party_id')) {

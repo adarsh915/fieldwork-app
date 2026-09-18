@@ -28,7 +28,7 @@ class ExpenseController extends Controller
     {
         // Group all approved expenses by month
         $expenses = ExpenseBill::where('user_id', $request->user()->id)
-            ->where('status', 'approved')
+            
             ->selectRaw('DATE_FORMAT(date, "%Y-%m") as month, SUM(amount) as total_approved')
             ->groupBy('month')
             ->orderBy('month', 'desc')

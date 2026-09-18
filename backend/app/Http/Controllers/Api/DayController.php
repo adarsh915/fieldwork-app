@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DayStart;
 use App\Models\ExpenseBill;
 use App\Models\GpsTrackingLog;
+use App\Models\Leave;
 use App\Models\VehicleType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -160,6 +161,23 @@ class DayController extends Controller
             ]);
 
             Log::info('DayStart record created successfully', ['id' => $dayStart->id]);
+
+            // Check if user has an APPROVED leave covering today
+            $conflictingLeave = Leave::where('user_id', $user->id)
+                ->where('status', 'approved')
+                ->whereDate('from_date', '<=', $today)
+                ->whereDate('to_date', '>=', $today)
+                ->first();
+
+            if ($conflictingLeave) {
+                $conflictingLeave->update([
+                    'has_conflict'    => true,
+                    'conflict_date'   => $today,
+                    'conflict_status' => 'pending_review',
+                ]);
+
+                Log::warning("ATTENDANCE CONFLICT DETECTED: User {$user->name} (ID: {$user->id}) started work on {$today}, which falls within approved leave ID {$conflictingLeave->id} ({$conflictingLeave->from_date->format('Y-m-d')} to {$conflictingLeave->to_date->format('Y-m-d')}). Admin review required.");
+            }
 
             $dayStart->load(['tourPurpose:id,name', 'tourType:id,name', 'vehicleType:id,name']);
 

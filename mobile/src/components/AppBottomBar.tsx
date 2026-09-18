@@ -26,7 +26,7 @@ const TABS: TabItem[] = [
 ];
 
 // Tabs not yet implemented — tap shows a toast instead of navigating
-const COMING_SOON: BottomTabKey[] = ["Track", "MIS", "Task", "Calendar"];
+const COMING_SOON: BottomTabKey[] = ["Track", "MIS", "Task"];
 
 export default function AppBottomBar({
   activeKey,

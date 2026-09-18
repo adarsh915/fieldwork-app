@@ -171,6 +171,12 @@ export default function VisitScreen() {
     setShowTxMenu(false);
     if (option === "Order" && activeVisit) {
       navigation.navigate("Order", { visitId: activeVisit.id, partyId });
+    } else if (option === "Payment") {
+      navigation.navigate("PaymentCollection", {
+        partyId,
+        partyName,
+        visitId: activeVisit?.id,
+      });
     } else if (option === "Customer Profile") {
       navigation.navigate("CustomerProfile", { partyId });
     } else {

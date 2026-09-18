@@ -96,8 +96,16 @@ export default function DashboardScreen() {
       icon: "package-variant",
       onPress: () => navigation.navigate("ProductList"),
     },
-    { label: "Order\nReg.", icon: "clipboard-list-outline" },
-    { label: "Payment\nReg.", icon: "cash-multiple" },
+    {
+      label: "Order\nReg.",
+      icon: "clipboard-list-outline",
+      onPress: () => navigation.navigate("OrderList"),
+    },
+    {
+      label: "Payment\nReg.",
+      icon: "cash-multiple",
+      onPress: () => navigation.navigate("PaymentRegister"),
+    },
     { label: "Visit", icon: "map-marker-outline" },
     { label: "Product\nDemo", icon: "package-variant-closed" },
     { label: "My\nMeeting", icon: "calendar-account-outline" },
@@ -110,7 +118,8 @@ export default function DashboardScreen() {
     { label: "Activities", icon: "run-fast" },
     { label: "My Expense\nBill", icon: "receipt", onPress: () => navigation.navigate("ExpenseList") },
     { label: "Expense\nSummary", icon: "chart-bar-stacked", onPress: () => navigation.navigate("ExpenseMonthlySummary") },
-    { label: "Leave", icon: "calendar-remove-outline" },
+    { label: "Attendance", icon: "calendar-check-outline", onPress: () => navigation.navigate("AttendanceCalendar") },
+    { label: "My Leaves", icon: "calendar-remove-outline", onPress: () => navigation.navigate("MyLeaves") },
     { label: "Product\nPlaning", icon: "chart-bar" },
     { label: "Coll.\nPlaning", icon: "briefcase-outline" },
     { label: "My Report", icon: "file-chart-outline" },
@@ -287,7 +296,12 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* ── Bottom Navigation ───────────────────────────────────────────────── */}
-      <AppBottomBar activeKey="Home" />
+      <AppBottomBar
+        activeKey="Home"
+        onTabPress={(key) => {
+          if (key === "Calendar") navigation.navigate("AttendanceCalendar");
+        }}
+      />
     </SafeAreaView>
   );
 }

@@ -254,6 +254,16 @@ export default function DealerListScreen() {
               partyMobile: dealer.mobile,
               partyAddress: dealer.address,
             });
+          } else if (action === "Order") {
+            navigation.navigate("OrderList", {
+              partyId: dealer.id,
+              partyName: dealer.name,
+            });
+          } else if (action === "Payment") {
+            navigation.navigate("PaymentCollection", {
+              partyId: dealer.id,
+              partyName: dealer.name,
+            });
           } else {
             Alert.alert(
               "Coming Soon",

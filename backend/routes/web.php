@@ -176,8 +176,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // Fieldwork UI Modules (Frontend-only mock data pages)
         Route::resource('orders', \App\Http\Controllers\Admin\OrderController::class)->only(['index', 'show'])->middleware('permission:orders.view');
-        Route::patch('orders/{order}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->name('orders.update-status')->middleware('permission:orders.view');
-        Route::get('/payments', fn() => view('admin.payments.index'))->middleware('permission:payments.view')->name('payments.index');
+        Route::patch('/orders/{order}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->middleware('permission:orders.view')->name('orders.update-status');
+        Route::get('/payments', [\App\Http\Controllers\Admin\PaymentWebController::class, 'index'])->name('payments.index');
+        Route::patch('/payments/{payment}/confirm', [\App\Http\Controllers\Admin\PaymentWebController::class, 'confirm'])->name('payments.confirm');
+        Route::patch('/payments/{payment}/reject', [\App\Http\Controllers\Admin\PaymentWebController::class, 'reject'])->name('payments.reject');
         Route::get('/visits', [\App\Http\Controllers\Admin\VisitController::class, 'index'])->middleware('permission:visits.view')->name('visits.index');
         Route::get('/dealers', fn() => view('admin.dealers.index'))->middleware('permission:dealers.view')->name('dealers.index');
         Route::get('/activities', fn() => view('admin.activities.index'))->middleware('permission:activities.view')->name('activities.index');
@@ -193,9 +195,43 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/expenses/reports/statement/{user_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'workerStatement'])->middleware('permission:expenses.view')->name('expenses.reports.statement');
         Route::get('/expenses/reports/daily/{day_start_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'dailyReceipt'])->middleware('permission:expenses.view')->name('expenses.reports.daily');
 
-        Route::get('/leave', fn() => view('admin.leave.index'))->middleware('permission:leave.view')->name('leave.index');
+        // Leave & Attendance Management
+        Route::get('/leave', [\App\Http\Controllers\Admin\LeaveWebController::class, 'index'])->middleware('permission:leave.view')->name('leave.index');
+        Route::post('/leave/{leave}/approve', [\App\Http\Controllers\Admin\LeaveWebController::class, 'approve'])->middleware('permission:leave.view')->name('leave.approve');
+        Route::post('/leave/{leave}/reject', [\App\Http\Controllers\Admin\LeaveWebController::class, 'reject'])->middleware('permission:leave.view')->name('leave.reject');
+        Route::post('/leave/{leave}/cancel', [\App\Http\Controllers\Admin\LeaveWebController::class, 'cancelApproved'])->middleware('permission:leave.view')->name('leave.cancel');
+        Route::post('/leave/{leave}/resolve-conflict', [\App\Http\Controllers\Admin\LeaveWebController::class, 'resolveConflict'])->middleware('permission:leave.view')->name('leave.resolve-conflict');
+
+        // Attendance Reports & Calendar
+        Route::get('/attendance', [\App\Http\Controllers\Admin\AttendanceWebController::class, 'index'])->name('attendance.index');
+        Route::post('/attendance/adjust', [\App\Http\Controllers\Admin\AttendanceAdjustmentWebController::class, 'adjust'])->name('attendance.adjust');
+
+        // Audit Logs
+        Route::get('/audit-logs', [\App\Http\Controllers\Admin\AttendanceAdjustmentWebController::class, 'auditLogs'])->name('audit-logs.index');
+
+        // Leave Policy & Rules Settings
+        Route::get('/leave-types', [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'index'])->name('leave-types.index');
+        Route::post('/leave-types', [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'store'])->name('leave-types.store');
+        Route::put('/leave-types/{leaveType}', [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'update'])->name('leave-types.update');
+
+        // Employee Leave Balances & Adjustments
+        Route::get('/leave-balances', [\App\Http\Controllers\Admin\LeaveBalanceWebController::class, 'index'])->name('leave-balances.index');
+        Route::put('/leave-balances/{balance}', [\App\Http\Controllers\Admin\LeaveBalanceWebController::class, 'update'])->name('leave-balances.update');
+
+        // Holiday Management
+        Route::get('/holidays', [\App\Http\Controllers\Admin\HolidayWebController::class, 'index'])->name('holidays.index');
+        Route::post('/holidays', [\App\Http\Controllers\Admin\HolidayWebController::class, 'store'])->name('holidays.store');
+        Route::put('/holidays/{holiday}', [\App\Http\Controllers\Admin\HolidayWebController::class, 'update'])->name('holidays.update');
+        Route::delete('/holidays/{holiday}', [\App\Http\Controllers\Admin\HolidayWebController::class, 'destroy'])->name('holidays.destroy');
+
+        // System Settings
+        Route::get('/settings', [\App\Http\Controllers\Admin\SettingWebController::class, 'index'])->name('settings.index');
+        Route::post('/settings', [\App\Http\Controllers\Admin\SettingWebController::class, 'update'])->name('settings.update');
+
         Route::get('/meetings', fn() => view('admin.meetings.index'))->middleware('permission:meetings.view')->name('meetings.index');
         Route::get('/product-demo', fn() => view('admin.product-demo.index'))->middleware('permission:product-demo.view')->name('product-demo.index');
         Route::get('/deals', fn() => view('admin.deals.index'))->middleware('permission:deals.view')->name('deals.index');
     });
 });
+
+
