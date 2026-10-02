@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\ExpenseBill;
 use App\Models\ExpenseCategory;
 use App\Models\DayStart;
+use App\Services\DataScope;
+use App\Services\SettingsService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
@@ -15,9 +17,10 @@ class ExpenseController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $expenses = ExpenseBill::with('category')
-            ->where('user_id', $request->user()->id)
-            ->orderBy('date', 'desc')
+        $query = ExpenseBill::with('category');
+        DataScope::apply($query, 'expenses');
+
+        $expenses = $query->orderBy('date', 'desc')
             ->orderBy('id', 'desc')
             ->get();
             
@@ -26,10 +29,10 @@ class ExpenseController extends Controller
 
     public function monthlySummary(Request $request): JsonResponse
     {
-        // Group all approved expenses by month
-        $expenses = ExpenseBill::where('user_id', $request->user()->id)
-            ->where('status', 'approved')
-            ->selectRaw('DATE_FORMAT(date, "%Y-%m") as month, SUM(amount) as total_approved')
+        $query = ExpenseBill::query();
+        DataScope::apply($query, 'expenses');
+
+        $expenses = $query->selectRaw('DATE_FORMAT(date, "%Y-%m") as month, SUM(amount) as total_approved')
             ->groupBy('month')
             ->orderBy('month', 'desc')
             ->get();
@@ -61,7 +64,6 @@ class ExpenseController extends Controller
             $travelTotal = $dayStart->expenses->filter(fn($e) => optional($e->category)->name === 'Travel' && !$e->is_system_generated)->sum('amount');
             $miscTotal = $dayStart->expenses->filter(fn($e) => optional($e->category)->name === 'Misc' && !$e->is_system_generated)->sum('amount');
             
-            // For any category that might not match the defaults above
             $otherManualTotal = $dayStart->expenses->filter(fn($e) => !$e->is_system_generated && !in_array(optional($e->category)->name, ['Food', 'Hotel', 'Travel', 'Misc']))->sum('amount');
             
             $systemTravelTotal = $dayStart->expenses->filter(fn($e) => $e->is_system_generated)->sum('amount');
@@ -97,29 +99,39 @@ class ExpenseController extends Controller
         ]);
     }
     
-    public function categories(): JsonResponse
+    public function categories(SettingsService $settings): JsonResponse
     {
         $categories = ExpenseCategory::where('is_active', true)->get();
-        return response()->json(['success' => true, 'data' => $categories]);
+        $pastDaysAllowed = (int) $settings->get('expense_past_days_allowed', 7);
+
+        return response()->json([
+            'success' => true,
+            'data' => $categories,
+            'past_days_allowed' => $pastDaysAllowed,
+        ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, SettingsService $settings): JsonResponse
     {
         $user = $request->user();
         $today = Carbon::today()->toDateString();
-        
-        $dayStart = DayStart::where('user_id', $user->id)->where('date', $today)->first();
-        if (!$dayStart) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You must start your day before logging an expense.'
-            ], 403);
-        }
+
+        $pastDaysLimit = (int) $settings->get('expense_past_days_allowed', 7);
+        $minAllowedDate = Carbon::today()->subDays($pastDaysLimit)->toDateString();
 
         $validator = Validator::make($request->all(), [
             'category_id' => 'required|exists:expense_categories,id',
             'amount' => 'required|numeric|min:1',
             'bill_photo' => 'required|image|max:20480',
+            'date' => [
+                'nullable',
+                'date_format:Y-m-d',
+                "after_or_equal:{$minAllowedDate}",
+                "before_or_equal:{$today}",
+            ],
+        ], [
+            'date.after_or_equal' => "Expenses cannot be backdated more than {$pastDaysLimit} days in the past.",
+            'date.before_or_equal' => 'Future expense dates are not allowed.',
         ]);
 
         if ($validator->fails()) {
@@ -128,6 +140,26 @@ class ExpenseController extends Controller
                 'message' => 'Validation failed',
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        $expenseDate = $request->filled('date') ? Carbon::parse($request->input('date'))->toDateString() : $today;
+
+        // Check if DayStart record exists for this user and date
+        $dayStart = DayStart::where('user_id', $user->id)
+            ->where('date', $expenseDate)
+            ->first();
+
+        // Determine if expense is logged after day end or backdated
+        $isAfterDayEnd = false;
+        if ($expenseDate < $today) {
+            // Any past date submission is backdated / post day-end
+            $isAfterDayEnd = true;
+        } elseif ($dayStart && ($dayStart->end_time !== null || $dayStart->status === 'completed')) {
+            // Submitted today after Day End was logged
+            $isAfterDayEnd = true;
+        } elseif (!$dayStart) {
+            // Submitted today without an active DayStart
+            $isAfterDayEnd = true;
         }
 
         $items = [];
@@ -160,13 +192,14 @@ class ExpenseController extends Controller
 
         $expense = ExpenseBill::create([
             'user_id' => $user->id,
-            'day_start_id' => $dayStart->id,
+            'day_start_id' => $dayStart?->id,
             'category_id' => $request->category_id,
-            'date' => $today,
+            'date' => $expenseDate,
             'amount' => $request->amount,
             'bill_photo' => $imagePath,
             'status' => 'pending',
             'is_system_generated' => false,
+            'is_after_day_end' => $isAfterDayEnd,
         ]);
 
         if (!empty($items)) {
@@ -184,7 +217,9 @@ class ExpenseController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Expense submitted successfully.',
+            'message' => $isAfterDayEnd 
+                ? 'Expense submitted successfully (marked as post day-end / backdated for HR review).' 
+                : 'Expense submitted successfully.',
             'data' => $expense
         ], 201);
     }

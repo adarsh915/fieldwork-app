@@ -26,6 +26,7 @@ const ACTIONS: {
   label: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }[] = [
+    { label: "Phone Order", icon: "phone-plus" },
     { label: "Ledger", icon: "clipboard-text-outline" },
     { label: "Visit", icon: "map-marker-outline" },
     { label: "Order", icon: "cart-outline" },
@@ -247,12 +248,29 @@ export default function DealerListScreen() {
         dealer={menuDealer}
         onDismiss={() => setMenuDealer(null)}
         onAction={(action, dealer) => {
-          if (action === "Visit") {
+          if (action === "Phone Order") {
+            navigation.navigate("Order", {
+              partyId: dealer.id,
+              partyName: dealer.name,
+              visitId: null,
+              isDirectPhoneOrder: true,
+            });
+          } else if (action === "Visit") {
             navigation.navigate("Visit", {
               partyId: dealer.id,
               partyName: dealer.name,
               partyMobile: dealer.mobile,
               partyAddress: dealer.address,
+            });
+          } else if (action === "Order") {
+            navigation.navigate("OrderList", {
+              partyId: dealer.id,
+              partyName: dealer.name,
+            });
+          } else if (action === "Payment") {
+            navigation.navigate("PaymentCollection", {
+              partyId: dealer.id,
+              partyName: dealer.name,
             });
           } else {
             Alert.alert(

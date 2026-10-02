@@ -114,19 +114,21 @@
                 <a href="{{ route('admin.roles.index') }}" class="btn-secondary">
                     Cancel
                 </a>
-
-                @unless(in_array($role->name, ['Admin', 'Super Admin']))
-                    <form method="POST" action="{{ route('admin.roles.destroy', $role->id) }}" 
-                          onsubmit="return confirm('Delete this role? Users with this role will lose these permissions.')" 
-                          class="ml-auto">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="rounded-md bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100">
-                            Delete Role
-                        </button>
-                    </form>
-                @endunless
             </div>
         </form>
+
+        @unless(in_array($role->name, ['Admin', 'Super Admin']))
+            {{-- Delete Form (Must be outside the Update form) --}}
+            <div class="p-6 pt-0 flex justify-end border-t border-slate-100 mt-2">
+                <form method="POST" action="{{ route('admin.roles.destroy', $role->id) }}" 
+                      onsubmit="return confirm('Delete this role? Users with this role will lose these permissions.')">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="rounded-md bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100">
+                        Delete Role
+                    </button>
+                </form>
+            </div>
+        @endunless
     </section>
 @endsection

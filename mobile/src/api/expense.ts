@@ -29,6 +29,7 @@ export interface ExpenseBill {
   bill_photo: string | null;
   status: 'pending' | 'approved' | 'rejected';
   is_system_generated: boolean;
+  is_after_day_end?: boolean;
   category?: ExpenseCategory;
   items?: ExpenseItem[];
   created_at: string;
@@ -70,8 +71,14 @@ export const getMonthlyStatement = async (month: string): Promise<ExpenseStateme
   return await requestJson<ExpenseStatementResponse>(`/expenses/statement?month=${month}`);
 };
 
-export const getExpenseCategories = async (): Promise<{ success: boolean; data: ExpenseCategory[] }> => {
-  return await requestJson<{ success: boolean; data: ExpenseCategory[] }>('/expenses/categories');
+export interface ExpenseCategoriesResponse {
+  success: boolean;
+  data: ExpenseCategory[];
+  past_days_allowed?: number;
+}
+
+export const getExpenseCategories = async (): Promise<ExpenseCategoriesResponse> => {
+  return await requestJson<ExpenseCategoriesResponse>('/expenses/categories');
 };
 
 import { API_BASE_URL, API_PREFIX } from "./config";
@@ -81,12 +88,16 @@ export const submitExpense = async (
   categoryId: number,
   amount: string,
   photoUri: string,
-  items?: ExpenseItemInput[]
+  items?: ExpenseItemInput[],
+  date?: string
 ): Promise<any> => {
   const token = await getAuthToken();
   const form = new FormData();
   form.append("category_id", categoryId.toString());
   form.append("amount", amount);
+  if (date) {
+    form.append("date", date);
+  }
   if (items && items.length > 0) {
     form.append("items_json", JSON.stringify(items));
   }

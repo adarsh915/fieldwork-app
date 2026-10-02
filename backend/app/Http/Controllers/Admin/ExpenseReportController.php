@@ -7,6 +7,7 @@ use App\Models\DayStart;
 use App\Models\ExpenseBill;
 use App\Models\User;
 use App\Models\Visit;
+use App\Services\DataScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -14,11 +15,27 @@ class ExpenseReportController extends Controller
 {
     public function monthlySummary(Request $request)
     {
-        $monthInput = $request->input('month', Carbon::now()->format('Y-m'));
+        $scopedUserIds = DataScope::visibleUserIds('expenses');
+
+        if (!$request->filled('month')) {
+            $latestDate = ExpenseBill::max('date');
+            $monthInput = $latestDate ? Carbon::parse($latestDate)->format('Y-m') : Carbon::now()->format('Y-m');
+        } else {
+            $monthInput = $request->input('month');
+        }
         $month = Carbon::parse($monthInput);
 
-        // Fetch users and their expenses for the selected month
-        $users = User::role('Field Worker')->with(['expenses' => function($q) use ($month) {
+        // Fetch users and their expenses for the selected month (scoped)
+        $usersQuery = User::where('is_active', true);
+        if ($scopedUserIds !== null) {
+            $usersQuery->whereIn('id', $scopedUserIds);
+        } else {
+            $usersQuery->whereHas('roles', function($q) {
+                $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']);
+            });
+        }
+
+        $users = $usersQuery->with(['expenses' => function($q) use ($month) {
             $q->whereMonth('date', $month->month)
               ->whereYear('date', $month->year);
         }, 'expenses.category'])->get();
@@ -43,15 +60,28 @@ class ExpenseReportController extends Controller
     public function dailyReceipt(Request $request, $day_start_id)
     {
         $dayStart = DayStart::with([
-            'user', 
-            'vehicleType', 
-            'parties.party', // From DayStartParty model (if used)
+            'expenses' => function($q) {
+                $q->where(function($query) {
+                    $query->where('status', 'approved')
+                          ->orWhere('is_system_generated', true);
+                });
+            },
+            'expenses.category',
+            'expenses.items',
+            'user'
         ])->findOrFail($day_start_id);
 
-        // Fetch Visits directly if day_start_id is logged on Visit
-        $visits = Visit::with('party')->where('day_start_id', $day_start_id)->get();
+        $scopedUserIds = DataScope::visibleUserIds('expenses');
+        if ($scopedUserIds !== null && !in_array($dayStart->user_id, $scopedUserIds)) {
+            abort(403, 'Unauthorized access to this expense receipt.');
+        }
 
-        // Fetch expenses tied to this day
+        $visits = Visit::with('party')
+            ->where('user_id', $dayStart->user_id)
+            ->whereDate('check_in_time', Carbon::parse($dayStart->date)->toDateString())
+            ->orderBy('check_in_time', 'asc')
+            ->get();
+
         $expenses = ExpenseBill::with(['category', 'items'])->where('day_start_id', $day_start_id)->get();
 
         return view('admin.expenses.reports.daily', compact('dayStart', 'visits', 'expenses'));
@@ -64,31 +94,32 @@ class ExpenseReportController extends Controller
         
         $user = User::findOrFail($user_id);
 
-        $dayStarts = DayStart::with(['expenses' => function($q) {
-            $q->where(function($query) {
+        $expenses = ExpenseBill::with('category')
+            ->where('user_id', $user_id)
+            ->whereMonth('date', $month->month)
+            ->whereYear('date', $month->year)
+            ->where(function($query) {
                 $query->where('status', 'approved')
                       ->orWhere('is_system_generated', true);
-            });
-        }, 'expenses.category'])
-        ->where('user_id', $user_id)
-        ->whereMonth('date', $month->month)
-        ->whereYear('date', $month->year)
-        ->orderBy('date', 'asc')
-        ->get();
+            })
+            ->orderBy('date', 'asc')
+            ->get();
 
-        $statementData = $dayStarts->map(function($dayStart) {
-            $foodTotal = $dayStart->expenses->filter(fn($e) => optional($e->category)->name === 'Food' && !$e->is_system_generated)->sum('amount');
-            $hotelTotal = $dayStart->expenses->filter(fn($e) => optional($e->category)->name === 'Hotel' && !$e->is_system_generated)->sum('amount');
-            $travelTotal = $dayStart->expenses->filter(fn($e) => optional($e->category)->name === 'Travel' && !$e->is_system_generated)->sum('amount');
-            $miscTotal = $dayStart->expenses->filter(fn($e) => optional($e->category)->name === 'Misc' && !$e->is_system_generated)->sum('amount');
+        $groupedByDate = $expenses->groupBy(function($expense) {
+            return Carbon::parse($expense->date)->format('Y-m-d');
+        });
+
+        $statementData = $groupedByDate->map(function($dayExpenses, $dateString) {
+            $foodTotal = $dayExpenses->filter(fn($e) => optional($e->category)->name === 'Food' && !$e->is_system_generated)->sum('amount');
+            $hotelTotal = $dayExpenses->filter(fn($e) => optional($e->category)->name === 'Hotel' && !$e->is_system_generated)->sum('amount');
+            $travelTotal = $dayExpenses->filter(fn($e) => optional($e->category)->name === 'Travel' && !$e->is_system_generated)->sum('amount');
+            $miscTotal = $dayExpenses->filter(fn($e) => optional($e->category)->name === 'Misc' && !$e->is_system_generated)->sum('amount');
             
-            // For any category that might not match the defaults above
-            $otherManualTotal = $dayStart->expenses->filter(fn($e) => !$e->is_system_generated && !in_array(optional($e->category)->name, ['Food', 'Hotel', 'Travel', 'Misc']))->sum('amount');
-            
-            $systemTravelTotal = $dayStart->expenses->filter(fn($e) => $e->is_system_generated)->sum('amount');
+            $otherManualTotal = $dayExpenses->filter(fn($e) => !$e->is_system_generated && !in_array(optional($e->category)->name, ['Food', 'Hotel', 'Travel', 'Misc']))->sum('amount');
+            $systemTravelTotal = $dayExpenses->filter(fn($e) => $e->is_system_generated)->sum('amount');
 
             return [
-                'dayStart' => $dayStart,
+                'date_formatted' => Carbon::parse($dateString)->format('d M Y'),
                 'food' => $foodTotal,
                 'hotel' => $hotelTotal,
                 'travel' => $travelTotal,
@@ -97,10 +128,8 @@ class ExpenseReportController extends Controller
                 'system_travel' => $systemTravelTotal,
                 'day_total' => $foodTotal + $hotelTotal + $travelTotal + $miscTotal + $otherManualTotal + $systemTravelTotal,
             ];
-        });
+        })->values();
 
-        // Filter out days with 0 expenses if desired, but showing all days is better for a complete statement.
-        
         $totals = [
             'food' => $statementData->sum('food'),
             'hotel' => $statementData->sum('hotel'),

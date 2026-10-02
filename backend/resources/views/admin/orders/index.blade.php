@@ -10,7 +10,7 @@
 <div class="bg-white rounded-lg shadow-sm border border-gray-100 mb-6 p-4">
     <!-- Filter Form (Single Row) -->
     <form method="GET" action="{{ route('admin.orders.index') }}" class="flex flex-wrap md:flex-nowrap gap-3 items-end mb-4">
-        <div class="w-full md:w-1/4">
+        <div class="w-full md:w-1/5">
             <select name="user_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5" onchange="this.form.submit()">
                 <option value="">All Field Workers</option>
                 @foreach($fieldWorkers as $worker)
@@ -18,6 +18,20 @@
                         {{ $worker->name }}
                     </option>
                 @endforeach
+            </select>
+        </div>
+        <div class="w-full md:w-1/5">
+            <select name="order_source" class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5" onchange="this.form.submit()">
+                <option value="">All Sources</option>
+                <option value="visit" {{ request('order_source') == 'visit' ? 'selected' : '' }}>📍 Physical Visit</option>
+                <option value="phone" {{ request('order_source') == 'phone' ? 'selected' : '' }}>📞 Phone / Direct</option>
+            </select>
+        </div>
+        <div class="w-full md:w-1/5">
+            <select name="timing" class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5" onchange="this.form.submit()">
+                <option value="">All Timings</option>
+                <option value="during_shift" {{ request('timing') == 'during_shift' ? 'selected' : '' }}>During Shift</option>
+                <option value="after_day_end" {{ request('timing') == 'after_day_end' ? 'selected' : '' }}>After Day End</option>
             </select>
         </div>
         <div class="w-full md:w-1/4">
@@ -80,6 +94,7 @@
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Order No</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Party (Customer)</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Created By</th>
+                        <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Source / Timing</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -92,7 +107,7 @@
                             <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $order->order_no }}</td>
                             <td class="px-6 py-4 text-sm text-gray-600">
                                 @if($order->party)
-                                    {{ $order->party->name }} <span class="text-xs text-gray-400">({{ $order->party->code }})</span>
+                                    {{ $order->party->name }} <span class="text-xs text-gray-400">({{ $order->party->party_code ?? $order->party->code ?? '' }})</span>
                                 @else
                                     <span class="text-gray-400">N/A</span>
                                 @endif
@@ -100,8 +115,25 @@
                             <td class="px-6 py-4 text-sm text-gray-600">
                                 {{ $order->user ? $order->user->name : 'Unknown' }}
                             </td>
+                            <td class="px-6 py-4 text-sm">
+                                @if($order->order_source === 'phone')
+                                    @if($order->is_after_day_end)
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200" title="Direct Phone Order placed after day end / off-shift">
+                                            🌙 Phone (Off-Shift)
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200" title="Direct Phone Order placed during active shift">
+                                            📞 Phone (Shift)
+                                        </span>
+                                    @endif
+                                @else
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200" title="Physical Store Visit Order">
+                                        📍 Visit Order
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 text-sm text-gray-600">
-                                {{ $order->order_date ? $order->order_date : $order->created_at->format('Y-m-d') }}
+                                {{ $order->order_date ? \Carbon\Carbon::parse($order->order_date)->format('Y-m-d') : \Carbon\Carbon::parse($order->created_at)->format('Y-m-d') }}
                             </td>
                             <td class="px-6 py-4 text-sm font-bold text-gray-800">
                                 ₹{{ number_format($order->total_amount, 2) }}
@@ -124,7 +156,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="8" class="px-6 py-12 text-center text-gray-500">
                                 <i class="fas fa-box-open text-4xl mb-3 text-gray-300"></i>
                                 <p class="text-base font-medium text-gray-600">No orders found</p>
                                 <p class="text-sm text-gray-400 mt-1">Orders placed by field workers will appear here.</p>

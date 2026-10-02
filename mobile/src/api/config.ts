@@ -25,7 +25,7 @@ import { Platform } from "react-native";
  *  - Mobile Device → EXPO_PUBLIC_API_URL or LAN IP (http://192.168.1.14:8000)
  */
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? "http://192.168.1.14:8000";
+    process.env.EXPO_PUBLIC_API_URL ?? "http://192.168.1.20:8000";
 
 /** Laravel API prefix */
 export const API_PREFIX = "/api";

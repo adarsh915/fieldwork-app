@@ -22,7 +22,7 @@ import { getProducts, Product, ProductUnit } from "../api/product";
 import type { AppStackParamList } from "../navigation/RootNavigator";
 
 type OrderScreenRouteProp = RouteProp<
-  { Order: { visitId: number; partyId: number } },
+  { Order: { visitId?: number | null; partyId: number; partyName?: string; isDirectPhoneOrder?: boolean } },
   "Order"
 >;
 
@@ -35,7 +35,8 @@ export interface CartItem {
 export default function OrderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const route = useRoute<OrderScreenRouteProp>();
-  const { visitId, partyId } = route.params;
+  const { visitId, partyId, partyName, isDirectPhoneOrder } = route.params;
+  const isPhoneOrder = !visitId || isDirectPhoneOrder;
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -105,8 +106,9 @@ export default function OrderScreen() {
 
     setSubmitting(true);
     const payload: any = {
-      visit_id: visitId,
+      visit_id: visitId || null,
       party_id: partyId,
+      order_source: isPhoneOrder ? "phone" : "visit",
       delivery_destination: deliveryDestination,
       preferred_transport: preferredTransport,
       vehicle_no: vehicleNo,
@@ -159,6 +161,18 @@ export default function OrderScreen() {
       >
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          {isPhoneOrder && (
+            <View style={styles.phoneOrderBanner}>
+              <MaterialCommunityIcons name="phone-in-talk" size={20} color="#2563EB" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.phoneOrderTitle}>Direct / Phone Order</Text>
+                <Text style={styles.phoneOrderSubtitle}>
+                  Booking for {partyName || "Party"} without requiring physical store check-in.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Selected Products Section */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
@@ -459,4 +473,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  phoneOrderBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    padding: 12,
+    marginBottom: 16,
+    gap: 10,
+  },
+  phoneOrderTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1E40AF",
+  },
+  phoneOrderSubtitle: {
+    fontSize: 11,
+    color: "#3B82F6",
+    marginTop: 2,
+  },
 });

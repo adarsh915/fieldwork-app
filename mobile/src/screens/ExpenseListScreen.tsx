@@ -77,9 +77,16 @@ export default function ExpenseListScreen() {
 
         <View style={styles.cardBody}>
           <Text style={styles.amountText}>₹{Number(item.amount).toFixed(2)}</Text>
-          <Text style={styles.dateText}>
-            {new Date(item.created_at).toLocaleDateString()}
-          </Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={styles.dateText}>
+              {item.date ? new Date(item.date).toLocaleDateString() : new Date(item.created_at).toLocaleDateString()}
+            </Text>
+            {item.is_after_day_end && (
+              <Text style={{ fontSize: 10, color: '#D97706', fontWeight: '700', marginTop: 2 }}>
+                ⚠️ Post Day-End
+              </Text>
+            )}
+          </View>
         </View>
       </View>
     );

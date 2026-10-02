@@ -63,6 +63,11 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'reporting_to');
     }
 
+    public function reportingManager()
+    {
+        return $this->belongsTo(User::class, 'reporting_to');
+    }
+
     public function teamMembers()
     {
         return $this->hasMany(User::class, 'reporting_to');

@@ -22,148 +22,231 @@ Route::get('/', function () {
 });
 
 Route::prefix('admin')->name('admin.')->group(function () {
-    // Admin auth (session-based)
-    Route::middleware('guest')->get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
-    Route::middleware('guest')->post('/login', [AdminAuthController::class, 'login'])->name('login.submit');
+
+    // ─── Auth (no auth needed) ────────────────────────────────────────────────
+    Route::middleware('guest')->group(function () {
+        Route::get('/login',  [AdminAuthController::class, 'showLogin'])->name('login');
+        Route::post('/login', [AdminAuthController::class, 'login'])->name('login.submit');
+    });
     Route::post('/logout', [AdminAuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-    // Admin panel - Allow all authenticated users, permissions control what they see
+    // ─── All protected routes ─────────────────────────────────────────────────
     Route::middleware(['auth'])->group(function () {
+
+        // Dashboard — any authenticated user
         Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-        
-        // Debug page (remove in production)
-        Route::view('/debug-permissions', 'admin.debug-permissions')->name('debug.permissions');
-        Route::view('/test-employee-form', 'admin.test-employee-form')->name('test.employee.form');
 
-        // Access control
-        Route::get('/users', [UserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
-        Route::post('/users/{user}/roles', [UserController::class, 'updateRoles'])->middleware('permission:users.manage')->name('users.roles.update');
+        // Notifications — any authenticated user (read-only self-service)
+        Route::post('/notifications/{id}/read',  [NotificationController::class, 'markAsRead'])->name('notifications.read');
+        Route::post('/notifications/read-all',   [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
 
-        // Employee Management
-        Route::prefix('employees')->name('employees.')->group(function () {
-            Route::get('/', [EmployeeWebController::class, 'index'])->middleware('permission:employees.view')->name('index');
-            Route::get('/create', [EmployeeWebController::class, 'create'])->middleware('permission:employees.create')->name('create');
-            Route::post('/', [EmployeeWebController::class, 'store'])->middleware('permission:employees.create')->name('store');
-            Route::get('/{id}/edit', [EmployeeWebController::class, 'edit'])->middleware('permission:employees.edit')->name('edit');
-            Route::put('/{id}', [EmployeeWebController::class, 'update'])->middleware('permission:employees.edit')->name('update');
-            Route::delete('/{id}', [EmployeeWebController::class, 'destroy'])->middleware('permission:employees.delete')->name('destroy');
-            Route::patch('/{id}/toggle-status', [EmployeeWebController::class, 'toggleStatus'])->middleware('permission:employees.edit')->name('toggleStatus');
+        // ── User Management ──────────────────────────────────────────────────
+        Route::get('/users',                    [UserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
+        Route::post('/users/{user}/roles',      [UserController::class, 'updateRoles'])->middleware('permission:users.manage')->name('users.roles.update');
 
-            // View assigned parties for a specific employee
-            Route::get('/{id}/parties', [EmployeeWebController::class, 'showParties'])->middleware('permission:employees.view')->name('parties');
-
-            // View comprehensive fieldworker profile
-            Route::get('/{id}/profile', [EmployeeWebController::class, 'showProfile'])->middleware('permission:employees.view')->name('profile');
-
-            // Bulk sync assigned parties (customers) to a specific employee
-            Route::post('/{employee}/parties/bulk-sync', [EmployeeWebController::class, 'bulkSyncParties'])
-                ->middleware('permission:employees.edit')
-                ->name('parties.bulkSync');
-        });
-
-        // Role & Permission Management - SUPER ADMIN ONLY
+        // ── Role & Permission Management (Super Admin only) ──────────────────
         Route::middleware('role:Super Admin')->group(function () {
-            Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
-            Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
-            Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
-            Route::get('/roles/{id}/edit', [RoleController::class, 'edit'])->name('roles.edit');
-            Route::put('/roles/{id}', [RoleController::class, 'update'])->name('roles.update');
-            Route::delete('/roles/{id}', [RoleController::class, 'destroy'])->name('roles.destroy');
-            
-            // Permission Management
-            Route::get('/permissions/create', [RoleController::class, 'createPermission'])->name('permissions.create');
-            Route::post('/permissions', [RoleController::class, 'storePermission'])->name('permissions.store');
-            Route::delete('/permissions/{id}', [RoleController::class, 'destroyPermission'])->name('permissions.destroy');
+            Route::get('/roles',                [RoleController::class, 'index'])->name('roles.index');
+            Route::get('/roles/create',         [RoleController::class, 'create'])->name('roles.create');
+            Route::post('/roles',               [RoleController::class, 'store'])->name('roles.store');
+            Route::get('/roles/{id}/edit',      [RoleController::class, 'edit'])->name('roles.edit');
+            Route::put('/roles/{id}',           [RoleController::class, 'update'])->name('roles.update');
+            Route::delete('/roles/{id}',        [RoleController::class, 'destroy'])->name('roles.destroy');
+
+            Route::get('/permissions/create',   [RoleController::class, 'createPermission'])->name('permissions.create');
+            Route::post('/permissions',         [RoleController::class, 'storePermission'])->name('permissions.store');
+            Route::delete('/permissions/{id}',  [RoleController::class, 'destroyPermission'])->name('permissions.destroy');
         });
 
-        // Customer Management
+        // ── Employee Management ───────────────────────────────────────────────
+        Route::prefix('employees')->name('employees.')->group(function () {
+            Route::get('/',                             [EmployeeWebController::class, 'index'])->middleware('permission:employees.view')->name('index');
+            Route::get('/create',                       [EmployeeWebController::class, 'create'])->middleware('permission:employees.create')->name('create');
+            Route::post('/',                            [EmployeeWebController::class, 'store'])->middleware('permission:employees.create')->name('store');
+            Route::get('/{id}/edit',                    [EmployeeWebController::class, 'edit'])->middleware('permission:employees.edit')->name('edit');
+            Route::put('/{id}',                         [EmployeeWebController::class, 'update'])->middleware('permission:employees.edit')->name('update');
+            Route::delete('/{id}',                      [EmployeeWebController::class, 'destroy'])->middleware('permission:employees.delete')->name('destroy');
+            Route::patch('/{id}/toggle-status',         [EmployeeWebController::class, 'toggleStatus'])->middleware('permission:employees.edit')->name('toggleStatus');
+            Route::get('/{id}/parties',                 [EmployeeWebController::class, 'showParties'])->middleware('permission:employees.view')->name('parties');
+            Route::get('/{id}/profile',                 [EmployeeWebController::class, 'showProfile'])->middleware('permission:employees.view')->name('profile');
+            Route::post('/{employee}/parties/bulk-sync',[EmployeeWebController::class, 'bulkSyncParties'])->middleware('permission:employees.edit')->name('parties.bulkSync');
+        });
+
+        // ── Field Worker Management ───────────────────────────────────────────
+        Route::prefix('field-workers')->name('field-workers.')->middleware('permission:employees.view')->group(function () {
+            Route::get('/',                     [FieldWorkerManagementController::class, 'index'])->name('index');
+            Route::get('/{id}/metrics',         [FieldWorkerManagementController::class, 'showMetrics'])->name('metrics');
+            Route::get('/{id}/visits',          [FieldWorkerManagementController::class, 'showVisits'])->name('visits');
+            Route::get('/{id}/visits/{visitId}',[FieldWorkerManagementController::class, 'visitDetails'])->name('visit-details');
+            Route::get('/{id}/transactions',    [FieldWorkerManagementController::class, 'showTransactions'])->name('transactions');
+            Route::get('/{id}/parties',         [FieldWorkerManagementController::class, 'getAssignedParties'])->name('parties');
+            Route::get('/{id}/performance',     [FieldWorkerManagementController::class, 'getPerformanceMetrics'])->name('performance');
+            Route::get('/{id}/export',          [FieldWorkerManagementController::class, 'exportReport'])->name('export');
+            Route::get('/{id}/edit',            [FieldWorkerManagementController::class, 'edit'])->middleware('permission:employees.edit')->name('edit');
+            Route::put('/{id}',                 [FieldWorkerManagementController::class, 'update'])->middleware('permission:employees.edit')->name('update');
+        });
+
+        // ── Customer Management ───────────────────────────────────────────────
         Route::get('/customers', [CustomerController::class, 'index'])->middleware('permission:customers.view')->name('customers.index');
 
-        // Party Management (full CRUD + employee assignment + bulk import)
-        Route::prefix('parties')->name('parties.')->middleware('permission:customers.view')->group(function () {
-            Route::get('/',                           [PartyController::class, 'index'])           ->name('index');
-            Route::get('/data',                       [PartyController::class, 'data'])            ->name('data');
-            Route::post('/bulk-assign',               [PartyController::class, 'bulkAssign'])      ->name('bulk-assign');
-            Route::get('/{id}/assignment-history',    [PartyController::class, 'assignmentHistory'])->name('assignment-history');
-            Route::get('/export',                     [PartyController::class, 'export'])          ->name('export');
-            Route::get('/export-pdf',                 [PartyController::class, 'exportPdf'])       ->name('export-pdf');
-            Route::get('/{id}/export-pdf',            [PartyController::class, 'exportSinglePdf'])->name('export-single-pdf');
-            Route::get('/{id}/export-excel',          [PartyController::class, 'exportSingleExcel'])->name('export-single-excel');
-            Route::get('/create',                     [PartyController::class, 'create'])          ->name('create');
-            Route::get('/{id}/show',                  [PartyController::class, 'show'])            ->name('show');
-            Route::post('/',                          [PartyController::class, 'store'])           ->name('store');
+        // ── Party Management ──────────────────────────────────────────────────
+        Route::prefix('parties')->name('parties.')->group(function () {
+            // Read-only — requires customers.view
+            Route::middleware('permission:customers.view')->group(function () {
+                Route::get('/',                         [PartyController::class, 'index'])->name('index');
+                Route::get('/data',                     [PartyController::class, 'data'])->name('data');
+                Route::get('/export',                   [PartyController::class, 'export'])->name('export');
+                Route::get('/export-pdf',               [PartyController::class, 'exportPdf'])->name('export-pdf');
+                Route::get('/download-template',        [PartyController::class, 'downloadTemplate'])->name('download-template');
+                Route::get('/{id}/show',                [PartyController::class, 'show'])->name('show');
+                Route::get('/{id}/export-pdf',          [PartyController::class, 'exportSinglePdf'])->name('export-single-pdf');
+                Route::get('/{id}/export-excel',        [PartyController::class, 'exportSingleExcel'])->name('export-single-excel');
+                Route::get('/{id}/assignment-history',  [PartyController::class, 'assignmentHistory'])->name('assignment-history');
+                Route::get('/{id}/assign-employees',    [PartyController::class, 'assignEmployees'])->name('assign-employees');
+            });
 
-            // Bulk import — static paths before /{id} wildcards
-            Route::get('/bulk-import',                [PartyController::class, 'bulkImportForm']) ->name('bulk-import');
-            Route::post('/bulk-import',               [PartyController::class, 'bulkImport'])     ->name('bulk-import.process');
-            Route::get('/download-template',          [PartyController::class, 'downloadTemplate'])->name('download-template');
+            // Create — requires customers.create
+            Route::middleware('permission:customers.create')->group(function () {
+                Route::get('/create',           [PartyController::class, 'create'])->name('create');
+                Route::post('/',                [PartyController::class, 'store'])->name('store');
+                Route::get('/bulk-import',      [PartyController::class, 'bulkImportForm'])->name('bulk-import');
+                Route::post('/bulk-import',     [PartyController::class, 'bulkImport'])->name('bulk-import.process');
+            });
 
-            Route::get('/{id}/edit',                  [PartyController::class, 'edit'])            ->name('edit');
-            Route::put('/{id}',                       [PartyController::class, 'update'])          ->name('update');
-            Route::delete('/{id}',                    [PartyController::class, 'destroy'])         ->name('destroy');
-            Route::get('/{id}/assign-employees',      [PartyController::class, 'assignEmployees']) ->name('assign-employees');
-            Route::post('/{id}/save-employees',       [PartyController::class, 'saveEmployees'])   ->name('save-employees');
-            Route::patch('/{id}/approve',             [PartyController::class, 'approve'])         ->name('approve');
-            Route::patch('/{id}/reject',              [PartyController::class, 'reject'])          ->name('reject');
+            // Edit — requires customers.edit
+            Route::middleware('permission:customers.edit')->group(function () {
+                Route::get('/{id}/edit',        [PartyController::class, 'edit'])->name('edit');
+                Route::put('/{id}',             [PartyController::class, 'update'])->name('update');
+                Route::post('/{id}/save-employees', [PartyController::class, 'saveEmployees'])->name('save-employees');
+                Route::patch('/{id}/approve',   [PartyController::class, 'approve'])->name('approve');
+                Route::patch('/{id}/reject',    [PartyController::class, 'reject'])->name('reject');
+                Route::post('/bulk-assign',     [PartyController::class, 'bulkAssign'])->name('bulk-assign');
+            });
+
+            // Delete — requires customers.delete
+            Route::delete('/{id}', [PartyController::class, 'destroy'])->middleware('permission:customers.delete')->name('destroy');
         });
 
-        // Field Worker Management - View all field workers with stats, edit, and view detailed metrics
-        Route::prefix('field-workers')->name('field-workers.')->middleware('permission:employees.view')->group(function () {
-            Route::get('/',                                    [FieldWorkerManagementController::class, 'index'])              ->name('index');
-            Route::get('/{id}/metrics',                        [FieldWorkerManagementController::class, 'showMetrics'])        ->name('metrics');
-            Route::get('/{id}/visits',                         [FieldWorkerManagementController::class, 'showVisits'])         ->name('visits');
-            Route::get('/{id}/visits/{visitId}',               [FieldWorkerManagementController::class, 'visitDetails'])       ->name('visit-details');
-            Route::get('/{id}/transactions',                   [FieldWorkerManagementController::class, 'showTransactions'])   ->name('transactions');
-            Route::get('/{id}/parties',                        [FieldWorkerManagementController::class, 'getAssignedParties'])->name('parties');
-            Route::get('/{id}/performance',                    [FieldWorkerManagementController::class, 'getPerformanceMetrics'])->name('performance');
-            Route::get('/{id}/export',                         [FieldWorkerManagementController::class, 'exportReport'])       ->name('export');
-            Route::get('/{id}/edit',                           [FieldWorkerManagementController::class, 'edit'])               ->middleware('permission:employees.edit')->name('edit');
-            Route::put('/{id}',                                [FieldWorkerManagementController::class, 'update'])             ->middleware('permission:employees.edit')->name('update');
-        });
-
-        // Transaction Management
+        // ── Transaction Management ────────────────────────────────────────────
         Route::get('/transactions', [TransactionController::class, 'index'])->middleware('permission:transactions.view')->name('transactions.index');
 
-        // Master Data (Tour Purposes, Tour Types, Vehicle Types)
+        // ── Orders ────────────────────────────────────────────────────────────
+        Route::middleware('permission:orders.view')->group(function () {
+            Route::resource('orders', \App\Http\Controllers\Admin\OrderController::class)->only(['index', 'show']);
+            Route::patch('/orders/{order}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->name('orders.update-status');
+        });
+
+        // ── Payments ─────────────────────────────────────────────────────────
+        Route::middleware('permission:payments.view')->group(function () {
+            Route::get('/payments', [\App\Http\Controllers\Admin\PaymentWebController::class, 'index'])->name('payments.index');
+        });
+        Route::middleware('permission:payments.manage')->group(function () {
+            Route::patch('/payments/{payment}/confirm', [\App\Http\Controllers\Admin\PaymentWebController::class, 'confirm'])->name('payments.confirm');
+            Route::patch('/payments/{payment}/reject',  [\App\Http\Controllers\Admin\PaymentWebController::class, 'reject'])->name('payments.reject');
+        });
+
+        // ── Visits ────────────────────────────────────────────────────────────
+        Route::get('/visits', [\App\Http\Controllers\Admin\VisitController::class, 'index'])->middleware('permission:visits.view')->name('visits.index');
+
+        // ── Day Start / Tour Plan ─────────────────────────────────────────────
+        Route::prefix('day-starts')->name('day-starts.')->group(function () {
+            Route::get('/',         [DayStartController::class, 'index'])->middleware('permission:day-start.view')->name('index');
+            Route::get('/{id}',     [DayStartController::class, 'show'])->middleware('permission:day-start.view')->name('show');
+            Route::get('/create',   [DayStartController::class, 'create'])->middleware('permission:day-start.create')->name('create');
+            Route::post('/',        [DayStartController::class, 'store'])->middleware('permission:day-start.create')->name('store');
+            Route::post('/{id}/status', [DayStartController::class, 'updateStatus'])->middleware('permission:day-start.approve')->name('updateStatus');
+        });
+
+        // ── Attendance ────────────────────────────────────────────────────────
+        Route::middleware('permission:attendance.view')->group(function () {
+            Route::get('/attendance', [\App\Http\Controllers\Admin\AttendanceWebController::class, 'index'])->name('attendance.index');
+        });
+        Route::post('/attendance/adjust', [\App\Http\Controllers\Admin\AttendanceAdjustmentWebController::class, 'adjust'])
+            ->middleware('permission:attendance.manage')
+            ->name('attendance.adjust');
+
+        // ── Audit Logs ────────────────────────────────────────────────────────
+        Route::get('/audit-logs', [\App\Http\Controllers\Admin\AttendanceAdjustmentWebController::class, 'auditLogs'])
+            ->middleware('permission:audit-logs.view')
+            ->name('audit-logs.index');
+
+        // ── Leave Management ──────────────────────────────────────────────────
+        Route::get('/leave', [\App\Http\Controllers\Admin\LeaveWebController::class, 'index'])->middleware('permission:leave.view')->name('leave.index');
+        Route::middleware('permission:leave.approve')->group(function () {
+            Route::post('/leave/{leave}/approve',          [\App\Http\Controllers\Admin\LeaveWebController::class, 'approve'])->name('leave.approve');
+            Route::post('/leave/{leave}/reject',           [\App\Http\Controllers\Admin\LeaveWebController::class, 'reject'])->name('leave.reject');
+            Route::post('/leave/{leave}/cancel',           [\App\Http\Controllers\Admin\LeaveWebController::class, 'cancelApproved'])->name('leave.cancel');
+            Route::post('/leave/{leave}/resolve-conflict', [\App\Http\Controllers\Admin\LeaveWebController::class, 'resolveConflict'])->name('leave.resolve-conflict');
+        });
+
+        // ── Leave Types (Admin/Super Admin) ───────────────────────────────────
+        Route::middleware('permission:leave.manage')->group(function () {
+            Route::get('/leave-types',              [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'index'])->name('leave-types.index');
+            Route::post('/leave-types',             [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'store'])->name('leave-types.store');
+            Route::put('/leave-types/{leaveType}',  [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'update'])->name('leave-types.update');
+        });
+
+        // ── Leave Balances (Admin/Super Admin) ────────────────────────────────
+        Route::middleware('permission:leave.manage')->group(function () {
+            Route::get('/leave-balances',            [\App\Http\Controllers\Admin\LeaveBalanceWebController::class, 'index'])->name('leave-balances.index');
+            Route::put('/leave-balances/{balance}',  [\App\Http\Controllers\Admin\LeaveBalanceWebController::class, 'update'])->name('leave-balances.update');
+        });
+
+        // ── Holidays ──────────────────────────────────────────────────────────
+        Route::middleware('permission:master-data.manage')->group(function () {
+            Route::get('/holidays',             [\App\Http\Controllers\Admin\HolidayWebController::class, 'index'])->name('holidays.index');
+            Route::post('/holidays',            [\App\Http\Controllers\Admin\HolidayWebController::class, 'store'])->name('holidays.store');
+            Route::put('/holidays/{holiday}',   [\App\Http\Controllers\Admin\HolidayWebController::class, 'update'])->name('holidays.update');
+            Route::delete('/holidays/{holiday}',[\App\Http\Controllers\Admin\HolidayWebController::class, 'destroy'])->name('holidays.destroy');
+        });
+
+        // ── Master Data ───────────────────────────────────────────────────────
         Route::prefix('master-data')->name('master-data.')->middleware('permission:master-data.manage')->group(function () {
-            Route::get('/{type}', [MasterDataController::class, 'index'])->name('index');
-            Route::post('/{type}', [MasterDataController::class, 'store'])->name('store');
-            Route::put('/{type}/{id}', [MasterDataController::class, 'update'])->name('update');
+            Route::get('/{type}',       [MasterDataController::class, 'index'])->name('index');
+            Route::post('/{type}',      [MasterDataController::class, 'store'])->name('store');
+            Route::put('/{type}/{id}',  [MasterDataController::class, 'update'])->name('update');
             Route::delete('/{type}/{id}', [MasterDataController::class, 'destroy'])->name('destroy');
         });
 
-        // Day Start / Tour Plan
-        Route::prefix('day-starts')->name('day-starts.')->group(function () {
-            Route::get('/', [DayStartController::class, 'index'])->name('index');
-            Route::get('/create', [DayStartController::class, 'create'])->name('create')->middleware('permission:day-start.create');
-            Route::post('/', [DayStartController::class, 'store'])->name('store')->middleware('permission:day-start.create');
-            Route::get('/{id}', [DayStartController::class, 'show'])->name('show');
-            Route::post('/{id}/status', [DayStartController::class, 'updateStatus'])->name('updateStatus')->middleware('permission:day-start.approve');
+        // ── Reports ───────────────────────────────────────────────────────────
+        Route::prefix('reports')->name('reports.')->middleware('permission:reports.view')->group(function () {
+            Route::get('/',                     [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('index');
+            Route::get('/scorecard/{id}',       [\App\Http\Controllers\Admin\ReportController::class, 'employeeScorecard'])->name('scorecard');
+            Route::get('/daily-ledger',         [\App\Http\Controllers\Admin\ReportController::class, 'dailyLedger'])->name('daily-ledger');
+            Route::get('/export-csv',           [\App\Http\Controllers\Admin\ReportController::class, 'exportCsv'])->name('export-csv');
+            Route::get('/fieldworker-parties',  [\App\Http\Controllers\Admin\ReportController::class, 'fieldworkerParties'])->name('fieldworker-parties');
         });
 
-        // Notifications
-        Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
-        Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+        // ── Expenses ──────────────────────────────────────────────────────────
+        Route::middleware('permission:expenses.view')->group(function () {
+            Route::get('/expenses',                         [\App\Http\Controllers\Admin\ExpenseController::class, 'index'])->name('expenses.index');
+            Route::get('/expenses/reports/monthly',         [\App\Http\Controllers\Admin\ExpenseReportController::class, 'monthlySummary'])->name('expenses.reports.monthly');
+            Route::get('/expenses/reports/statement/{user_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'workerStatement'])->name('expenses.reports.statement');
+            Route::get('/expenses/reports/daily/{day_start_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'dailyReceipt'])->name('expenses.reports.daily');
+        });
+        Route::patch('/expenses/{expense}/status', [\App\Http\Controllers\Admin\ExpenseController::class, 'updateStatus'])
+            ->middleware('permission:expenses.manage')
+            ->name('expenses.updateStatus');
 
-        // Product Management
-        Route::prefix('products')->name('products.')->middleware('permission:customers.view')->group(function () {
-            Route::get('/',                 [ProductController::class, 'index'])        ->name('index');
-            Route::get('/create',           [ProductController::class, 'create'])       ->name('create');
-            Route::post('/',                [ProductController::class, 'store'])        ->name('store');
-            Route::get('/{id}/edit',        [ProductController::class, 'edit'])         ->name('edit');
-            Route::put('/{id}',             [ProductController::class, 'update'])       ->name('update');
-            Route::delete('/{id}',          [ProductController::class, 'destroy'])      ->name('destroy');
-            Route::patch('/{id}/toggle',    [ProductController::class, 'toggleStatus']) ->name('toggleStatus');
-            
+        // ── Products ──────────────────────────────────────────────────────────
+        Route::prefix('products')->name('products.')->group(function () {
+            Route::get('/',                 [ProductController::class, 'index'])->middleware('permission:products.view')->name('index');
+            Route::get('/create',           [ProductController::class, 'create'])->middleware('permission:products.create')->name('create');
+            Route::post('/',                [ProductController::class, 'store'])->middleware('permission:products.create')->name('store');
+            Route::get('/{id}/edit',        [ProductController::class, 'edit'])->middleware('permission:products.edit')->name('edit');
+            Route::put('/{id}',             [ProductController::class, 'update'])->middleware('permission:products.edit')->name('update');
+            Route::delete('/{id}',          [ProductController::class, 'destroy'])->middleware('permission:products.delete')->name('destroy');
+            Route::patch('/{id}/toggle',    [ProductController::class, 'toggleStatus'])->middleware('permission:products.edit')->name('toggleStatus');
+
             // Product Images
-            Route::post('/{id}/images',             [ProductImageController::class, 'store'])      ->name('images.store');
-            Route::delete('/images/{imageId}',      [ProductImageController::class, 'destroy'])    ->name('images.destroy');
-            Route::patch('/images/{imageId}/featured', [ProductImageController::class, 'setFeatured']) ->name('images.featured');
-            Route::post('/{id}/images/reorder',     [ProductImageController::class, 'reorder'])    ->name('images.reorder');
+            Route::post('/{id}/images',                 [ProductImageController::class, 'store'])->middleware('permission:products.edit')->name('images.store');
+            Route::delete('/images/{imageId}',          [ProductImageController::class, 'destroy'])->middleware('permission:products.delete')->name('images.destroy');
+            Route::patch('/images/{imageId}/featured',  [ProductImageController::class, 'setFeatured'])->middleware('permission:products.edit')->name('images.featured');
+            Route::post('/{id}/images/reorder',         [ProductImageController::class, 'reorder'])->middleware('permission:products.edit')->name('images.reorder');
         });
 
-        // Product Attributes & Variations
-        Route::prefix('product-attributes')->name('product-attributes.')->middleware('permission:customers.view')->group(function () {
+        // ── Product Attributes ────────────────────────────────────────────────
+        Route::prefix('product-attributes')->name('product-attributes.')->middleware('permission:master-data.manage')->group(function () {
             Route::get('/',                 [ProductAttributeController::class, 'index'])->name('index');
             Route::get('/create',           [ProductAttributeController::class, 'create'])->name('create');
             Route::post('/',                [ProductAttributeController::class, 'store'])->name('store');
@@ -174,28 +257,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::delete('/values/{valueId}', [ProductAttributeController::class, 'deleteValue'])->name('delete-value');
         });
 
-        // Fieldwork UI Modules (Frontend-only mock data pages)
-        Route::resource('orders', \App\Http\Controllers\Admin\OrderController::class)->only(['index', 'show'])->middleware('permission:orders.view');
-        Route::patch('orders/{order}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->name('orders.update-status')->middleware('permission:orders.view');
-        Route::get('/payments', fn() => view('admin.payments.index'))->middleware('permission:payments.view')->name('payments.index');
-        Route::get('/visits', [\App\Http\Controllers\Admin\VisitController::class, 'index'])->middleware('permission:visits.view')->name('visits.index');
-        Route::get('/dealers', fn() => view('admin.dealers.index'))->middleware('permission:dealers.view')->name('dealers.index');
-        Route::get('/activities', fn() => view('admin.activities.index'))->middleware('permission:activities.view')->name('activities.index');
-        Route::prefix('reports')->name('reports.')->middleware('permission:reports.view')->group(function () {
-            Route::get('/', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('index');
-            Route::get('/fieldworker-parties', [\App\Http\Controllers\Admin\ReportController::class, 'fieldworkerParties'])->name('fieldworker-parties');
-        });
-        Route::get('/expenses', [\App\Http\Controllers\Admin\ExpenseController::class, 'index'])->middleware('permission:expenses.view')->name('expenses.index');
-        Route::patch('/expenses/{expense}/status', [\App\Http\Controllers\Admin\ExpenseController::class, 'updateStatus'])->middleware('permission:expenses.view')->name('expenses.updateStatus');
-        
-        // Expense Reports
-        Route::get('/expenses/reports/monthly', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'monthlySummary'])->middleware('permission:expenses.view')->name('expenses.reports.monthly');
-        Route::get('/expenses/reports/statement/{user_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'workerStatement'])->middleware('permission:expenses.view')->name('expenses.reports.statement');
-        Route::get('/expenses/reports/daily/{day_start_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'dailyReceipt'])->middleware('permission:expenses.view')->name('expenses.reports.daily');
+        // ── Dealers, Activities, Meetings, Product Demo, Deals ───────────────
+        Route::get('/dealers',       fn() => view('admin.dealers.index'))->middleware('permission:dealers.view')->name('dealers.index');
+        Route::get('/activities',    fn() => view('admin.activities.index'))->middleware('permission:activities.view')->name('activities.index');
+        Route::get('/meetings',      fn() => view('admin.meetings.index'))->middleware('permission:meetings.view')->name('meetings.index');
+        Route::get('/product-demo',  fn() => view('admin.product-demo.index'))->middleware('permission:product-demo.view')->name('product-demo.index');
+        Route::get('/deals',         fn() => view('admin.deals.index'))->middleware('permission:deals.view')->name('deals.index');
 
-        Route::get('/leave', fn() => view('admin.leave.index'))->middleware('permission:leave.view')->name('leave.index');
-        Route::get('/meetings', fn() => view('admin.meetings.index'))->middleware('permission:meetings.view')->name('meetings.index');
-        Route::get('/product-demo', fn() => view('admin.product-demo.index'))->middleware('permission:product-demo.view')->name('product-demo.index');
-        Route::get('/deals', fn() => view('admin.deals.index'))->middleware('permission:deals.view')->name('deals.index');
-    });
-});
+        // ── System Settings (Admin & Super Admin only) ────────────────────────
+        Route::middleware('permission:settings.manage')->group(function () {
+            Route::get('/settings',  [\App\Http\Controllers\Admin\SettingWebController::class, 'index'])->name('settings.index');
+            Route::post('/settings', [\App\Http\Controllers\Admin\SettingWebController::class, 'update'])->name('settings.update');
+        });
+
+    }); // end auth middleware
+}); // end admin prefix

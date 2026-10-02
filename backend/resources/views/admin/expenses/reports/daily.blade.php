@@ -138,6 +138,7 @@
             <thead>
                 <tr class="border-b border-slate-200">
                     <th style="text-align: left; padding: 12px 16px;">Type / Category</th>
+                    <th style="text-align: center; padding: 12px 16px;">Timing</th>
                     <th style="text-align: center; padding: 12px 16px;">Status</th>
                     <th style="text-align: center; padding: 12px 16px;">Photo Proof</th>
                     <th style="text-align: right; padding: 12px 16px;">Amount</th>
@@ -170,6 +171,17 @@
                             @endif
                         </td>
                         <td style="text-align: center; padding: 12px 16px; vertical-align: middle;">
+                            @if($expense->is_after_day_end)
+                                <span class="badge badge-warning inline-flex items-center gap-1" title="Submitted after day end or backdated">
+                                    ⚠️ After Day End
+                                </span>
+                            @else
+                                <span class="badge badge-success inline-flex items-center gap-1" title="Submitted during active shift">
+                                    ✓ During Shift
+                                </span>
+                            @endif
+                        </td>
+                        <td style="text-align: center; padding: 12px 16px; vertical-align: middle;">
                             @if($expense->status === 'pending')
                                 <span class="badge badge-warning">Pending</span>
                             @elseif($expense->status === 'approved')
@@ -193,7 +205,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="text-center py-4 text-ink-500">No expenses recorded for this day.</td>
+                        <td colspan="5" class="text-center py-4 text-ink-500">No expenses recorded for this day.</td>
                     </tr>
                 @endforelse
             </tbody>

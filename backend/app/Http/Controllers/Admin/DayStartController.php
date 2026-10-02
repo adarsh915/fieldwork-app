@@ -12,7 +12,7 @@ use App\Models\VehicleType;
 use App\Models\Visit;
 use App\Models\Order;
 use App\Models\ExpenseBill;
-use App\Notifications\TourPlanSubmitted;
+use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
@@ -44,19 +44,20 @@ class DayStartController extends Controller
             $query->whereDate('date', '<=', $request->date_to);
         }
 
-        if ($request->filled('employee_id') && $user->canany(['day-start.view-all', 'day-start.view-team'])) {
-            $query->where('user_id', $request->employee_id);
+        $visibleIds = DataScope::visibleUserIds('day-start');
+        if ($request->filled('employee_id')) {
+            if ($visibleIds === null || in_array($request->employee_id, $visibleIds)) {
+                $query->where('user_id', $request->employee_id);
+            } else {
+                $query->whereRaw('1=0');
+            }
         }
 
         $dayStarts = $query->paginate(20)->withQueryString();
 
-        $employees = collect();
-        if ($user->can('day-start.view-all')) {
-            $employees = User::query()->orderBy('name')->get(['id', 'name']);
-        } elseif ($user->can('day-start.view-team')) {
-            $teamMembers = $user->teamMembers()->orderBy('name')->get(['id', 'name']);
-            $employees = collect([['id' => $user->id, 'name' => $user->name]])->concat($teamMembers);
-        }
+        $employees = $visibleIds === null
+            ? User::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+            : User::query()->whereIn('id', $visibleIds)->where('is_active', true)->orderBy('name')->get(['id', 'name']);
 
         return view('admin.day-starts.index', compact('dayStarts', 'employees'));
     }

@@ -13,21 +13,25 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create an admin user first so RolesAndPermissionsSeeder can assign the Admin role to it
-        $adminUser = User::factory()->create([
-            'name' => 'Admin User',
-            'email' => 'admin@gmail.com',
-            'password' => bcrypt('123456'),
+        $this->call([
+            RolesAndPermissionsSeeder::class,
+            ComprehensivePermissionsSeeder::class,
+            DayStartPermissionsSeeder::class,
         ]);
 
-        $this->call(RolesAndPermissionsSeeder::class);
-        
-        // Assign the Super Admin role to the admin user
+        // Create or find admin user and assign Super Admin role
+        $adminUser = User::firstOrCreate(
+            ['email' => 'admin@gmail.com'],
+            [
+                'name' => 'Admin User',
+                'password' => bcrypt('123456'),
+                'is_active' => true,
+            ]
+        );
         $adminUser->assignRole('Super Admin');
 
         $this->call([
             TourMasterDataSeeder::class,
-            DayStartPermissionsSeeder::class,
             EmployeeSeeder::class,
             LoadTestDataSeeder::class,
             ProductSeeder::class,

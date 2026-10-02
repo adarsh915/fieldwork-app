@@ -11,6 +11,7 @@ use App\Events\PartyAssigned;
 use App\Events\PartyUpdated;
 use App\Http\Requests\Admin\Party\PartyUpdateRequest;
 use App\Http\Requests\Admin\Party\PartyAssignRequest;
+use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -28,15 +29,25 @@ class PartyController extends Controller
     {
         $this->authorize('viewAny', Customer::class);
 
-        $employees = User::role('Field Worker')
-            ->where('is_active', true)
+        // Stats counts & Data Scoping
+        $visibleIds = DataScope::visibleUserIds('parties');
+
+        // Scoped employees for filter dropdown
+        $empQuery = User::where('is_active', true);
+        if ($visibleIds !== null) {
+            $empQuery->whereIn('id', $visibleIds);
+        }
+        $employees = $empQuery->orderBy('name')->get(['id', 'name', 'employee_id']);
+
+        // Scoped employees for assignment modals
+        $assignableEmployees = DataScope::assignableUsers()
             ->orderBy('name')
             ->get(['id', 'name', 'employee_id']);
 
         $partyTypes = ['Retailer', 'Distributor', 'Wholesaler', 'End Customer'];
         $categories = ['A', 'B', 'C', 'D'];
 
-        return view('admin.parties.index', compact('employees', 'partyTypes', 'categories'));
+        return view('admin.parties.index', compact('employees', 'assignableEmployees', 'partyTypes', 'categories'));
     }
 
     /**
@@ -51,6 +62,17 @@ class PartyController extends Controller
                 $q->latest()->limit(1);
             }])
             ->select('customers.*');
+
+        // Data scoping: restrict party list to parties assigned to visible users
+        $visibleIds = DataScope::visibleUserIds('parties');
+        if ($visibleIds !== null) {
+            $query->where(function ($q) use ($visibleIds) {
+                $q->whereHas('assignments', function ($sq) use ($visibleIds) {
+                    $sq->whereIn('employee_id', $visibleIds)->where('is_active', true);
+                })->orWhereIn('user_id', $visibleIds)
+                  ->orWhereIn('submitted_by', $visibleIds);
+            });
+        }
 
         // Filters
         if ($request->filled('search.value') || $request->filled('search')) {
@@ -379,7 +401,7 @@ class PartyController extends Controller
      */
     public function create()
     {
-        $employees = User::orderBy('name')->get(['id', 'name']);
+        $employees = DataScope::assignableUsers()->orderBy('name')->get(['id', 'name']);
         return view('admin.parties.create', compact('employees'));
     }
 
@@ -431,8 +453,8 @@ class PartyController extends Controller
     public function edit($id)
     {
         $party     = Customer::findOrFail($id);
-        $employees = User::orderBy('name')->get(['id', 'name']);
-        
+        $employees = DataScope::assignableUsers()->orderBy('name')->get(['id', 'name']);
+
         // Get currently assigned employee IDs
         $assignedEmployeeIds = $party->assignments()
             ->where('is_active', true)
@@ -550,9 +572,15 @@ class PartyController extends Controller
         $this->authorize('assign', Customer::class);
 
         $validated = $request->validated();
-        $partyIds = $validated['party_ids'];
+        $partyIds   = $validated['party_ids'];
         $employeeId = $validated['employee_id'];
         $assignedBy = auth()->id();
+
+        // Scope check: ensure target employee is within assignable scope
+        $assignable = DataScope::assignableUsers()->pluck('id')->toArray();
+        if (!empty($assignable) && !in_array($employeeId, $assignable)) {
+            abort(403, 'You cannot assign parties to this employee.');
+        }
 
         DB::beginTransaction();
         try {
@@ -695,7 +723,7 @@ class PartyController extends Controller
 
     public function bulkImportForm()
     {
-        $employees = User::orderBy('name')->get(['id', 'name', 'email']);
+        $employees = DataScope::assignableUsers()->orderBy('name')->get(['id', 'name', 'email']);
         return view('admin.parties.bulk-import', compact('employees'));
     }
 

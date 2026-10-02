@@ -223,6 +223,48 @@
                         <x-lucide-database class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Master Data</span>
                     </a>
+
+                    <a href="{{ route('admin.holidays.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.holidays.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Holidays' : ''">
+                        <x-lucide-calendar-days class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Holidays</span>
+                    </a>
+
+                    <a href="{{ route('admin.attendance.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.attendance.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Attendance' : ''">
+                        <x-lucide-calendar-check class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Attendance Calendar</span>
+                    </a>
+
+                    <a href="{{ route('admin.leave-types.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.leave-types.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Leave Rules' : ''">
+                        <x-lucide-settings-2 class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Leave Rules & Policy</span>
+                    </a>
+
+                    <a href="{{ route('admin.leave-balances.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.leave-balances.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Leave Balances' : ''">
+                        <x-lucide-wallet class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Leave Balances</span>
+                    </a>
+
+                    <a href="{{ route('admin.settings.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.settings.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'System Settings' : ''">
+                        <x-lucide-sliders class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">System Settings</span>
+                    </a>
+
+                    <a href="{{ route('admin.audit-logs.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.audit-logs.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Audit Logs' : ''">
+                        <x-lucide-history class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Audit Trail & Logs</span>
+                    </a>
                     @endcan
 
                     @can('customers.view')
@@ -389,5 +431,73 @@
 
 @stack('scripts')
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+{{-- ── Permission Denied Toast (pure JS — Alpine loads too early via Vite) ── --}}
+@if (session('permission_denied'))
+<div id="perm-toast" style="
+    position: fixed; top: 20px; right: 20px; z-index: 9999;
+    display: flex; align-items: flex-start; gap: 12px;
+    max-width: 360px; width: 100%;
+    background: #fff; border: 1px solid #fecaca;
+    border-radius: 16px; padding: 14px 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+    animation: toast-in 0.3s ease-out;
+    overflow: hidden;
+">
+    {{-- Icon --}}
+    <span style="flex-shrink:0; width:36px; height:36px; background:#fff1f2; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-top:1px;">
+        <svg width="20" height="20" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.25-8.25-3.286z"/>
+        </svg>
+    </span>
+
+    {{-- Text --}}
+    <div style="flex:1; min-width:0;">
+        <p style="margin:0; font-size:13px; font-weight:600; color:#b91c1c; line-height:1.3;">Access Denied</p>
+        <p style="margin:4px 0 0; font-size:13px; color:#dc2626; line-height:1.4;">{{ session('permission_denied') }}</p>
+    </div>
+
+    {{-- Close --}}
+    <button onclick="document.getElementById('perm-toast').remove()"
+        style="flex-shrink:0; background:none; border:none; cursor:pointer; padding:4px; border-radius:6px; line-height:0; margin-top:1px;">
+        <svg width="16" height="16" fill="none" stroke="#f87171" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+    </button>
+
+    {{-- Progress bar --}}
+    <div id="perm-toast-bar" style="
+        position:absolute; bottom:0; left:0; height:3px;
+        background:#fca5a5; border-radius:2px;
+        width:100%; animation: toast-shrink 4.5s linear forwards;
+    "></div>
+</div>
+
+<style>
+    @@keyframes toast-in {
+        from { opacity: 0; transform: translateX(20px) translateY(-8px); }
+        to   { opacity: 1; transform: translateX(0) translateY(0); }
+    }
+    @@keyframes toast-shrink {
+        from { width: 100%; }
+        to   { width: 0%; }
+    }
+</style>
+
+<script>
+    // Auto-dismiss after 4.5s with fade-out
+    setTimeout(function() {
+        var t = document.getElementById('perm-toast');
+        if (!t) return;
+        t.style.transition = 'opacity 0.3s, transform 0.3s';
+        t.style.opacity = '0';
+        t.style.transform = 'translateX(20px)';
+        setTimeout(function() { if (t) t.remove(); }, 300);
+    }, 4500);
+</script>
+@endif
+
+
+
 </body>
 </html>

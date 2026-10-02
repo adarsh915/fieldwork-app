@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,15 +13,31 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $fieldWorkers = User::whereHas('roles', function($q) {
-            $q->where('name', 'Field Worker');
-        })->get();
+        $scopedUserIds = DataScope::visibleUserIds('orders');
+
+        $fwQuery = User::where('is_active', true);
+        if ($scopedUserIds !== null) {
+            $fwQuery->whereIn('id', $scopedUserIds);
+        } else {
+            $fwQuery->whereHas('roles', function($q) {
+                $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']);
+            });
+        }
+        $fieldWorkers = $fwQuery->get();
 
         $baseQuery = Order::query();
 
+        if ($scopedUserIds !== null) {
+            $baseQuery->whereIn('user_id', $scopedUserIds);
+        }
+
         // Apply base filters (user_id, search)
         if ($request->filled('user_id')) {
-            $baseQuery->where('user_id', $request->user_id);
+            if ($scopedUserIds === null || in_array($request->user_id, $scopedUserIds)) {
+                $baseQuery->where('user_id', $request->user_id);
+            } else {
+                $baseQuery->whereRaw('1=0');
+            }
         }
         if ($request->filled('search')) {
             $baseQuery->where(function($q) use ($request) {
@@ -29,6 +46,16 @@ class OrderController extends Controller
                       $q2->where('name', 'like', '%' . $request->search . '%');
                   });
             });
+        }
+        if ($request->filled('order_source')) {
+            $baseQuery->where('order_source', $request->order_source);
+        }
+        if ($request->filled('timing')) {
+            if ($request->timing === 'during_shift') {
+                $baseQuery->where('is_after_day_end', false);
+            } elseif ($request->timing === 'after_day_end') {
+                $baseQuery->where('is_after_day_end', true);
+            }
         }
 
         // Status counts for cards (respecting user and search, ignoring status)

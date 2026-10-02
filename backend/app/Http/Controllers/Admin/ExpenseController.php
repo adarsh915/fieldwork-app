@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseBill;
 use App\Models\User;
+use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -14,12 +15,30 @@ class ExpenseController extends Controller
     {
         $query = ExpenseBill::with(['user', 'category', 'items']);
 
+        // Data scoping: restrict to visible team members
+        $visibleIds = DataScope::visibleUserIds('expenses');
+        if ($visibleIds !== null) {
+            $query->whereIn('user_id', $visibleIds);
+        }
+
         if ($request->filled('user_id')) {
-            $query->where('user_id', $request->user_id);
+            if ($visibleIds === null || in_array($request->user_id, $visibleIds)) {
+                $query->where('user_id', $request->user_id);
+            } else {
+                $query->whereRaw('1=0');
+            }
         }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+
+        if ($request->filled('timing')) {
+            if ($request->timing === 'after_day_end') {
+                $query->where('is_after_day_end', true);
+            } elseif ($request->timing === 'during_shift') {
+                $query->where('is_after_day_end', false);
+            }
         }
 
         if ($request->filled('month')) {
@@ -28,8 +47,15 @@ class ExpenseController extends Controller
                   ->whereYear('date', $month->year);
         }
 
-        $expenses = $query->orderBy('date', 'desc')->paginate(15);
-        $users = User::role('Field Worker')->get();
+        $expenses = $query->orderBy('date', 'desc')
+            ->orderBy('id', 'desc')
+            ->paginate(15)
+            ->withQueryString();
+
+        // Scoped user dropdown — only show visible team members
+        $users = $visibleIds === null
+            ? User::where('is_active', true)->orderBy('name')->get()
+            : User::whereIn('id', $visibleIds)->where('is_active', true)->orderBy('name')->get();
 
         return view('admin.expenses.index', compact('expenses', 'users'));
     }
@@ -41,7 +67,7 @@ class ExpenseController extends Controller
         ]);
 
         $expense->update([
-            'status' => $validated['status'],
+            'status'      => $validated['status'],
             'approved_by' => auth()->id(),
         ]);
 

@@ -155,6 +155,22 @@
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    <div class="md:col-span-2">
+                        <label class="form-label font-bold text-slate-800">Reporting To (Manager / VP)</label>
+                        <select name="reporting_to" class="form-input @error('reporting_to') border-red-500 @enderror">
+                            <option value="">-- No Manager (Top Level / Direct Admin Report) --</option>
+                            @foreach ($managers as $mgr)
+                                <option value="{{ $mgr->id }}" @selected(old('reporting_to') == $mgr->id)>
+                                    {{ $mgr->name }} ({{ $mgr->employee_id ?? 'ID: '.$mgr->id }})
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-slate-500">Assign who this employee directly reports to (used for team data scoping).</p>
+                        @error('reporting_to')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
                 </div>
             </div>
 

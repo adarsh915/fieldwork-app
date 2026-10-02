@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
+use App\Services\DataScope;
 
 class TransactionController extends Controller
 {
@@ -14,10 +15,19 @@ class TransactionController extends Controller
         $type = request('type');
 
         $baseQuery = Transaction::query();
+        $scopedIds = DataScope::visibleUserIds('transactions');
+        if ($scopedIds !== null) {
+            $baseQuery->whereIn('user_id', $scopedIds);
+        }
+
+        $txQuery = Transaction::query()
+            ->with(['user', 'customer']);
+        if ($scopedIds !== null) {
+            $txQuery->whereIn('user_id', $scopedIds);
+        }
 
         return view('admin.transactions.index', [
-            'transactions' => Transaction::query()
-                ->with(['user', 'customer'])
+            'transactions' => $txQuery
                 ->when($search, function ($query, $search) {
                     $query->where(function ($query) use ($search) {
                         $query->where('notes', 'like', "%{$search}%")

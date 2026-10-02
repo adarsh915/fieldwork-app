@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\Visit;
 use App\Models\Transaction;
 use App\Models\PartyEmployeeMap;
+use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -83,6 +84,12 @@ class EmployeeWebController extends Controller
                 ->with('roles')
                 ->orderBy('created_at', 'desc');
 
+            // Data scoping: restrict to visible team members
+            $visibleIds = DataScope::visibleUserIds('employees');
+            if ($visibleIds !== null) {
+                $query->whereIn('id', $visibleIds);
+            }
+
             // Search
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -112,7 +119,6 @@ class EmployeeWebController extends Controller
 
             return view('admin.employees.index', compact('employees', 'roles', 'search', 'roleFilter', 'statusFilter'));
         } catch (\Exception $e) {
-            // Log the error and show a friendly message
             \Log::error('Employee index error: ' . $e->getMessage());
             return redirect()->route('admin.dashboard')->with('error', 'Unable to load employee list: ' . $e->getMessage());
         }
@@ -125,8 +131,9 @@ class EmployeeWebController extends Controller
     {
         $roles = Role::orderBy('name')->get();
         $customers = Customer::active()->orderBy('name')->get(['id', 'name']);
+        $managers = User::where('is_active', true)->orderBy('name')->get(['id', 'name', 'employee_id']);
 
-        return view('admin.employees.create', compact('roles', 'customers'));
+        return view('admin.employees.create', compact('roles', 'customers', 'managers'));
     }
 
     /**
@@ -147,6 +154,7 @@ class EmployeeWebController extends Controller
                 'department' => ['nullable', 'string', 'max:100'],
                 'position' => ['nullable', 'string', 'max:100'],
                 'salary' => ['nullable', 'numeric', 'min:0'],
+                'reporting_to' => ['nullable', 'exists:users,id'],
                 'is_active' => ['nullable', 'boolean'],
                 'roles' => ['nullable', 'array'],
                 'roles.*' => ['exists:roles,name'],
@@ -167,6 +175,7 @@ class EmployeeWebController extends Controller
                 'department' => $validated['department'] ?? null,
                 'position' => $validated['position'] ?? null,
                 'salary' => $validated['salary'] ?? null,
+                'reporting_to' => $validated['reporting_to'] ?? null,
                 'is_active' => $request->boolean('is_active', true),
             ]);
 
@@ -215,9 +224,10 @@ class EmployeeWebController extends Controller
         $employee = User::with(['roles', 'parties'])->findOrFail($id);
         $roles = Role::orderBy('name')->get();
         $customers = Customer::active()->orderBy('name')->get(['id', 'name']);
+        $managers = User::where('is_active', true)->where('id', '!=', $id)->orderBy('name')->get(['id', 'name', 'employee_id']);
         $assignedPartyIds = $employee->parties->pluck('id')->all();
 
-        return view('admin.employees.edit', compact('employee', 'roles', 'customers', 'assignedPartyIds'));
+        return view('admin.employees.edit', compact('employee', 'roles', 'customers', 'managers', 'assignedPartyIds'));
     }
 
     /**
@@ -239,6 +249,7 @@ class EmployeeWebController extends Controller
             'department' => ['nullable', 'string', 'max:100'],
             'position' => ['nullable', 'string', 'max:100'],
             'salary' => ['nullable', 'numeric', 'min:0'],
+            'reporting_to' => ['nullable', 'exists:users,id'],
             'is_active' => ['boolean'],
             'roles' => ['nullable', 'array'],
             'roles.*' => ['exists:roles,name'],
@@ -257,6 +268,7 @@ class EmployeeWebController extends Controller
             'department' => $validated['department'] ?? null,
             'position' => $validated['position'] ?? null,
             'salary' => $validated['salary'] ?? null,
+            'reporting_to' => $validated['reporting_to'] ?? null,
             'is_active' => $request->boolean('is_active', true),
         ];
 
@@ -266,9 +278,7 @@ class EmployeeWebController extends Controller
 
         $employee->update($updateData);
 
-        if (isset($validated['roles'])) {
-            $employee->syncRoles($validated['roles']);
-        }
+        $employee->syncRoles($request->input('roles', []));
 
         $this->syncEmployeeParties($employee->id, $request->input('parties', []));
 

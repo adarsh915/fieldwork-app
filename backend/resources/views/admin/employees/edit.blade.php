@@ -134,6 +134,22 @@
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    <div class="md:col-span-2">
+                        <label class="form-label font-bold text-slate-800">Reporting To (Manager / VP)</label>
+                        <select name="reporting_to" class="form-input @error('reporting_to') border-red-500 @enderror">
+                            <option value="">-- No Manager (Top Level / Direct Admin Report) --</option>
+                            @foreach ($managers as $mgr)
+                                <option value="{{ $mgr->id }}" @selected(old('reporting_to', $employee->reporting_to) == $mgr->id)>
+                                    {{ $mgr->name }} ({{ $mgr->employee_id ?? 'ID: '.$mgr->id }})
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-slate-500">Assign who this employee directly reports to (used for team data scoping).</p>
+                        @error('reporting_to')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
                 </div>
             </div>
 
@@ -202,20 +218,22 @@
                 <a href="{{ route('admin.employees.index') }}" class="btn-secondary">
                     Cancel
                 </a>
-                
-                @if(auth()->id() !== $employee->id)
-                    <form method="POST" action="{{ route('admin.employees.destroy', $employee->id) }}" 
-                          onsubmit="return confirm('Are you sure you want to delete this employee? This action cannot be undone.')" 
-                          class="ml-auto">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="rounded-md bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100">
-                            Delete Employee
-                        </button>
-                    </form>
-                @endif
             </div>
         </form>
+
+        @if(auth()->id() !== $employee->id)
+            {{-- Delete Form (Must be outside the Update form) --}}
+            <div class="p-6 pt-0 flex justify-end border-t border-slate-100 mt-2">
+                <form method="POST" action="{{ route('admin.employees.destroy', $employee->id) }}" 
+                      onsubmit="return confirm('Are you sure you want to delete this employee? This action cannot be undone.')">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="rounded-md bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100">
+                        Delete Employee
+                    </button>
+                </form>
+            </div>
+        @endif
     </section>
 @endsection
 

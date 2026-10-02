@@ -47,7 +47,7 @@
             <tbody class="text-sm">
                 @forelse($statementData as $data)
                     <tr class="hover:bg-slate-50 transition border-b border-slate-100">
-                        <td class="p-3 font-semibold text-slate-800">{{ $data['dayStart']->date->format('d M Y') }}</td>
+                        <td class="p-3 font-semibold text-slate-800">{{ $data['date_formatted'] }}</td>
                         <td class="p-3 text-right text-slate-600">{{ $data['food'] > 0 ? '₹'.number_format($data['food'], 2) : '-' }}</td>
                         <td class="p-3 text-right text-slate-600">{{ $data['hotel'] > 0 ? '₹'.number_format($data['hotel'], 2) : '-' }}</td>
                         <td class="p-3 text-right text-slate-600">{{ $data['travel'] > 0 ? '₹'.number_format($data['travel'], 2) : '-' }}</td>

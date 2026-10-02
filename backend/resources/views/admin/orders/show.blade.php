@@ -20,7 +20,7 @@
                 <span class="block text-xs font-semibold text-gray-500 uppercase">Party (Customer)</span>
                 <span class="block text-sm text-gray-900 mt-1 font-medium">{{ $order->party ? $order->party->name : 'N/A' }}</span>
                 @if($order->party)
-                    <span class="block text-xs text-gray-500">{{ $order->party->code }} | {{ $order->party->city }}</span>
+                    <span class="block text-xs text-gray-500">{{ $order->party->party_code ?? $order->party->code ?? '' }} | {{ $order->party->city }}</span>
                 @endif
             </div>
             <div>
@@ -38,6 +38,26 @@
             <div>
                 <span class="block text-xs font-semibold text-gray-500 uppercase">Schema (Discount/Offer)</span>
                 <span class="block text-sm text-gray-900 mt-1">{{ $order->schema ?: 'None' }}</span>
+            </div>
+            <div>
+                <span class="block text-xs font-semibold text-gray-500 uppercase">Source & Shift Timing</span>
+                <div class="mt-1">
+                    @if($order->order_source === 'phone')
+                        @if($order->is_after_day_end)
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                🌙 Phone Order (Off-Shift / Night)
+                            </span>
+                        @else
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                                📞 Phone Order (During Shift)
+                            </span>
+                        @endif
+                    @else
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            📍 In-Person Visit Order
+                        </span>
+                    @endif
+                </div>
             </div>
             <div>
                 <span class="block text-xs font-semibold text-gray-500 uppercase">Status</span>

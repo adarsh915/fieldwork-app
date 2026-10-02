@@ -281,6 +281,7 @@
                     <tr>
                         <th>Category</th>
                         <th>Amount</th>
+                        <th>Timing</th>
                         <th>Photo</th>
                         <th>Status</th>
                         <th class="text-right">Action</th>
@@ -305,6 +306,17 @@
                                 @endif
                             </td>
                             <td class="font-bold text-slate-900">₹{{ number_format($expense->amount, 2) }}</td>
+                            <td>
+                                @if($expense->is_after_day_end)
+                                    <span class="badge badge-warning inline-flex items-center gap-1" title="Submitted after day end or backdated">
+                                        ⚠️ After Day End
+                                    </span>
+                                @else
+                                    <span class="badge badge-success inline-flex items-center gap-1" title="Submitted during active shift">
+                                        ✓ During Shift
+                                    </span>
+                                @endif
+                            </td>
                             <td>
                                 @if($expense->bill_photo)
                                     <button type="button" @click="lightboxImage = '{{ asset('storage/' . $expense->bill_photo) }}'; lightboxOpen = true;" class="text-brand-600 underline text-sm font-semibold hover:text-brand-700">View Proof</button>
@@ -349,7 +361,7 @@
                         @if($expense->is_system_generated)
                             {{-- Expandable Meter Summary Row --}}
                             <tr x-show="expandedExpense === {{ $expense->id }}" style="display: none;">
-                                <td colspan="5" class="bg-slate-50 p-6 border-b border-slate-200 shadow-inner">
+                                <td colspan="6" class="bg-slate-50 p-6 border-b border-slate-200 shadow-inner">
                                     <h4 class="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-4">Meter & Travel Summary</h4>
                                     <div class="flex flex-wrap gap-8 items-start">
                                         
@@ -409,7 +421,7 @@
                         @if(!$expense->is_system_generated && $expense->items->count() > 0)
                             {{-- Expandable Itemized Row --}}
                             <tr x-show="expandedExpense === {{ $expense->id }}" style="display: none;">
-                                <td colspan="5" class="bg-slate-50 p-6 border-b border-slate-200 shadow-inner">
+                                <td colspan="6" class="bg-slate-50 p-6 border-b border-slate-200 shadow-inner">
                                     <h4 class="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-4">Itemized Breakdown</h4>
                                     <div class="overflow-x-auto">
                                         <table class="w-full text-sm text-left text-slate-600">
@@ -437,7 +449,7 @@
                             </tr>
                         @endif
                     @empty
-                        <tr><td colspan="5" class="text-center py-6 text-slate-500">No expenses claimed today.</td></tr>
+                        <tr><td colspan="6" class="text-center py-6 text-slate-500">No expenses claimed today.</td></tr>
                     @endforelse
                 </tbody>
                 @if($expenses->count() > 0)
@@ -445,7 +457,7 @@
                     <tr class="bg-slate-50 border-t border-slate-200">
                         <td class="font-bold text-slate-900 text-right">Total Bill Amount:</td>
                         <td class="font-bold text-brand-600 text-lg">₹{{ number_format($expenses->sum('amount'), 2) }}</td>
-                        <td colspan="3"></td>
+                        <td colspan="4"></td>
                     </tr>
                 </tfoot>
                 @endif

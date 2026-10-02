@@ -307,26 +307,27 @@
             </section>
         </div>
 
-                {{-- Danger zone --}}
-                <section class="panel border-red-200">
-                    <div class="panel-header border-red-100">
-                        <h3 class="font-semibold text-red-700">Danger Zone</h3>
-                    </div>
-                    <div class="p-4">
-                        <form method="POST" action="{{ route('admin.products.destroy', $product->id) }}"
-                              onsubmit="return confirm('Delete this product permanently?')">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn-danger w-full justify-center">
-                                🗑 Delete Product
-                            </button>
-                        </form>
-                    </div>
-                </section>
+    </div>
+</form>
 
-            </div>
+{{-- Danger zone (Separate form) --}}
+<div class="mt-6 max-w-sm">
+    <section class="panel border-red-200">
+        <div class="panel-header border-red-100">
+            <h3 class="font-semibold text-red-700">Danger Zone</h3>
         </div>
-    </form>
+        <div class="p-4">
+            <form method="POST" action="{{ route('admin.products.destroy', $product->id) }}"
+                  onsubmit="return confirm('Delete this product permanently?')">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn-danger w-full justify-center">
+                    🗑 Delete Product
+                </button>
+            </form>
+        </div>
+    </section>
+</div>
 
 @endsection
 

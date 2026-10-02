@@ -54,16 +54,16 @@ class NewSchemaDummyDataSeeder extends Seeder
 
             // 2. Payments (5 per employee)
             $payments = [];
-            $paymentModes = ['cash', 'upi', 'cheque', 'bank'];
+            $paymentModes = ['cash', 'upi', 'cheque', 'bank_transfer'];
             for ($i = 0; $i < 5; $i++) {
                 $payments[] = [
-                    'reference_no' => 'PAY-' . strtoupper(uniqid()),
+                    'receipt_no' => 'RCP-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -4)) . rand(10, 99) . $userId . $i,
                     'party_id' => $customers->random()->id,
-                    'user_id' => $userId,
+                    'collected_by' => $userId,
                     'amount' => rand(1000, 50000),
                     'payment_mode' => $paymentModes[array_rand($paymentModes)],
-                    'status' => 'completed',
-                    'collected_at' => now()->subDays(rand(1, 30)),
+                    'status' => 'confirmed',
+                    'collection_datetime' => now()->subDays(rand(1, 30)),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];

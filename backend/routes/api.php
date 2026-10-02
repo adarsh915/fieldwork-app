@@ -46,6 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products', [\App\Http\Controllers\Api\ProductController::class, 'index']);
 
     // Orders
+    Route::get('/orders/config', [\App\Http\Controllers\Api\OrderController::class, 'config']);
     Route::get('/orders', [\App\Http\Controllers\Api\OrderController::class, 'index']);
     Route::post('/orders', [\App\Http\Controllers\Api\OrderController::class, 'store']);
 
@@ -69,4 +70,68 @@ Route::middleware('auth:sanctum')->group(function () {
     // Parties (field worker: view assigned + submit new)
     Route::get('/parties',  [PartyController::class, 'index'])->name('api.parties.index');
     Route::post('/parties', [PartyController::class, 'store'])->name('api.parties.store');
+
+    // ─── Holidays (read for all authenticated users) ────────────────────────
+    Route::get('/holidays', [\App\Http\Controllers\Api\HolidayController::class, 'index'])
+        ->name('api.holidays.index');
+
+    // ─── Leave Types (dropdown for apply form) ──────────────────────────────
+    Route::get('/leave-types', [\App\Http\Controllers\Api\LeaveController::class, 'types'])
+        ->name('api.leave-types.index');
+
+    // ─── My Leaves (employee) ───────────────────────────────────────────────
+    Route::prefix('leaves')->name('api.leaves.')->group(function () {
+        Route::get('/',               [\App\Http\Controllers\Api\LeaveController::class, 'index'])->name('index');
+        Route::get('/balance',        [\App\Http\Controllers\Api\LeaveController::class, 'balance'])->name('balance');
+        Route::post('/apply',                  [\App\Http\Controllers\Api\LeaveController::class, 'apply'])->name('apply');
+        Route::delete('/{id}/cancel',          [\App\Http\Controllers\Api\LeaveController::class, 'cancel'])->name('cancel');
+        Route::post('/{id}/request-cancellation', [\App\Http\Controllers\Api\LeaveController::class, 'requestCancellation'])->name('request-cancellation');
+    });
+
+    // ─── My Attendance (employee) ───────────────────────────────────────────
+    Route::prefix('attendance')->name('api.attendance.')->group(function () {
+        Route::get('/calendar', [\App\Http\Controllers\Api\AttendanceController::class, 'myCalendar'])->name('calendar');
+    });
+
+    // Payments
+    Route::prefix('payments')->name('api.payments.')->group(function () {
+        Route::post('/collect',         [\App\Http\Controllers\Api\PaymentController::class, 'collect'])->name('collect');
+        Route::get('/my-collections',   [\App\Http\Controllers\Api\PaymentController::class, 'myCollections'])->name('my-collections');
+        Route::get('/settings',         [\App\Http\Controllers\Api\PaymentController::class, 'getSettings'])->name('settings');
+    });
+    Route::get('/parties/{id}/payments', [\App\Http\Controllers\Api\PaymentController::class, 'partyPayments'])->name('api.parties.payments');
+
+    // ─── Admin Routes ───────────────────────────────────────────────────────
+    Route::prefix('admin')->name('api.admin.')->group(function () {
+        // Payment Management
+        Route::get('/payments/pending',        [\App\Http\Controllers\Api\PaymentController::class, 'pendingQueue'])->name('payments.pending');
+        Route::get('/payments',                [\App\Http\Controllers\Api\PaymentController::class, 'adminIndex'])->name('payments.index');
+        Route::patch('/payments/{id}/confirm', [\App\Http\Controllers\Api\PaymentController::class, 'confirm'])->name('payments.confirm');
+        Route::patch('/payments/{id}/reject',  [\App\Http\Controllers\Api\PaymentController::class, 'reject'])->name('payments.reject');
+
+        // Leave management
+        Route::get('/leaves',                          [\App\Http\Controllers\Api\LeaveController::class, 'adminIndex'])->name('leaves.index');
+        Route::get('/leaves/conflicts',                [\App\Http\Controllers\Api\LeaveController::class, 'indexConflicts'])->name('leaves.conflicts');
+        Route::post('/leaves/{id}/approve',            [\App\Http\Controllers\Api\LeaveController::class, 'approve'])->name('leaves.approve');
+        Route::post('/leaves/{id}/reject',             [\App\Http\Controllers\Api\LeaveController::class, 'reject'])->name('leaves.reject');
+        Route::patch('/leaves/{id}/resolve-conflict',  [\App\Http\Controllers\Api\LeaveController::class, 'resolveConflict'])->name('leaves.resolve-conflict');
+
+        // Attendance
+        Route::get('/attendance',           [\App\Http\Controllers\Api\AttendanceController::class, 'adminCalendar'])->name('attendance.calendar');
+        Route::get('/attendance/team',      [\App\Http\Controllers\Api\AttendanceController::class, 'teamSummary'])->name('attendance.team');
+
+        // Holidays (write)
+        Route::post('/holidays',            [\App\Http\Controllers\Api\HolidayController::class, 'store'])->name('holidays.store');
+        Route::delete('/holidays/{id}',     [\App\Http\Controllers\Api\HolidayController::class, 'destroy'])->name('holidays.destroy');
+
+        // System Settings
+        Route::get('/settings',             [\App\Http\Controllers\Api\AdminSettingsController::class, 'index'])->name('settings.index');
+        Route::patch('/settings/{key}',     [\App\Http\Controllers\Api\AdminSettingsController::class, 'update'])->name('settings.update');
+
+        // Admin Manual Overrides & Audit Trail
+        Route::patch('/attendance/{user_id}/{date}/adjust', [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'adjustAttendance'])->name('attendance.adjust');
+        Route::patch('/leaves/{id}/edit',                   [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'editLeave'])->name('leaves.edit');
+        Route::patch('/leave-balances/{id}/adjust',          [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'adjustBalance'])->name('leave-balances.adjust');
+        Route::get('/audit-logs',                           [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'auditLogs'])->name('audit-logs.index');
+    });
 });

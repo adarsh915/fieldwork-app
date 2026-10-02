@@ -8,14 +8,17 @@ class Order extends Model
 {
     protected $fillable = [
         'order_no', 'party_id', 'user_id', 'visit_id', 'order_date', 
-        'total_amount', 'status', 'remarks', 'delivery_destination',
+        'total_amount', 'status', 'order_source', 'is_after_day_end',
+        'remarks', 'delivery_destination',
         'preferred_transport', 'vehicle_no', 'dispatch_date', 'schema',
         'order_type', 'payment_mode'
     ];
 
     protected $casts = [
+        'order_date' => 'date',
         'dispatch_date' => 'date',
         'total_amount' => 'decimal:2',
+        'is_after_day_end' => 'boolean',
     ];
 
     public function user()

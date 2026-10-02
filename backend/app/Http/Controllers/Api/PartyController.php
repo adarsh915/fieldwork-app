@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\PartyEmployeeMap;
+use App\Services\DataScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,23 +21,35 @@ class PartyController extends Controller
 {
     /**
      * GET /api/parties
-     * Returns parties assigned to the authenticated field worker.
-     * Includes pending ones they submitted themselves.
+     * Returns parties assigned to the authenticated user/team.
+     * Includes pending ones submitted.
      */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $scopedUserIds = DataScope::visibleUserIds('parties');
 
-        // Get approved assigned parties + their own pending submissions
-        $assigned = $user->parties()
-            ->where('customers.approval_status', 'approved')
-            ->orderBy('customers.name')
-            ->get(['customers.id', 'customers.name', 'customers.mobile',
-                   'customers.address', 'customers.city', 'customers.approval_status']);
+        $query = Customer::query()
+            ->where('approval_status', 'approved');
 
-        $pending = Customer::where('submitted_by', $user->id)
-            ->where('approval_status', 'pending')
-            ->orderBy('name')
+        if ($scopedUserIds !== null) {
+            $query->where(function ($q) use ($scopedUserIds) {
+                $q->whereHas('assignments', function ($sq) use ($scopedUserIds) {
+                    $sq->whereIn('employee_id', $scopedUserIds)->where('is_active', true);
+                })->orWhereIn('user_id', $scopedUserIds)
+                  ->orWhereIn('submitted_by', $scopedUserIds);
+            });
+        }
+
+        $assigned = $query->orderBy('name')
+            ->get(['id', 'name', 'mobile', 'address', 'city', 'approval_status']);
+
+        $pendingQuery = Customer::where('approval_status', 'pending');
+        if ($scopedUserIds !== null) {
+            $pendingQuery->whereIn('submitted_by', $scopedUserIds);
+        }
+
+        $pending = $pendingQuery->orderBy('name')
             ->get(['id', 'name', 'mobile', 'address', 'city', 'approval_status']);
 
         $all = $assigned->merge($pending)->unique('id')->values();

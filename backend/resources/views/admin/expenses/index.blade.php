@@ -13,7 +13,7 @@
         </a>
     </div>
     <form method="GET" action="{{ route('admin.expenses.index') }}" class="flex flex-wrap gap-4 items-end">
-        <div class="w-full md:w-1/4">
+        <div class="w-full sm:w-1/2 md:w-1/5">
             <label class="form-label">Field Worker</label>
             <select name="user_id" class="form-input">
                 <option value="">All Workers</option>
@@ -24,7 +24,7 @@
                 @endforeach
             </select>
         </div>
-        <div class="w-full md:w-1/4">
+        <div class="w-full sm:w-1/2 md:w-1/5">
             <label class="form-label">Status</label>
             <select name="status" class="form-input">
                 <option value="">All Statuses</option>
@@ -33,7 +33,15 @@
                 <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
             </select>
         </div>
-        <div class="w-full md:w-1/4">
+        <div class="w-full sm:w-1/2 md:w-1/5">
+            <label class="form-label">Submission Timing</label>
+            <select name="timing" class="form-input">
+                <option value="">All Timings</option>
+                <option value="during_shift" {{ request('timing') == 'during_shift' ? 'selected' : '' }}>During Shift</option>
+                <option value="after_day_end" {{ request('timing') == 'after_day_end' ? 'selected' : '' }}>Post Day-End / Backdated</option>
+            </select>
+        </div>
+        <div class="w-full sm:w-1/2 md:w-1/5">
             <label class="form-label">Month</label>
             <input type="month" name="month" value="{{ request('month') }}" class="form-input">
         </div>
@@ -52,6 +60,7 @@
                     <th>Worker</th>
                     <th>Category</th>
                     <th>Amount</th>
+                    <th>Timing</th>
                     <th>Photo</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
@@ -72,6 +81,17 @@
                         @endif
                     </td>
                     <td class="font-bold">₹{{ number_format($expense->amount, 2) }}</td>
+                    <td>
+                        @if($expense->is_after_day_end)
+                            <span class="badge badge-warning inline-flex items-center gap-1" title="Submitted after day end or backdated">
+                                ⚠️ After Day End
+                            </span>
+                        @else
+                            <span class="badge badge-success inline-flex items-center gap-1" title="Submitted during active shift">
+                                ✓ During Shift
+                            </span>
+                        @endif
+                    </td>
                     <td>
                         @if($expense->bill_photo)
                             <a href="{{ asset('storage/' . $expense->bill_photo) }}" target="_blank" class="text-brand-600 underline text-sm">View Proof</a>
@@ -114,7 +134,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="text-center py-6 text-ink-500">No expenses found.</td>
+                    <td colspan="8" class="text-center py-6 text-ink-500">No expenses found.</td>
                 </tr>
                 @endforelse
             </tbody>

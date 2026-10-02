@@ -43,14 +43,14 @@
             </div>
 
             {{-- Filters --}}
-            <div x-data="{
-                                                                                search: '',
-                                                                                employeeId: '',
-                                                                                partyType: '',
-                                                                                category: '',
-                                                                                status: '',
-                                                                                filtersVisible: false
-                                                                            }" class="mt-4">
+            <div id="party-filters" x-data="{
+                search: '',
+                employeeId: '',
+                partyType: '',
+                category: '',
+                status: '',
+                filtersVisible: false
+            }" class="mt-4">
                 <div class="flex flex-wrap gap-3 items-end">
                     {{-- Search --}}
                     <div class="relative flex-1 min-w-[200px]">
@@ -276,12 +276,13 @@
                 ajax: {
                     url: '{{ route('admin.parties.data') }}',
                     data: function (d) {
-                        const filters = Alpine.$data(document.querySelector('[x-data]'));
-                        d.search = filters.search;
-                        d.employee_id = filters.employeeId;
-                        d.party_type = filters.partyType;
-                        d.category = filters.category;
-                        d.status = filters.status;
+                        const filtersElement = document.getElementById('party-filters');
+                        const filters = Alpine.$data(filtersElement);
+                        d.search = filters ? filters.search : '';
+                        d.employee_id = filters ? filters.employeeId : '';
+                        d.party_type = filters ? filters.partyType : '';
+                        d.category = filters ? filters.category : '';
+                        d.status = filters ? filters.status : '';
                     }
                 },
                 columns: [

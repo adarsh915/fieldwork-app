@@ -6,8 +6,8 @@
     @php
         use Illuminate\Support\Facades\Schema;
         $notificationsEnabled = Schema::hasTable('notifications');
-        $unreadNotifications  = $notificationsEnabled
-            ? auth()->user()->unreadNotifications
+        $unreadNotifications  = ($notificationsEnabled && auth()->check())
+            ? (auth()->user()?->unreadNotifications ?? collect())
             : collect();
     @endphp
 

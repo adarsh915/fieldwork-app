@@ -23,8 +23,19 @@ import type { AppStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "AddExpense">;
 
+function formatYmd(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function AddExpenseScreen() {
   const navigation = useNavigation<Nav>();
+
+  const todayStr = useMemo(() => formatYmd(new Date()), []);
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [pastDaysAllowed, setPastDaysAllowed] = useState<number>(7);
 
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -44,9 +55,35 @@ export default function AddExpenseScreen() {
         if (res.success && res.data) {
           setCategories(res.data);
         }
+        if (typeof res.past_days_allowed === "number") {
+          setPastDaysAllowed(res.past_days_allowed);
+        }
       })
       .catch(() => {});
   }, []);
+
+  const availableDates = useMemo(() => {
+    const list: { dateStr: string; label: string; isPast: boolean }[] = [];
+    const now = new Date();
+
+    for (let i = 0; i <= pastDaysAllowed; i++) {
+      const d = new Date();
+      d.setDate(now.getDate() - i);
+      const dateStr = formatYmd(d);
+
+      let label = "";
+      if (i === 0) {
+        label = `Today (${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })})`;
+      } else if (i === 1) {
+        label = `Yesterday (${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })})`;
+      } else {
+        label = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      }
+
+      list.push({ dateStr, label, isPast: i > 0 });
+    }
+    return list;
+  }, [pastDaysAllowed]);
 
   const selectedCategoryName = useMemo(() => {
     return categories.find((c) => c.id === selectedCategory)?.name?.trim().toLowerCase();
@@ -134,7 +171,13 @@ export default function AddExpenseScreen() {
 
     setSubmitting(true);
     try {
-      const res = await submitExpense(selectedCategory, amount, photoUri, isStationery ? items : undefined);
+      const res = await submitExpense(
+        selectedCategory,
+        amount,
+        photoUri,
+        isStationery ? items : undefined,
+        selectedDate
+      );
 
       Alert.alert("Success", res.message || "Expense submitted!", [
         { text: "OK", onPress: () => navigation.goBack() },
@@ -156,7 +199,42 @@ export default function AddExpenseScreen() {
       >
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 20 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
-          <Text style={styles.fieldLabel}>Category</Text>
+          {/* Date Selector */}
+          <Text style={styles.fieldLabel}>Expense Date</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.dateScrollRow}
+            contentContainerStyle={styles.dateScrollContent}
+          >
+            {availableDates.map((item) => (
+              <TouchableOpacity
+                key={item.dateStr}
+                style={[styles.dateChip, selectedDate === item.dateStr && styles.dateChipActive]}
+                onPress={() => setSelectedDate(item.dateStr)}
+              >
+                <MaterialCommunityIcons
+                  name={item.dateStr === todayStr ? "calendar-today" : "calendar-clock"}
+                  size={15}
+                  color={selectedDate === item.dateStr ? "#7367F0" : "#6B7280"}
+                />
+                <Text style={[styles.dateChipText, selectedDate === item.dateStr && styles.dateChipTextActive]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {selectedDate !== todayStr && (
+            <View style={styles.backdateNotice}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={18} color="#D97706" />
+              <Text style={styles.backdateNoticeText}>
+                Backdated expense will be flagged as "After Day End" for HR audit.
+              </Text>
+            </View>
+          )}
+
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Category</Text>
           <View style={styles.chipRow}>
             {categories.map((cat) => (
               <TouchableOpacity
@@ -417,5 +495,56 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF2F6",
     borderColor: "#CBD5E1",
     color: "#64748B",
+  },
+  dateScrollRow: {
+    marginHorizontal: -4,
+    marginBottom: 4,
+  },
+  dateScrollContent: {
+    paddingHorizontal: 4,
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  dateChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  dateChipActive: {
+    backgroundColor: "#EEECFE",
+    borderColor: "#7367F0",
+  },
+  dateChipText: {
+    color: "#4B5563",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  dateChipTextActive: {
+    color: "#7367F0",
+  },
+  backdateNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  backdateNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#92400E",
   },
 });

@@ -36,7 +36,19 @@
                 </tr>
             </thead>
             <tbody>
+                @php
+                    $allTravel = 0;
+                    $allManualApproved = 0;
+                    $allGrandTotal = 0;
+                    $allManualPending = 0;
+                @endphp
                 @forelse($summary as $row)
+                @php
+                    $allTravel += $row['total_travel'];
+                    $allManualApproved += $row['total_manual_approved'];
+                    $allGrandTotal += $row['grand_total'];
+                    $allManualPending += $row['total_manual_pending'];
+                @endphp
                 <tr>
                     <td>
                         <span class="font-bold text-ink-900">{{ $row['user']->name }}</span>
@@ -57,6 +69,18 @@
                 </tr>
                 @endforelse
             </tbody>
+            @if(count($summary) > 0)
+            <tfoot class="bg-gray-50 font-bold border-t border-gray-200">
+                <tr>
+                    <td class="py-3 px-4 text-ink-900 font-extrabold uppercase">Total (All Workers):</td>
+                    <td class="text-right text-brand-700">₹{{ number_format($allTravel, 2) }}</td>
+                    <td class="text-right text-success-text">₹{{ number_format($allManualApproved, 2) }}</td>
+                    <td class="text-right text-ink-900 text-xl font-black">₹{{ number_format($allGrandTotal, 2) }}</td>
+                    <td class="text-right text-warning-text">₹{{ number_format($allManualPending, 2) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            @endif
         </table>
     </div>
 </div>
