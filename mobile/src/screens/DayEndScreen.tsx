@@ -7,15 +7,13 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 
 import { submitDayEnd } from "../api/day";
@@ -96,15 +94,8 @@ export default function DayEndScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
       <ScreenHeader title="Day End" onBack={() => navigation.goBack()} bgColor="#F59E0B" />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
 
-        <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 20 }]}
-          keyboardShouldPersistTaps="handled"
-        >
+      <KeyboardAwareScreen contentStyle={styles.scrollContent}>
         <View style={styles.card}>
           {/* Closing KM */}
           <FieldInput
@@ -186,8 +177,7 @@ export default function DayEndScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
     </View>
   );
 }

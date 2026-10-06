@@ -28,7 +28,7 @@ class PaymentWebController extends Controller
         $activeTab = $request->input('tab', 'pending'); // 'pending' | 'all'
 
         // 1. Pending Queue (scoped)
-        $pendingPaymentsQuery = Payment::with(['party', 'collectedBy', 'visit'])
+        $pendingPaymentsQuery = Payment::with(['party', 'collectedBy.roles', 'visit'])
             ->where('status', 'pending');
 
         if ($scopedUserIds !== null) {
@@ -38,7 +38,7 @@ class PaymentWebController extends Controller
         $pendingPayments = $pendingPaymentsQuery->orderBy('created_at', 'asc')->get();
 
         // 2. All Payments query for history tab (scoped)
-        $allQuery = Payment::with(['party', 'collectedBy', 'confirmedBy'])
+        $allQuery = Payment::with(['party', 'collectedBy.roles', 'confirmedBy.roles'])
             ->orderBy('created_at', 'desc');
 
         if ($scopedUserIds !== null) {
@@ -81,17 +81,66 @@ class PaymentWebController extends Controller
         $repSummaries = $repSummariesQuery
             ->select('collected_by', DB::raw('count(*) as pending_count'), DB::raw('sum(amount) as pending_total'))
             ->groupBy('collected_by')
-            ->with('collectedBy:id,name,employee_id')
+            ->with('collectedBy.roles')
             ->get();
 
         $parties = Customer::orderBy('name')->get(['id', 'name']);
-        $repsQuery = User::where('is_active', true);
+        $repsQuery = User::with('roles')->where('is_active', true);
         if ($scopedUserIds !== null) {
             $repsQuery->whereIn('id', $scopedUserIds);
         } else {
             $repsQuery->whereHas('roles', fn($q) => $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']));
         }
-        $reps = $repsQuery->orderBy('name')->get(['id', 'name']);
+        $reps = $repsQuery->orderBy('name')->get();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'pendingPayments' => $pendingPayments->map(fn($p) => [
+                    'id'                  => $p->id,
+                    'receipt_no'          => $p->receipt_no,
+                    'party_name'          => $p->party?->name ?? '—',
+                    'party_mobile'        => $p->party?->mobile ?? '',
+                    'collected_by_name'   => $p->collectedBy?->name_with_role ?? '—',
+                    'amount'              => (float) $p->amount,
+                    'amount_formatted'    => number_format((float) $p->amount, 2),
+                    'payment_mode'        => $p->payment_mode,
+                    'reference_number'    => $p->reference_number,
+                    'proof_photo_url'     => $p->proof_photo_url ? asset($p->proof_photo_url) : null,
+                    'collection_date'     => $p->collection_datetime ? $p->collection_datetime->format('d M Y') : $p->created_at->format('d M Y'),
+                    'collection_time'     => $p->collection_datetime ? $p->collection_datetime->format('h:i A') : $p->created_at->format('h:i A'),
+                    'confirm_url'         => route('admin.payments.confirm', $p->id),
+                    'reject_url'          => route('admin.payments.reject', $p->id),
+                ]),
+                'allPayments' => $allPayments->map(fn($p) => [
+                    'id'                  => $p->id,
+                    'receipt_no'          => $p->receipt_no,
+                    'party_name'          => $p->party?->name ?? '—',
+                    'collected_by_name'   => $p->collectedBy?->name_with_role ?? '—',
+                    'amount'              => (float) $p->amount,
+                    'amount_formatted'    => number_format((float) $p->amount, 2),
+                    'payment_mode'        => $p->payment_mode,
+                    'status'              => $p->status,
+                    'collection_datetime' => $p->collection_datetime ? $p->collection_datetime->format('d M Y, h:i A') : $p->created_at->format('d M Y, h:i A'),
+                    'confirmed_by_name'   => $p->confirmedBy?->name_with_role,
+                    'confirmed_at'        => $p->confirmed_at?->format('d M Y, h:i A'),
+                    'rejection_reason'    => $p->rejection_reason,
+                ]),
+                'repSummaries' => $repSummaries->map(fn($rs) => [
+                    'rep_name'      => $rs->collectedBy?->name_with_role ?? 'Unknown Rep',
+                    'pending_count' => (int) $rs->pending_count,
+                    'pending_total' => number_format((float) $rs->pending_total, 2),
+                ]),
+                'pagination' => [
+                    'current_page' => $allPayments->currentPage(),
+                    'last_page'    => $allPayments->lastPage(),
+                    'per_page'     => $allPayments->perPage(),
+                    'total'        => $allPayments->total(),
+                    'from'         => $allPayments->firstItem() ?? 0,
+                    'to'           => $allPayments->lastItem() ?? 0,
+                ],
+            ]);
+        }
 
         return view('admin.payments.index', compact(
             'pendingPayments',
@@ -109,7 +158,15 @@ class PaymentWebController extends Controller
 
     public function confirm(Request $request, Payment $payment)
     {
+        $scopedUserIds = DataScope::visibleUserIds('payments');
+        if ($scopedUserIds !== null && !in_array($payment->collected_by, $scopedUserIds, true)) {
+            abort(403, 'Unauthorized to confirm this payment.');
+        }
+
         if ($payment->status !== 'pending') {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => "Payment is already {$payment->status}."], 422);
+            }
             return back()->with('error', "Payment is already {$payment->status}.");
         }
 
@@ -156,21 +213,38 @@ class PaymentWebController extends Controller
                 }
             }
 
-            return back()->with('success', "Payment {$payment->receipt_no} confirmed and credited to {$payment->party?->name}'s ledger.");
+            $successMsg = "Payment {$payment->receipt_no} confirmed and credited to {$payment->party?->name}'s ledger.";
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => true, 'message' => $successMsg]);
+            }
+
+            return back()->with('success', $successMsg);
 
         } catch (\Throwable $e) {
             Log::error("Web Payment confirmation failed: {$e->getMessage()}");
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => "Confirmation failed: {$e->getMessage()}"], 500);
+            }
             return back()->with('error', "Confirmation failed: {$e->getMessage()}");
         }
     }
 
     public function reject(Request $request, Payment $payment)
     {
+        $scopedUserIds = DataScope::visibleUserIds('payments');
+        if ($scopedUserIds !== null && !in_array($payment->collected_by, $scopedUserIds, true)) {
+            abort(403, 'Unauthorized to reject this payment.');
+        }
+
         $request->validate([
             'rejection_reason' => 'required|string|min:3|max:1000',
         ]);
 
         if ($payment->status !== 'pending') {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => "Payment is already {$payment->status}."], 422);
+            }
             return back()->with('error', "Payment is already {$payment->status}.");
         }
 
@@ -205,10 +279,19 @@ class PaymentWebController extends Controller
                 }
             }
 
-            return back()->with('success', "Payment {$payment->receipt_no} has been rejected.");
+            $successMsg = "Payment {$payment->receipt_no} has been rejected.";
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => true, 'message' => $successMsg]);
+            }
+
+            return back()->with('success', $successMsg);
 
         } catch (\Throwable $e) {
             Log::error("Web Payment rejection failed: {$e->getMessage()}");
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => "Rejection failed: {$e->getMessage()}"], 500);
+            }
             return back()->with('error', "Rejection failed: {$e->getMessage()}");
         }
     }

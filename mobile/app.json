@@ -1,5 +1,7 @@
 {
   "expo": {
+    "name": "AMPL Fieldwork",
+    "slug": "ampl-fieldwork-mobile",
     "extra": {
       "eas": {
         "projectId": "3e4f7a64-cc21-45fc-a0c5-a9075728c836"
@@ -7,10 +9,15 @@
     },
     "android": {
       "package": "com.adarsh55.amplfieldworkmobile",
-      "usesCleartextTraffic": true
+      "googleServicesFile": "./google-services.json",
+      "usesCleartextTraffic": true,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-location",
+      "expo-image-picker"
     ]
   }
 }

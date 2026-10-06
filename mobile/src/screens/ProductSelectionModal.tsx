@@ -1,7 +1,10 @@
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -74,128 +77,139 @@ export default function ProductSelectionModal({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={onClose}>
-            <MaterialIcons name="close" size={24} color="#374151" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Select Products</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        <View style={styles.searchContainer}>
-          <MaterialIcons name="search" size={20} color="#9ca3af" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search products..."
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search ? (
-            <TouchableOpacity onPress={() => setSearch("")}>
-              <MaterialIcons name="cancel" size={20} color="#9ca3af" />
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={onClose}>
+              <MaterialIcons name="close" size={24} color="#374151" />
             </TouchableOpacity>
-          ) : null}
-        </View>
+            <Text style={styles.headerTitle}>Select Products</Text>
+            <View style={{ width: 40 }} />
+          </View>
 
-        <ScrollView contentContainerStyle={styles.list}>
-          {filteredProducts.map((product) => {
-            const isExpanded = expandedProductId === product.id;
-            return (
-              <View key={product.id} style={styles.productCard}>
-                <TouchableOpacity
-                  style={styles.productHeader}
-                  onPress={() =>
-                    setExpandedProductId(isExpanded ? null : product.id)
-                  }
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.productName}>{product.name}</Text>
-                    {product.code && (
-                      <Text style={styles.productCode}>
-                        SKU: {product.code}
-                      </Text>
-                    )}
-                  </View>
-                  <MaterialIcons
-                    name={
-                      isExpanded ? "keyboard-arrow-up" : "keyboard-arrow-down"
-                    }
-                    size={24}
-                    color="#6b7280"
-                  />
-                </TouchableOpacity>
+          <View style={styles.searchContainer}>
+            <MaterialIcons name="search" size={20} color="#9ca3af" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search products..."
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch("")}>
+                <MaterialIcons name="cancel" size={20} color="#9ca3af" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
-                {isExpanded && (
-                  <View style={styles.variantsContainer}>
-                    {product.units.length === 0 ? (
-                      <Text style={styles.noUnits}>
-                        No variations available
-                      </Text>
-                    ) : (
-                      product.units.map((unit) => {
-                        const key = `${product.id}-${unit.id}`;
-                        const q = quantities[key] || 0;
-                        return (
-                          <View key={unit.id} style={styles.variantRow}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.unitName}>
-                                {unit.unit_name}
-                              </Text>
-                              <Text style={styles.unitPrice}>
-                                ₹{unit.price}
-                              </Text>
-                            </View>
-                            <View style={styles.quantityControl}>
-                              <TouchableOpacity
-                                style={[
-                                  styles.qBtn,
-                                  q === 0 && { opacity: 0.5 },
-                                ]}
-                                onPress={() =>
-                                  updateQuantity(product.id, unit.id, -1)
-                                }
-                                disabled={q === 0}
-                              >
-                                <MaterialIcons
-                                  name="remove"
-                                  size={16}
-                                  color="#374151"
-                                />
-                              </TouchableOpacity>
-                              <Text style={styles.qText}>{q}</Text>
-                              <TouchableOpacity
-                                style={styles.qBtn}
-                                onPress={() =>
-                                  updateQuantity(product.id, unit.id, 1)
-                                }
-                              >
-                                <MaterialIcons
-                                  name="add"
-                                  size={16}
-                                  color="#374151"
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        );
-                      })
-                    )}
-                  </View>
-                )}
-              </View>
-            );
-          })}
-        </ScrollView>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.confirmBtn, !hasSelections && { opacity: 0.5 }]}
-            disabled={!hasSelections}
-            onPress={handleAddAll}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[styles.list, { paddingBottom: 24 }]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.confirmBtnText}>Add Selected to Order</Text>
-          </TouchableOpacity>
-        </View>
+            {filteredProducts.map((product) => {
+              const isExpanded = expandedProductId === product.id;
+              return (
+                <View key={product.id} style={styles.productCard}>
+                  <TouchableOpacity
+                    style={styles.productHeader}
+                    onPress={() =>
+                      setExpandedProductId(isExpanded ? null : product.id)
+                    }
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.productName}>{product.name}</Text>
+                      {product.code && (
+                        <Text style={styles.productCode}>
+                          SKU: {product.code}
+                        </Text>
+                      )}
+                    </View>
+                    <MaterialIcons
+                      name={
+                        isExpanded ? "keyboard-arrow-up" : "keyboard-arrow-down"
+                      }
+                      size={24}
+                      color="#6b7280"
+                    />
+                  </TouchableOpacity>
+
+                  {isExpanded && (
+                    <View style={styles.variantsContainer}>
+                      {product.units.length === 0 ? (
+                        <Text style={styles.noUnits}>
+                          No variations available
+                        </Text>
+                      ) : (
+                        product.units.map((unit) => {
+                          const key = `${product.id}-${unit.id}`;
+                          const q = quantities[key] || 0;
+                          return (
+                            <View key={unit.id} style={styles.variantRow}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.unitName}>
+                                  {unit.unit_name}
+                                </Text>
+                                <Text style={styles.unitPrice}>
+                                  ₹{unit.price}
+                                </Text>
+                              </View>
+                              <View style={styles.quantityControl}>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.qBtn,
+                                    q === 0 && { opacity: 0.5 },
+                                  ]}
+                                  onPress={() =>
+                                    updateQuantity(product.id, unit.id, -1)
+                                  }
+                                  disabled={q === 0}
+                                >
+                                  <MaterialIcons
+                                    name="remove"
+                                    size={16}
+                                    color="#374151"
+                                  />
+                                </TouchableOpacity>
+                                <Text style={styles.qText}>{q}</Text>
+                                <TouchableOpacity
+                                  style={styles.qBtn}
+                                  onPress={() =>
+                                    updateQuantity(product.id, unit.id, 1)
+                                  }
+                                >
+                                  <MaterialIcons
+                                    name="add"
+                                    size={16}
+                                    color="#374151"
+                                  />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={[styles.confirmBtn, !hasSelections && { opacity: 0.5 }]}
+              disabled={!hasSelections}
+              onPress={handleAddAll}
+            >
+              <Text style={styles.confirmBtnText}>Add Selected to Order</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );

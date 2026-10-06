@@ -21,6 +21,18 @@
                     <p class="text-caption mt-1">View, search, filter, and assign parties to field workers.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
+                    @can('customers.view')
+                        <x-button href="{{ route('admin.parties.export') }}" variant="secondary"
+                            class="border-brand-200 text-brand-700 hover:bg-brand-50">
+                            <x-lucide-download class="w-4 h-4" />
+                            Export CSV
+                        </x-button>
+                        <x-button href="{{ route('admin.parties.export-pdf') }}" variant="secondary"
+                            class="border-brand-200 text-brand-700 hover:bg-brand-50">
+                            <x-lucide-file-text class="w-4 h-4" />
+                            Export PDF
+                        </x-button>
+                    @endcan
                     @can('parties.assign')
                         <x-button x-data @click="$dispatch('open-bulk-assign-modal')" variant="secondary"
                             class="border-brand-200 text-brand-700 hover:bg-brand-50">
@@ -84,7 +96,7 @@
                         <select x-model="employeeId" @change="window.partyTable.draw()" class="form-input">
                             <option value="">All Employees</option>
                             @foreach ($employees as $emp)
-                                <option value="{{ $emp->id }}">{{ $emp->name }} ({{ $emp->employee_id }})</option>
+                                <option value="{{ $emp->id }}">{{ $emp->name }} ({{ $emp->role_name }})</option>
                             @endforeach
                         </select>
                     </div>
@@ -151,25 +163,40 @@
                                                                         open: false,
                                                                         selectedParties: [],
                                                                         selectedEmployee: '',
-                                                                        loading: false,
+                                                                        employees: {{ Js::from($employees->map(fn($e) => ['id' => $e->id, 'name' => $e->name, 'role_name' => $e->role_name, 'name_with_role' => $e->name_with_role])) }},
                                                                         init() {
                                                                             this.$watch('open', value => {
                                                                                 if (!value) {
                                                                                     this.selectedEmployee = '';
                                                                                 }
                                                                             });
-                                                                            window.addEventListener('open-bulk-assign-modal', () => {
+                                                                            window.addEventListener('employee-deleted', (e) => {
+                                                                                const id = parseInt(e.detail.id);
+                                                                                this.employees = this.employees.filter(emp => emp.id !== id);
+                                                                            });
+                                                                            window.addEventListener('open-bulk-assign-modal', async () => {
                                                                                 this.selectedParties = window.getSelectedPartyIds();
                                                                                 if (this.selectedParties.length === 0) {
                                                                                     alert('Please select at least one party to assign.');
                                                                                     return;
                                                                                 }
                                                                                 this.open = true;
+                                                                                try {
+                                                                                    const res = await fetch('/admin/employees/active-dropdown', {
+                                                                                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                                                                                    });
+                                                                                    const data = await res.json();
+                                                                                    if (data.success && data.employees) {
+                                                                                        this.employees = data.employees;
+                                                                                    }
+                                                                                } catch (e) {
+                                                                                    console.error('Failed to fetch fresh employees', e);
+                                                                                }
                                                                             });
                                                                         },
                                                                         async assignParties() {
                                                                             if (!this.selectedEmployee) {
-                                                                                alert('Please select an employee.');
+                                                                                window.toast('Please select an employee.', 'warning');
                                                                                 return;
                                                                             }
 
@@ -193,13 +220,13 @@
                                                                                 if (data.success) {
                                                                                     window.partyTable.draw(false);
                                                                                     this.open = false;
-                                                                                    alert(data.message);
+                                                                                    window.toast(data.message, 'success');
                                                                                     document.getElementById('select-all').checked = false;
                                                                                 } else {
-                                                                                    alert(data.message || 'Assignment failed.');
+                                                                                    window.toast(data.message || 'Assignment failed.', 'error');
                                                                                 }
                                                                             } catch (error) {
-                                                                                alert('An error occurred. Please try again.');
+                                                                                window.toast('An error occurred. Please try again.', 'error');
                                                                             } finally {
                                                                                 this.loading = false;
                                                                             }
@@ -236,9 +263,9 @@
                     <label class="block text-sm font-medium text-ink-900 mb-2">Select Field Worker</label>
                     <select x-model="selectedEmployee" class="form-input" x-bind:disabled="loading">
                         <option value="">Choose an employee...</option>
-                        @foreach ($employees as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->name }} ({{ $emp->employee_id }})</option>
-                        @endforeach
+                        <template x-for="emp in employees" :key="emp.id">
+                            <option :value="emp.id" x-text="emp.name_with_role || `${emp.name} (${emp.role_name || 'Field Worker'})`"></option>
+                        </template>
                     </select>
                 </div>
 
@@ -257,9 +284,289 @@
                                 </path>
                             </svg>
                             Assigning...
-                        </span>
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- ═══ AJAX Edit Party Modal ═══ --}}
+    <div x-data="{
+            open: false,
+            loading: false,
+            saving: false,
+            errors: {},
+            empSearch: '',
+            form: {
+                id: null,
+                name: '',
+                owner_name: '',
+                mobile: '',
+                email: '',
+                party_type: '',
+                category: '',
+                credit_limit: '',
+                credit_days: '',
+                is_active: true,
+                city: '',
+                state: '',
+                pincode: '',
+                address: '',
+                employee_ids: []
+            },
+            assignableEmployees: {{ Js::from($assignableEmployees->map(fn($e) => ['id' => $e->id, 'name' => $e->name, 'role_name' => $e->role_name, 'name_with_role' => $e->name_with_role])) }},
+            init() {
+                window.addEventListener('employee-deleted', (e) => {
+                    const id = parseInt(e.detail.id);
+                    this.assignableEmployees = this.assignableEmployees.filter(emp => emp.id !== id);
+                });
+                window.addEventListener('open-edit-party-modal', async (e) => {
+                    const partyId = e.detail.id;
+                    this.errors = {};
+                    this.empSearch = '';
+                    this.loading = true;
+                    this.open = true;
+                    try {
+                        const res = await fetch(`/admin/parties/${partyId}/edit`, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+                        const data = await res.json();
+                        if (data.success && data.party) {
+                            const p = data.party;
+                            if (data.employees) {
+                                this.assignableEmployees = data.employees;
+                            }
+                            this.form = {
+                                id: p.id,
+                                name: p.name || '',
+                                owner_name: p.owner_name || '',
+                                mobile: p.mobile || '',
+                                email: p.email || '',
+                                party_type: p.party_type || '',
+                                category: p.category || '',
+                                credit_limit: p.credit_limit || '',
+                                credit_days: p.credit_days || '',
+                                is_active: !!p.is_active,
+                                city: p.city || '',
+                                state: p.state || '',
+                                pincode: p.pincode || '',
+                                address: p.address || '',
+                                employee_ids: (data.assignedEmployeeIds || []).map(id => parseInt(id))
+                            };
+                        } else {
+                            alert('Failed to load party details.');
+                            this.open = false;
+                        }
+                    } catch (err) {
+                        alert('Error loading party details.');
+                        this.open = false;
+                    } finally {
+                        this.loading = false;
+                    }
+                });
+            },
+            toggleEmployee(empId) {
+                const id = parseInt(empId);
+                const idx = this.form.employee_ids.indexOf(id);
+                if (idx > -1) {
+                    this.form.employee_ids.splice(idx, 1);
+                } else {
+                    this.form.employee_ids.push(id);
+                }
+            },
+            async saveParty() {
+                this.errors = {};
+                this.saving = true;
+                try {
+                    const payload = {
+                        ...this.form,
+                        credit_days: this.form.credit_days !== '' && this.form.credit_days !== null ? parseInt(this.form.credit_days) : 0,
+                        credit_limit: this.form.credit_limit !== '' && this.form.credit_limit !== null ? parseFloat(this.form.credit_limit) : 0
+                    };
+                    const res = await fetch(`/admin/parties/${this.form.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        this.open = false;
+                        window.partyTable.draw(false);
+                        window.toast(data.message || 'Party updated successfully!', 'success');
+                    } else if (res.status === 422 && data.errors) {
+                        this.errors = data.errors;
+                        window.toast(data.message || 'Please fix validation errors.', 'error');
+                    } else {
+                        window.toast(data.message || 'Failed to update party.', 'error');
+                    }
+                } catch (err) {
+                    window.toast('An error occurred while saving.', 'error');
+                } finally {
+                    this.saving = false;
+                }
+            }
+        }"
+        x-show="open" x-cloak
+        class="fixed inset-0 z-50 overflow-y-auto" @keydown.escape.window="open = false">
+        <div class="flex items-center justify-center min-h-screen px-4 py-6">
+            {{-- Backdrop --}}
+            <div x-show="open" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" @click="open = false"
+                class="fixed inset-0 bg-black bg-opacity-50"></div>
+
+            {{-- Modal --}}
+            <div x-show="open" x-transition:enter="ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                class="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 my-8 max-h-[90vh] flex flex-col">
+                
+                {{-- Header --}}
+                <div class="flex items-center justify-between pb-4 border-b border-surface-border">
+                    <div>
+                        <h3 class="text-lg font-semibold text-ink-900">Edit Party</h3>
+                        <p class="text-xs text-ink-500">Update party details & field worker assignment via AJAX</p>
+                    </div>
+                    <button @click="open = false" class="text-ink-400 hover:text-ink-600">
+                        <x-lucide-x class="w-5 h-5" />
+                    </button>
+                </div>
+
+                {{-- Loading Skeleton --}}
+                <div x-show="loading" class="py-12 flex flex-col items-center justify-center gap-3">
+                    <svg class="animate-spin h-8 w-8 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="text-sm text-ink-500">Loading party information...</p>
+                </div>
+
+                {{-- Form Body --}}
+                <form x-show="!loading" @submit.prevent="saveParty" class="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {{-- Name --}}
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Party Name <span class="text-danger-text">*</span></label>
+                            <input type="text" x-model="form.name" class="form-input w-full" placeholder="e.g. Royal Enterprise" required>
+                            <template x-if="errors.name">
+                                <p class="text-xs text-danger-text mt-1" x-text="errors.name[0]"></p>
+                            </template>
+                        </div>
+
+                        {{-- Mobile --}}
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Mobile <span class="text-danger-text">*</span></label>
+                            <input type="text" x-model="form.mobile" class="form-input w-full" placeholder="10-digit mobile number" required>
+                            <template x-if="errors.mobile">
+                                <p class="text-xs text-danger-text mt-1" x-text="errors.mobile[0]"></p>
+                            </template>
+                        </div>
+
+                        {{-- Email --}}
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Email</label>
+                            <input type="email" x-model="form.email" class="form-input w-full" placeholder="party@example.com">
+                            <template x-if="errors.email">
+                                <p class="text-xs text-danger-text mt-1" x-text="errors.email[0]"></p>
+                            </template>
+                        </div>
+
+                        {{-- Owner Name --}}
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Owner / Contact Person</label>
+                            <input type="text" x-model="form.owner_name" class="form-input w-full" placeholder="Owner Name">
+                        </div>
+
+                        {{-- Party Type --}}
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Party Type</label>
+                            <select x-model="form.party_type" class="form-input w-full">
+                                <option value="">Select Type</option>
+                                @foreach ($partyTypes as $type)
+                                    <option value="{{ $type }}">{{ $type }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Category --}}
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Category</label>
+                            <select x-model="form.category" class="form-input w-full">
+                                <option value="">Select Category</option>
+                                @foreach ($categories as $cat)
+                                    <option value="{{ $cat }}">Category {{ $cat }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Active Status --}}
+                        <div class="flex items-center pt-5">
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" x-model="form.is_active" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm font-medium text-ink-800">Active Status</span>
+                            </label>
+                        </div>
+
+                        {{-- City & State --}}
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">City</label>
+                            <input type="text" x-model="form.city" class="form-input w-full" placeholder="City">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">State</label>
+                            <input type="text" x-model="form.state" class="form-input w-full" placeholder="State">
+                        </div>
+
+                        {{-- Address --}}
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Address</label>
+                            <textarea x-model="form.address" rows="2" class="form-input w-full" placeholder="Street / Full Address"></textarea>
+                        </div>
+
+                        {{-- Employee Assignment --}}
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Assign to Field Workers</label>
+                            <input type="text" x-model="empSearch" placeholder="Search field workers..." class="form-input w-full text-xs mb-2">
+                            <div class="max-h-36 overflow-y-auto border border-surface-border rounded-lg p-2 space-y-1 bg-surface-muted/30">
+                                <template x-for="emp in assignableEmployees" :key="emp.id">
+                                    <label x-show="!empSearch || emp.name.toLowerCase().includes(empSearch.toLowerCase())" class="flex items-center gap-2 p-1.5 rounded hover:bg-white text-xs text-ink-800 cursor-pointer">
+                                        <input type="checkbox"
+                                            :checked="form.employee_ids.includes(emp.id)"
+                                            @change="toggleEmployee(emp.id)"
+                                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                        <span x-text="emp.name_with_role || `${emp.name} (${emp.role_name || 'Field Worker'})`"></span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Footer Actions --}}
+                    <div class="flex gap-3 justify-end pt-4 border-t border-surface-border mt-4">
+                        <button type="button" @click="open = false" class="btn btn-secondary text-sm">Cancel</button>
+                        <button type="submit" :disabled="saving" class="btn btn-primary text-sm flex items-center gap-2">
+                            <span x-show="!saving">Save Changes</span>
+                            <span x-show="saving" class="flex items-center gap-1.5">
+                                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Saving...
+                            </span>
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -298,32 +605,32 @@
                         data: 'party_info',
                         render: function (data) {
                             return `
-                                                                                        <div class="text-body-emphasis">${data.name}</div>
-                                                                                        <div class="text-caption">Code: ${data.party_code} • ${data.city}</div>
-                                                                                        ${data.submitted_by_name ? `
-                                                                                            <span class="inline-flex items-center mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">
-                                                                                                Added by ${data.submitted_by_name}
-                                                                                            </span>
-                                                                                        ` : ''}
-                                                                                    `;
+                                <div class="text-body-emphasis">${data.name}</div>
+                                <div class="text-caption">Code: ${data.party_code} • ${data.city}</div>
+                                ${data.submitted_by_name ? `
+                                    <span class="inline-flex items-center mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">
+                                        Added by ${data.submitted_by_name}
+                                    </span>
+                                ` : ''}
+                            `;
                         }
                     },
                     {
                         data: 'contact',
                         render: function (data) {
                             return `
-                                                                                        <div class="text-body">${data.mobile}</div>
-                                                                                        <div class="text-caption">${data.email}</div>
-                                                                                    `;
+                                <div class="text-body">${data.mobile}</div>
+                                <div class="text-caption">${data.email}</div>
+                            `;
                         }
                     },
                     {
                         data: 'classification',
                         render: function (data) {
                             return `
-                                                                                        <div class="text-body">${data.type}</div>
-                                                                                        <div class="text-caption">Category: ${data.category}</div>
-                                                                                    `;
+                                <div class="text-body">${data.type}</div>
+                                <div class="text-caption">Category: ${data.category}</div>
+                            `;
                         }
                     },
                     {
@@ -331,9 +638,9 @@
                         render: function (data) {
                             if (data.employee_name) {
                                 return `
-                                                                                            <div class="text-body-emphasis">${data.employee_name}</div>
-                                                                                            <div class="text-caption">${data.employee_id} • ${data.assigned_at}</div>
-                                                                                        `;
+                                    <div class="text-body-emphasis">${data.employee_name}</div>
+                                    <div class="text-caption">${data.assigned_at}</div>
+                                `;
                             }
                             return '<span class="text-caption italic">Not assigned</span>';
                         }
@@ -358,52 +665,48 @@
                         className: 'text-right',
                         render: function (data) {
                             return `
-                                                                                        <div class="relative inline-block" x-data="{ open: false }">
-                                                                                            <button @click="open = !open" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors">
-                                                                                                <svg class="w-4 h-4 text-ink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
-                                                                                                </svg>
-                                                                                            </button>
-                                                                                            <div x-show="open" @click.outside="open = false" x-transition class="absolute right-0 mt-1 w-48 bg-white border border-surface-border rounded-xl shadow-lg z-20 py-1 top-full" style="display: none;">
-                                                                                                <a href="${data.view}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
-                                                                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                                                                                    View Profile
-                                                                                                </a>
-                                                                                                ${data.can_edit ? `
-                                                                                                <a href="${data.edit}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
-                                                                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                                                                                    Edit Details
-                                                                                                </a>
-                                                                                                ` : ''}
-                                                                                                <a href="${data.history}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
-                                                                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                                                                                    View History
-                                                                                                </a>
-                                                                                                ${data.approval_status === 'pending' ? `
-                                                                                                <div class="my-1 border-t border-surface-border"></div>
-                                                                                                <button type="button" onclick="approveParty('${data.approve}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                                                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                                                                                    Approve Party
-                                                                                                </button>
-                                                                                                <button type="button" onclick="rejectParty('${data.reject}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
-                                                                                                    <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                                                                                    Reject Party
-                                                                                                </button>
-                                                                                                ` : ''}
-                                                                                                ${data.can_delete ? `
-                                                                                                <div class="my-1 border-t border-surface-border"></div>
-                                                                                                <form method="POST" action="${data.delete}" onsubmit="return confirm('Delete this party?')">
-                                                                                                    @csrf
-                                                                                                    @method('DELETE')
-                                                                                                    <button type="submit" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
-                                                                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                                                                                        Delete Party
-                                                                                                    </button>
-                                                                                                </form>
-                                                                                                ` : ''}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    `;
+                                <div class="relative inline-block" x-data="{ open: false }">
+                                    <button @click="open = !open" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors">
+                                        <svg class="w-4 h-4 text-ink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+                                        </svg>
+                                    </button>
+                                    <div x-show="open" @click.outside="open = false" x-transition class="absolute right-0 mt-1 w-48 bg-white border border-surface-border rounded-xl shadow-lg z-20 py-1 top-full" style="display: none;">
+                                        <a href="${data.view}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                            View Profile
+                                        </a>
+                                        ${data.can_edit ? `
+                                        <button type="button" onclick="openEditPartyModal(${data.id || data.party_info?.id})" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted text-left">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                            Edit Details
+                                        </button>
+                                        ` : ''}
+                                        <a href="${data.history}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                            View History
+                                        </a>
+                                        ${data.approval_status === 'pending' ? `
+                                        <div class="my-1 border-t border-surface-border"></div>
+                                        <button type="button" onclick="approveParty('${data.approve}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-green-700 hover:bg-green-50">
+                                            <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            Approve Party
+                                        </button>
+                                        <button type="button" onclick="rejectParty('${data.reject}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
+                                            <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            Reject Party
+                                        </button>
+                                        ` : ''}
+                                        ${data.can_delete ? `
+                                        <div class="my-1 border-t border-surface-border"></div>
+                                        <button type="button" onclick="deleteParty('${data.delete}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            Delete Party
+                                        </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
                         }
                     }
                 ],
@@ -425,6 +728,36 @@
                 return Array.from(document.querySelectorAll('.party-checkbox:checked')).map(cb => parseInt(cb.value));
             };
 
+            window.openEditPartyModal = function (id) {
+                window.dispatchEvent(new CustomEvent('open-edit-party-modal', { detail: { id } }));
+            };
+
+            window.deleteParty = async function (url) {
+                if (!confirm('Are you sure you want to delete this party? This action cannot be undone.')) return;
+                
+                try {
+                    const response = await fetch(url, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        window.toast(data.message || 'Party deleted successfully.', 'success');
+                        window.partyTable.draw(false);
+                    } else {
+                        window.toast(data.message || 'Failed to delete party.', 'error');
+                    }
+                } catch (error) {
+                    window.toast('An error occurred while deleting the party.', 'error');
+                }
+            };
+
             window.approveParty = async function (url) {
                 if (!confirm('Are you sure you want to approve this party?')) return;
                 
@@ -441,13 +774,13 @@
                     const data = await response.json();
                     
                     if (data.success) {
-                        alert(data.message);
+                        window.toast(data.message || 'Party approved successfully.', 'success');
                         window.partyTable.draw(false);
                     } else {
-                        alert(data.message || 'Failed to approve party.');
+                        window.toast(data.message || 'Failed to approve party.', 'error');
                     }
                 } catch (error) {
-                    alert('An error occurred. Please try again.');
+                    window.toast('An error occurred. Please try again.', 'error');
                 }
             };
 
@@ -467,13 +800,13 @@
                     const data = await response.json();
                     
                     if (data.success) {
-                        alert(data.message);
+                        window.toast(data.message || 'Party rejected successfully.', 'warning');
                         window.partyTable.draw(false);
                     } else {
-                        alert(data.message || 'Failed to reject party.');
+                        window.toast(data.message || 'Failed to reject party.', 'error');
                     }
                 } catch (error) {
-                    alert('An error occurred. Please try again.');
+                    window.toast('An error occurred. Please try again.', 'error');
                 }
             };
         });

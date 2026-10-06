@@ -33,11 +33,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             TourMasterDataSeeder::class,
             EmployeeSeeder::class,
-            LoadTestDataSeeder::class,
             ProductSeeder::class,
             PartyDetailSeeder::class,
-            OrderItemSeeder::class,
-            NewSchemaDummyDataSeeder::class,
         ]);
 
         // \App\Models\User::factory(10)->create();

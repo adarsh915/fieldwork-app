@@ -13,6 +13,7 @@ export type Party = {
   name: string;
   mobile: string | null;
   address: string | null;
+  city?: string | null;
   approval_status?: "pending" | "approved" | "rejected";
 };
 

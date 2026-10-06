@@ -10,7 +10,7 @@ class DayStart extends Model
 {
     use HasFactory, HasRoleBasedScope;
 
-    protected $fillable = ['user_id', 'date', 'tour_purpose_id', 'tour_type_id', 'vehicle_type_id', 'vehicle_no', 'opening_km', 'opening_km_photo', 'closing_km', 'closing_km_photo', 'start_latitude', 'start_longitude', 'start_time', 'end_time', 'status', 'approved_by', 'remarks', 'party_id', 'visit_place'];
+    protected $fillable = ['user_id', 'date', 'tour_purpose_id', 'tour_type_id', 'vehicle_type_id', 'vehicle_no', 'opening_km', 'opening_km_photo', 'closing_km', 'closing_km_photo', 'gps_calculated_km', 'flagged_reason', 'start_latitude', 'start_longitude', 'start_time', 'end_time', 'status', 'approved_by', 'remarks', 'party_id', 'visit_place'];
 
     protected $casts = [
         'date' => 'date',

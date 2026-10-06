@@ -21,7 +21,7 @@
         </div>
         <div class="flex-1 min-w-0">
             <div class="flex flex-wrap items-center gap-2">
-                <h3 class="font-bold text-slate-950 text-lg leading-tight">{{ $employee->name }}</h3>
+                <h3 class="font-bold text-slate-950 text-lg leading-tight">{{ $employee->name }} ({{ $employee->role_name }})</h3>
                 @if($employee->is_active ?? true)
                     <span class="badge badge-success text-xs">Active</span>
                 @else
@@ -32,12 +32,6 @@
                 <span>{{ $employee->email }}</span>
                 @if($employee->phone)
                     <span>{{ $employee->phone }}</span>
-                @endif
-                @if($employee->employee_id)
-                    <span class="font-mono">ID: {{ $employee->employee_id }}</span>
-                @endif
-                @if($employee->position)
-                    <span>{{ $employee->position }}</span>
                 @endif
             </div>
             <div class="mt-1 flex flex-wrap gap-1">
@@ -203,12 +197,10 @@
                             @can('customers.view')
                                 <td>
                                     <div class="flex items-center justify-center gap-2 flex-wrap">
-                                        @can('customers.edit')
-                                            <a href="{{ route('admin.parties.edit', $party->id) }}"
-                                               class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition border border-amber-200">
-                                                ✏️ Edit
-                                            </a>
-                                        @endcan
+                                        <a href="{{ route('admin.parties.show', $party->id) }}"
+                                           class="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition border border-blue-200">
+                                            👁️ View
+                                        </a>
                                         <a href="{{ route('admin.parties.assign-employees', $party->id) }}"
                                            class="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition border border-violet-200">
                                             👥 Assign

@@ -19,35 +19,37 @@ use Illuminate\Database\Eloquent\Builder;
 class DataScope
 {
     /**
-     * Map aliases so permission checks work whether module is singular or plural.
+     * Map module names to all possible permission name synonyms (singular, plural, alternative terms).
      */
-    protected static array $aliases = [
-        'leave'       => 'leaves',
-        'leaves'      => 'leave',
-        'customer'    => 'parties',
-        'customers'   => 'parties',
-        'party'       => 'parties',
-        'parties'     => 'party',
-        'employee'    => 'employees',
-        'employees'   => 'employee',
-        'expense'     => 'expenses',
-        'expenses'    => 'expense',
-        'order'       => 'orders',
-        'orders'      => 'order',
-        'payment'     => 'payments',
-        'payments'    => 'payment',
-        'visit'       => 'visits',
-        'visits'      => 'visit',
-        'day-start'   => 'day_start',
-        'day_start'   => 'day-start',
-        'transaction' => 'transactions',
-        'transactions'=> 'transaction',
+    protected static array $aliasGroups = [
+        'leave'       => ['leave', 'leaves'],
+        'leaves'      => ['leave', 'leaves'],
+        'customer'    => ['parties', 'party', 'customers', 'customer'],
+        'customers'   => ['parties', 'party', 'customers', 'customer'],
+        'party'       => ['parties', 'party', 'customers', 'customer'],
+        'parties'     => ['parties', 'party', 'customers', 'customer'],
+        'employee'    => ['employee', 'employees'],
+        'employees'   => ['employee', 'employees'],
+        'expense'     => ['expense', 'expenses'],
+        'expenses'    => ['expense', 'expenses'],
+        'order'       => ['order', 'orders'],
+        'orders'      => ['order', 'orders'],
+        'payment'     => ['payment', 'payments'],
+        'payments'    => ['payment', 'payments'],
+        'visit'       => ['visit', 'visits'],
+        'visits'      => ['visit', 'visits'],
+        'day-start'   => ['day_start', 'day-start'],
+        'day_start'   => ['day_start', 'day-start'],
+        'transaction' => ['transaction', 'transactions'],
+        'transactions'=> ['transaction', 'transactions'],
+        'report'      => ['report', 'reports'],
+        'reports'     => ['report', 'reports'],
     ];
 
     /**
      * Returns array of user IDs the logged-in user may see, or null if unrestricted (view all).
      *
-     * @param  string $module  e.g. 'visits', 'day-start', 'parties', 'expenses'
+     * @param  string $module  e.g. 'visits', 'day-start', 'parties', 'expenses', 'reports'
      * @return array|null     null = unrestricted / see ALL, array = scoped user IDs
      */
     public static function visibleUserIds(string $module = 'visits'): ?array
@@ -56,24 +58,28 @@ class DataScope
         if (!$user) return [];
 
         // Super Admin / Admin bypass — always see all
-        if ($user->hasRole(['Super Admin', 'Admin'])) {
+        if ($user->hasRole(['Super Admin', 'Admin', 'admin', 'super_admin'])) {
             return null;
         }
 
-        $alias = static::$aliases[$module] ?? null;
+        $modulesToCheck = static::$aliasGroups[$module] ?? [$module];
 
-        // view-all permission → unrestricted (null)
-        if ($user->can("{$module}.view-all") || ($alias && $user->can("{$alias}.view-all"))) {
-            return null;
+        // 1. Explicit view-all permission → unrestricted (null = see everyone)
+        foreach ($modulesToCheck as $m) {
+            if ($user->can("{$m}.view-all")) {
+                return null;
+            }
         }
 
-        // view-team permission → full subtree under me
-        if ($user->can("{$module}.view-team") || ($alias && $user->can("{$alias}.view-team"))) {
-            $ids = static::subtreeIds($user->id);
-            return array_values(array_unique(array_merge([$user->id], $ids)));
+        // 2. Explicit view-team permission → full subtree under me (self + all subordinates)
+        foreach ($modulesToCheck as $m) {
+            if ($user->can("{$m}.view-team")) {
+                $ids = static::subtreeIds($user->id);
+                return array_values(array_unique(array_merge([$user->id], $ids)));
+            }
         }
 
-        // view-own or default → only self
+        // 3. Explicit view-own or default fallback → only self
         return [$user->id];
     }
 
@@ -85,6 +91,24 @@ class DataScope
         $scopedIds = static::visibleUserIds($module);
         if ($scopedIds !== null) {
             $query->whereIn($column, $scopedIds);
+        }
+        return $query;
+    }
+
+    /**
+     * Applies party data scoping: strictly restricts to actively assigned parties.
+     */
+    public static function applyParties(Builder $query): Builder
+    {
+        $visibleIds = static::visibleUserIds('parties');
+        if ($visibleIds !== null) {
+            $query->whereHas('assignments', function ($sq) use ($visibleIds) {
+                $sq->whereIn('employee_id', $visibleIds)->where('is_active', true);
+            });
+        } else {
+            $query->whereHas('assignments', function ($sq) {
+                $sq->where('is_active', true);
+            });
         }
         return $query;
     }

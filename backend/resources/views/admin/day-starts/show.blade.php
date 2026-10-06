@@ -18,7 +18,7 @@
         <div class="panel-header">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 class="font-semibold text-slate-950">{{ $dayStart->user->name }} — {{ $dayStart->date->format('d M Y') }}</h2>
+                    <h2 class="font-semibold text-slate-950">{{ $dayStart->user ? $dayStart->user->name . ' (' . $dayStart->user->role_name . ')' : '—' }} — {{ $dayStart->date->format('d M Y') }}</h2>
                     <p class="mt-1 text-sm text-slate-500">Tour plan details</p>
                 </div>
                 <a href="{{ route('admin.day-starts.index') }}" class="btn-secondary">Back to List</a>
@@ -29,7 +29,7 @@
             <div class="space-y-4">
                 <div>
                     <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Employee</div>
-                    <div class="mt-1 font-semibold text-slate-900">{{ $dayStart->user->name }}</div>
+                    <div class="mt-1 font-semibold text-slate-900">{{ $dayStart->user ? $dayStart->user->name . ' (' . $dayStart->user->role_name . ')' : '—' }}</div>
                 </div>
                 <div>
                     <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Date</div>
@@ -47,32 +47,56 @@
                     <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Vehicle Type</div>
                     <div class="mt-1 text-slate-900">{{ $dayStart->vehicleType->name }}</div>
                 </div>
-                <div>
+                <div x-data="{
+                    status: '{{ $dayStart->status }}',
+                    loading: false,
+                    async updateDayStatus(newStatus) {
+                        if (!confirm(`Are you sure you want to ${newStatus} this tour plan?`)) return;
+                        this.loading = true;
+                        try {
+                            const res = await fetch('{{ route('admin.day-starts.updateStatus', $dayStart->id) }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                body: JSON.stringify({ status: newStatus })
+                            });
+                            const data = await res.json();
+                            if (res.ok && data.success) {
+                                this.status = newStatus;
+                            } else {
+                                alert(data.message || 'Failed to update status.');
+                            }
+                        } catch (e) {
+                            alert('Error updating status.');
+                        } finally {
+                            this.loading = false;
+                        }
+                    }
+                }">
                     <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Status</div>
                     <div class="mt-1 flex items-center gap-2">
-                        @php
-                            $statusClass = match ($dayStart->status) {
-                                'approved' => 'badge-success',
-                                'flagged', 'rejected' => 'badge-danger',
-                                default => 'badge-muted',
-                            };
-                        @endphp
-                        <span class="{{ $statusClass }}">{{ ucfirst($dayStart->status) }}</span>
+                        <span class="badge" :class="{
+                            'badge-success': status === 'approved',
+                            'badge-danger': status === 'rejected' || status === 'flagged',
+                            'badge-muted': status !== 'approved' && status !== 'rejected' && status !== 'flagged'
+                        }" x-text="status.charAt(0).toUpperCase() + status.slice(1)">
+                            {{ ucfirst($dayStart->status) }}
+                        </span>
                         
-                        @if($dayStart->status === 'pending' && auth()->user()->can('day-start.approve'))
-                            <div class="flex gap-1.5 ml-2">
-                                <form action="{{ route('admin.day-starts.updateStatus', $dayStart->id) }}" method="POST" class="inline">
-                                    @csrf
-                                    <input type="hidden" name="status" value="approved">
-                                    <x-button type="submit" variant="success" class="px-2 py-1 text-[10px]">Approve</x-button>
-                                </form>
-                                <form action="{{ route('admin.day-starts.updateStatus', $dayStart->id) }}" method="POST" class="inline">
-                                    @csrf
-                                    <input type="hidden" name="status" value="rejected">
-                                    <x-button type="submit" variant="danger" class="px-2 py-1 text-[10px]">Reject</x-button>
-                                </form>
+                        @can('day-start.approve')
+                            <div x-show="status === 'pending'" class="flex gap-1.5 ml-2">
+                                <button type="button" @click="updateDayStatus('approved')" :disabled="loading" class="px-2 py-1 text-[11px] font-bold text-white bg-green-600 hover:bg-green-700 rounded transition shadow-sm">
+                                    Approve
+                                </button>
+                                <button type="button" @click="updateDayStatus('rejected')" :disabled="loading" class="px-2 py-1 text-[11px] font-bold text-white bg-red-600 hover:bg-red-700 rounded transition shadow-sm">
+                                    Reject
+                                </button>
                             </div>
-                        @endif
+                        @endcan
                     </div>
                 </div>
             </div>
@@ -289,7 +313,36 @@
                 </thead>
                 <tbody>
                     @forelse ($expenses as $expense)
-                        <tr>
+                        <tr x-data="{
+                            status: '{{ $expense->status }}',
+                            loading: false,
+                            async updateExpenseStatus(newStatus) {
+                                if (!confirm(`Are you sure you want to ${newStatus} this expense?`)) return;
+                                this.loading = true;
+                                try {
+                                    const res = await fetch('{{ route('admin.expenses.updateStatus', $expense->id) }}', {
+                                        method: 'PATCH',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Accept': 'application/json',
+                                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                                            'X-Requested-With': 'XMLHttpRequest'
+                                        },
+                                        body: JSON.stringify({ status: newStatus })
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok && data.success) {
+                                        this.status = newStatus;
+                                    } else {
+                                        alert(data.message || 'Failed to update expense status.');
+                                    }
+                                } catch (e) {
+                                    alert('Error updating expense status.');
+                                } finally {
+                                    this.loading = false;
+                                }
+                            }
+                        }">
                             <td>
                                 @if($expense->is_system_generated)
                                     <span class="badge badge-primary">System Travel</span>
@@ -329,33 +382,26 @@
                                 @endif
                             </td>
                             <td>
-                                @if($expense->status === 'pending')
-                                    <span class="badge badge-warning">Pending</span>
-                                @elseif($expense->status === 'approved')
-                                    <span class="badge badge-success">Approved</span>
-                                @else
-                                    <span class="badge badge-danger">Rejected</span>
-                                @endif
+                                <span class="badge" :class="{
+                                    'badge-success': status === 'approved',
+                                    'badge-danger': status === 'rejected',
+                                    'badge-warning': status === 'pending'
+                                }" x-text="status.charAt(0).toUpperCase() + status.slice(1)">
+                                    {{ ucfirst($expense->status) }}
+                                </span>
                             </td>
                             <td class="text-right">
-                                @if($expense->status === 'pending')
-                                <div class="flex gap-2 justify-end">
-                                    <form action="{{ route('admin.expenses.updateStatus', $expense->id) }}" method="POST">
-                                        @csrf @method('PATCH')
-                                        <input type="hidden" name="redirect_back" value="1">
-                                        <input type="hidden" name="status" value="approved">
-                                        <x-button type="submit" variant="success" class="px-2 py-1 text-xs">Approve</x-button>
-                                    </form>
-                                    <form action="{{ route('admin.expenses.updateStatus', $expense->id) }}" method="POST">
-                                        @csrf @method('PATCH')
-                                        <input type="hidden" name="redirect_back" value="1">
-                                        <input type="hidden" name="status" value="rejected">
-                                        <x-button type="submit" variant="danger" class="px-2 py-1 text-xs">Reject</x-button>
-                                    </form>
+                                <div x-show="status === 'pending'" class="flex gap-1.5 justify-end">
+                                    <button type="button" @click="updateExpenseStatus('approved')" :disabled="loading" class="px-2 py-1 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded transition shadow-sm">
+                                        Approve
+                                    </button>
+                                    <button type="button" @click="updateExpenseStatus('rejected')" :disabled="loading" class="px-2 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded transition shadow-sm">
+                                        Reject
+                                    </button>
                                 </div>
-                                @else
-                                    <span class="text-xs text-slate-500">Processed</span>
-                                @endif
+                                <div x-show="status !== 'pending'">
+                                    <span class="text-xs text-slate-500 font-medium">Processed</span>
+                                </div>
                             </td>
                         </tr>
                         @if($expense->is_system_generated)

@@ -80,6 +80,28 @@ class AuthController extends Controller
     }
 
     /**
+     * Update device push token (FCM or Expo).
+     *
+     * POST /api/auth/fcm-token
+     * Body: { fcm_token: "..." }
+     */
+    public function updateFcmToken(Request $request): JsonResponse
+    {
+        $request->validate([
+            'fcm_token' => 'required|string|max:1000',
+        ]);
+
+        $request->user()->update([
+            'fcm_token' => $request->fcm_token,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Device push token updated successfully.',
+        ]);
+    }
+
+    /**
      * Logout (revoke current token).
      *
      * POST /api/auth/logout

@@ -39,15 +39,6 @@
                 <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Export PDF
             </a>
-            @can('customers.edit')
-                <a href="{{ route('admin.parties.edit', $party->id) }}" class="btn-primary">
-                    <svg class="w-4 h-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit
-                </a>
-            @endcan
         </div>
     </div>
 
@@ -55,10 +46,10 @@
     <div class="kpi-grid">
         @php
             $kpis = [
-                ['label' => 'Total Visits', 'value' => $party->visits->count(), 'icon' => 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z', 'bg' => 'bg-blue-50', 'text' => 'text-blue-600'],
-                ['label' => 'Total Orders', 'value' => $party->orders->count(), 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', 'bg' => 'bg-emerald-50', 'text' => 'text-emerald-600'],
-                ['label' => 'Revenue', 'value' => '₹' . number_format($party->orders->sum('total_amount'), 2), 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', 'bg' => 'bg-amber-50', 'text' => 'text-amber-600'],
-                ['label' => 'Transactions', 'value' => $party->transactions->count(), 'icon' => 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z', 'bg' => 'bg-violet-50', 'text' => 'text-violet-600'],
+                ['label' => 'Total Visits',   'value' => $party->visits()->count(),                              'icon' => 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z', 'bg' => 'bg-blue-50',   'text' => 'text-blue-600'],
+                ['label' => 'Total Orders',   'value' => $party->orders()->count(),                              'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', 'bg' => 'bg-emerald-50', 'text' => 'text-emerald-600'],
+                ['label' => 'Revenue',        'value' => '₹' . number_format($party->orders()->sum('total_amount'), 2), 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', 'bg' => 'bg-amber-50',  'text' => 'text-amber-600'],
+                ['label' => 'Transactions',   'value' => $party->transactions()->count(),                         'icon' => 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z', 'bg' => 'bg-violet-50', 'text' => 'text-violet-600'],
             ];
         @endphp
         @foreach ($kpis as $kpi)
@@ -107,11 +98,8 @@
                         {{ strtoupper(substr($party->activeAssignment->employee->name, 0, 1)) }}
                     </div>
                     <div>
-                        <div class="font-bold text-slate-950">{{ $party->activeAssignment->employee->name }}</div>
+                        <div class="font-bold text-slate-950">{{ $party->activeAssignment->employee->name }} ({{ $party->activeAssignment->employee->role_name }})</div>
                         <div class="text-xs text-slate-500">{{ $party->activeAssignment->employee->email }}</div>
-                        @if($party->activeAssignment->employee->employee_id)
-                            <div class="text-xs text-slate-400 mt-0.5">ID: {{ $party->activeAssignment->employee->employee_id }}</div>
-                        @endif
                     </div>
                 </div>
             @else
@@ -159,19 +147,19 @@
                             d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Visits <span class="tab-count">{{ $party->visits->count() }}</span>
+                    Visits <span class="tab-count">{{ $party->visits()->count() }}</span>
                 </button>
                 <button class="profile-tab" data-tab="orders">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round"
                             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
-                    Orders <span class="tab-count">{{ $party->orders->count() }}</span>
+                    Orders <span class="tab-count">{{ $party->orders()->count() }}</span>
                 </button>
                 <button class="profile-tab" data-tab="transactions">
                 <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 Transactions
-                <span class="tab-count">{{ $party->transactions->count() }}</span>
+                <span class="tab-count">{{ $party->transactions()->count() }}</span>
             </button>
             <button class="profile-tab" data-tab="products">
                 <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
@@ -184,55 +172,21 @@
         {{-- ─── Visit History Tab ─── --}}
         <div class="tab-content active" id="tab-visits">
             <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-                <input type="text" class="tab-search" data-target="visits-table" placeholder="Search visits..." />
-                <div class="tab-pagination" data-table="visits-table"></div>
+                <span class="text-xs text-slate-500">Loaded on demand</span>
+                <div id="visits-pagination" class="tab-pagination"></div>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap" id="visits-table-wrap">
                 <table class="data-table" id="visits-table">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Check-In Date</th>
-                            <th>Fieldworker</th>
-                            <th>Check-In Location</th>
-                            <th>Check-Out</th>
-                            <th>Remarks</th>
-                            <th>Status</th>
+                            <th>#</th><th>Check-In Date</th><th>Fieldworker</th>
+                            <th>Check-In Location</th><th>Check-Out</th><th>Remarks</th><th>Status</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        @foreach($party->visits->sortByDesc('check_in_at') as $i => $visit)
-                            <tr>
-                                <td class="text-slate-400 text-xs">{{ $i + 1 }}</td>
-                                <td class="whitespace-nowrap font-medium">
-                                    {{ $visit->check_in_at ? $visit->check_in_at->format('d M Y, h:i A') : '—' }}</td>
-                                <td>
-                                    <div class="flex items-center gap-2">
-                                        <span
-                                            class="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-600">{{ strtoupper(substr($visit->user->name ?? 'U', 0, 1)) }}</span>
-                                        <span class="text-slate-700">{{ $visit->user->name ?? 'Unknown' }}</span>
-                                    </div>
-                                </td>
-                                <td class="text-xs">
-                                    @if($visit->check_in_lat && $visit->check_in_lng)
-                                        <a href="https://maps.google.com/?q={{ $visit->check_in_lat }},{{ $visit->check_in_lng }}"
-                                            target="_blank" class="text-[var(--ampl-primary)] hover:underline">
-                                            {{ number_format($visit->check_in_lat, 4) }},
-                                            {{ number_format($visit->check_in_lng, 4) }}
-                                        </a>
-                                    @else
-                                        <span class="text-slate-400">—</span>
-                                    @endif
-                                </td>
-                                <td class="whitespace-nowrap text-xs">
-                                    {{ $visit->check_out_at ? $visit->check_out_at->format('d M Y, h:i A') : '—' }}</td>
-                                <td class="max-w-[200px] truncate text-slate-500" title="{{ $visit->remarks }}">
-                                    {{ $visit->remarks ?? '—' }}</td>
-                                <td><span
-                                        class="badge badge-{{ $visit->status === 'completed' ? 'success' : 'muted' }}">{{ ucfirst($visit->status ?? 'pending') }}</span>
-                                </td>
-                            </tr>
-                        @endforeach
+                    <tbody id="visits-tbody">
+                        <tr><td colspan="7" class="py-10 text-center text-slate-400 text-sm">
+                            <span class="animate-pulse">Loading visits…</span>
+                        </td></tr>
                     </tbody>
                 </table>
             </div>
@@ -241,37 +195,21 @@
         {{-- ─── Orders Tab ─── --}}
         <div class="tab-content" id="tab-orders">
             <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-                <input type="text" class="tab-search" data-target="orders-table" placeholder="Search orders..." />
-                <div class="tab-pagination" data-table="orders-table"></div>
+                <span class="text-xs text-slate-500">Loaded on demand</span>
+                <div id="orders-pagination" class="tab-pagination"></div>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap" id="orders-table-wrap">
                 <table class="data-table" id="orders-table">
                     <thead>
                         <tr>
-                            <th>Order #</th>
-                            <th>Date</th>
-                            <th>Fieldworker</th>
-                            <th>Payment</th>
-                            <th>Remarks</th>
-                            <th>Amount</th>
-                            <th>Status</th>
+                            <th>Order #</th><th>Date</th><th>Fieldworker</th>
+                            <th>Payment</th><th>Remarks</th><th>Amount</th><th>Status</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        @foreach($party->orders->sortByDesc('created_at') as $order)
-                            <tr>
-                                <td class="font-bold text-[var(--ampl-primary)]">#{{ $order->id }}</td>
-                                <td class="whitespace-nowrap">{{ $order->created_at->format('d M Y') }}</td>
-                                <td>{{ $order->user->name ?? '—' }}</td>
-                                <td class="text-xs">{{ ucfirst($order->payment_mode ?? '—') }}</td>
-                                <td class="max-w-[200px] truncate text-slate-500" title="{{ $order->remarks }}">
-                                    {{ $order->remarks ?? '—' }}</td>
-                                <td class="font-bold whitespace-nowrap">₹{{ number_format($order->total_amount, 2) }}</td>
-                                <td><span
-                                        class="badge badge-{{ $order->status === 'delivered' ? 'success' : ($order->status === 'pending' ? 'warning' : 'info') }}">{{ ucfirst($order->status ?? 'pending') }}</span>
-                                </td>
-                            </tr>
-                        @endforeach
+                    <tbody id="orders-tbody">
+                        <tr><td colspan="7" class="py-10 text-center text-slate-400 text-sm">
+                            <span class="animate-pulse">Loading orders…</span>
+                        </td></tr>
                     </tbody>
                 </table>
             </div>
@@ -280,38 +218,23 @@
         {{-- ─── Transactions Tab ─── --}}
         <div class="tab-content" id="tab-transactions">
             <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-                <input type="text" class="tab-search" data-target="transactions-table"
-                    placeholder="Search transactions..." />
-                <div class="tab-pagination" data-table="transactions-table"></div>
+                <span class="text-xs text-slate-500">Loaded on demand</span>
+                <div id="transactions-pagination" class="tab-pagination"></div>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap" id="transactions-table-wrap">
                 <table class="data-table" id="transactions-table">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Date</th>
-                            <th>Amount</th>
-                            <th>Type</th>
-                            <th>Notes</th>
-                            <th>Status</th>
+                            <th>#</th><th>Date</th><th>Amount</th>
+                            <th>Type</th><th>Notes</th><th>Status</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        @foreach($party->transactions->sortByDesc('created_at') as $j => $txn)
-                            <tr>
-                                <td class="text-slate-400 text-xs">{{ $j + 1 }}</td>
-                                <td class="whitespace-nowrap font-medium">{{ $txn->created_at->format('d M Y') }}</td>
-                                <td class="font-bold whitespace-nowrap">₹{{ number_format($txn->amount, 2) }}</td>
-                                <td><span class="badge badge-{{ $txn->type === 'payment' ? 'success' : ($txn->type === 'refund' ? 'danger' : 'info') }}">{{ ucfirst($txn->type) }}</span></td>
-                                <td class="max-w-[200px] truncate text-slate-500" title="{{ $txn->notes }}">{{ $txn->notes ?? '—' }}</td>
-                                <td><span class="badge badge-{{ $txn->status === 'completed' ? 'success' : 'warning' }}">{{ ucfirst($txn->status) }}</span></td>
-                            </tr>
-                        @endforeach
+                    <tbody id="transactions-tbody">
+                        <tr><td colspan="6" class="py-10 text-center text-slate-400 text-sm">
+                            <span class="animate-pulse">Loading transactions…</span>
+                        </td></tr>
                     </tbody>
                 </table>
-            </div>
-            <div style="padding:16px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end;">
-                <div class="tab-pagination" data-table="transactions-table"></div>
             </div>
         </div>
 
@@ -324,13 +247,8 @@
                 <table id="products-table" class="data-table">
                     <thead>
                         <tr>
-                            <th>Image</th>
-                            <th>Product Name</th>
-                            <th>Code</th>
-                            <th>Times Bought</th>
-                            <th>Total Qty</th>
-                            <th>Total Spent</th>
-                            <th>Last Purchased</th>
+                            <th>Image</th><th>Product Name</th><th>Code</th>
+                            <th>Times Bought</th><th>Total Qty</th><th>Total Spent</th><th>Last Purchased</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -358,13 +276,109 @@
                     </tbody>
                 </table>
             </div>
-            <div style="padding:16px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end;">
-                <div class="tab-pagination" data-table="products-table"></div>
-            </div>
         </div>
     </div>
 @endsection
 
 @push('scripts')
     <script src="{{ asset('assets/js/party-profile.js') }}"></script>
+    <script>
+    (function () {
+        const tabDataUrl = '{{ route('admin.parties.tab-data', $party->id) }}';
+        const loaded = {};
+        const pages  = { visits: 1, orders: 1, transactions: 1 };
+
+        function renderVisits(data) {
+            const tbody = document.getElementById('visits-tbody');
+            if (!data.data.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="py-10 text-center text-slate-400">No visits found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.data.map((v, i) => `
+                <tr>
+                    <td class="text-slate-400 text-xs">${data.from + i}</td>
+                    <td class="whitespace-nowrap font-medium">${v.check_in_time ? new Date(v.check_in_time).toLocaleString('en-IN') : '—'}</td>
+                    <td>${v.user ? v.user.name : 'Unknown'}</td>
+                    <td class="text-xs">${v.check_in_lat ? `<a href="https://maps.google.com/?q=${v.check_in_lat},${v.check_in_lng}" target="_blank" class="text-blue-600 hover:underline">${Number(v.check_in_lat).toFixed(4)},${Number(v.check_in_lng).toFixed(4)}</a>` : '—'}</td>
+                    <td class="whitespace-nowrap text-xs">${v.check_out_time ? new Date(v.check_out_time).toLocaleString('en-IN') : '—'}</td>
+                    <td class="max-w-[200px] truncate text-slate-500">${v.remarks ?? '—'}</td>
+                    <td><span class="badge badge-${v.status === 'completed' ? 'success' : 'muted'}">${v.status ?? 'pending'}</span></td>
+                </tr>`).join('');
+            renderPager('visits', data);
+        }
+
+        function renderOrders(data) {
+            const tbody = document.getElementById('orders-tbody');
+            if (!data.data.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="py-10 text-center text-slate-400">No orders found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.data.map(o => `
+                <tr>
+                    <td class="font-bold text-blue-600">#${o.id}</td>
+                    <td class="whitespace-nowrap">${o.order_date ? new Date(o.order_date).toLocaleDateString('en-IN') : '—'}</td>
+                    <td>${o.user ? o.user.name ?? '—' : '—'}</td>
+                    <td class="text-xs">${o.payment_mode ? o.payment_mode.charAt(0).toUpperCase() + o.payment_mode.slice(1) : '—'}</td>
+                    <td class="max-w-[200px] truncate text-slate-500">${o.remarks ?? '—'}</td>
+                    <td class="font-bold whitespace-nowrap">₹${Number(o.total_amount ?? 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                    <td><span class="badge badge-${o.status === 'delivered' ? 'success' : o.status === 'pending' ? 'warning' : 'info'}">${o.status ?? 'pending'}</span></td>
+                </tr>`).join('');
+            renderPager('orders', data);
+        }
+
+        function renderTransactions(data) {
+            const tbody = document.getElementById('transactions-tbody');
+            if (!data.data.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-400">No transactions found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.data.map((t, i) => `
+                <tr>
+                    <td class="text-slate-400 text-xs">${data.from + i}</td>
+                    <td class="whitespace-nowrap font-medium">${t.created_at ? new Date(t.created_at).toLocaleDateString('en-IN') : '—'}</td>
+                    <td class="font-bold whitespace-nowrap">₹${Number(t.amount ?? 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                    <td><span class="badge badge-${t.type === 'payment' ? 'success' : t.type === 'refund' ? 'danger' : 'info'}">${t.type ?? '—'}</span></td>
+                    <td class="max-w-[200px] truncate text-slate-500">${t.notes ?? '—'}</td>
+                    <td><span class="badge badge-${t.status === 'completed' ? 'success' : 'warning'}">${t.status ?? '—'}</span></td>
+                </tr>`).join('');
+            renderPager('transactions', data);
+        }
+
+        function renderPager(tab, data) {
+            const el = document.getElementById(`${tab}-pagination`);
+            if (!el) return;
+            if (data.last_page <= 1) { el.innerHTML = ''; return; }
+            el.innerHTML = `
+                <button onclick="loadTab('${tab}',${data.current_page - 1})" ${data.current_page <= 1 ? 'disabled' : ''} class="btn-secondary text-xs py-1 px-2">‹</button>
+                <span class="text-xs text-slate-500 mx-2">${data.current_page} / ${data.last_page}</span>
+                <button onclick="loadTab('${tab}',${data.current_page + 1})" ${data.current_page >= data.last_page ? 'disabled' : ''} class="btn-secondary text-xs py-1 px-2">›</button>
+            `;
+        }
+
+        window.loadTab = function(tab, page = 1) {
+            pages[tab] = page;
+            fetch(`${tabDataUrl}?tab=${tab}&page=${page}`)
+                .then(r => r.json())
+                .then(data => {
+                    loaded[tab] = true;
+                    if (tab === 'visits')       renderVisits(data);
+                    else if (tab === 'orders')  renderOrders(data);
+                    else                        renderTransactions(data);
+                });
+        };
+
+        // Wire tab buttons to AJAX loader
+        document.querySelectorAll('#profileTabs .profile-tab').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const tab = this.dataset.tab;
+                if (['visits', 'orders', 'transactions'].includes(tab) && !loaded[tab]) {
+                    loadTab(tab, 1);
+                }
+            });
+        });
+
+        // Auto-load first tab
+        loadTab('visits', 1);
+    })();
+    </script>
 @endpush

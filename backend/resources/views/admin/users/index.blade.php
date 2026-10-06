@@ -56,8 +56,7 @@
                                     {{ strtoupper(substr($user->name, 0, 1)) }}
                                 </span>
                                 <div>
-                                    <div class="text-body-emphasis">{{ $user->name }}</div>
-                                    <div class="text-caption">ID #{{ $user->id }}</div>
+                                    <div class="text-body-emphasis">{{ $user->name }} ({{ $user->role_name }})</div>
                                 </div>
                             </div>
                         </td>
@@ -92,17 +91,18 @@
                                         >
                                             <form method="POST" action="{{ route('admin.users.roles.update', $user) }}" class="space-y-3">
                                                 @csrf
+                                                <div class="text-xs font-semibold text-ink-500 mb-1">Select Role</div>
                                                 <div class="max-h-48 overflow-y-auto space-y-1.5">
                                                     @foreach ($roles as $role)
                                                         <label class="flex items-center gap-2 rounded-lg hover:bg-surface-muted px-2 py-1.5 cursor-pointer transition-colors">
                                                             <input
-                                                                type="checkbox"
-                                                                name="roles[]"
+                                                                type="radio"
+                                                                name="role"
                                                                 value="{{ $role->name }}"
                                                                 @checked($user->hasRole($role->name))
-                                                                class="h-4 w-4 rounded border-surface-border text-brand-600 focus:ring-brand-500"
+                                                                class="h-4 w-4 text-brand-600 focus:ring-brand-500"
                                                             >
-                                                            <span class="text-sm font-medium text-ink-900">{{ $role->name }}</span>
+                                                            <span class="text-sm font-medium text-ink-900 capitalize">{{ $role->name }}</span>
                                                         </label>
                                                     @endforeach
                                                 </div>

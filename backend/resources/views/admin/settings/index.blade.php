@@ -13,7 +13,7 @@
     </div>
 @endif
 
-<div class="space-y-6">
+<div class="space-y-6" x-data="settingsFormHandler()">
 
     {{-- ── 1. Company Payment & Official UPI Configuration ── --}}
     <div class="panel p-6 border-l-4 border-emerald-500">
@@ -30,7 +30,7 @@
             </div>
         </div>
 
-        <form action="{{ route('admin.settings.update') }}" method="POST">
+        <form action="{{ route('admin.settings.update') }}" method="POST" @submit.prevent="submitForm($event)">
             @csrf
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -105,7 +105,7 @@
             </div>
         </div>
 
-        <form action="{{ route('admin.settings.update') }}" method="POST">
+        <form action="{{ route('admin.settings.update') }}" method="POST" @submit.prevent="submitForm($event)">
             @csrf
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -172,7 +172,7 @@
             </div>
         </div>
 
-        <form action="{{ route('admin.settings.update') }}" method="POST">
+        <form action="{{ route('admin.settings.update') }}" method="POST" @submit.prevent="submitForm($event)">
             @csrf
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -207,7 +207,7 @@
             </div>
         </div>
 
-        <form action="{{ route('admin.settings.update') }}" method="POST">
+        <form action="{{ route('admin.settings.update') }}" method="POST" @submit.prevent="submitForm($event)">
             @csrf
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -238,3 +238,54 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+function settingsFormHandler() {
+    return {
+        async submitForm(event) {
+            const form = event.target;
+            const btn = form.querySelector('button[type="submit"]');
+            const originalBtnHtml = btn ? btn.innerHTML : '';
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg> Saving...
+                `;
+            }
+
+            try {
+                const formData = new FormData(form);
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    window.toast(data.message || 'Settings saved successfully!', 'success');
+                } else {
+                    window.toast(data.message || 'Failed to save settings.', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                window.toast('Network error saving settings.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnHtml;
+                }
+            }
+        }
+    };
+}
+</script>
+@endpush

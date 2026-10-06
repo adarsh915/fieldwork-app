@@ -170,7 +170,13 @@ export default function VisitScreen() {
   const handleTxOption = (option: string) => {
     setShowTxMenu(false);
     if (option === "Order" && activeVisit) {
-      navigation.navigate("Order", { visitId: activeVisit.id, partyId });
+      navigation.navigate("Order", {
+        visitId: activeVisit.id,
+        partyId,
+        partyName,
+        partyMobile,
+        partyAddress,
+      });
     } else if (option === "Payment") {
       navigation.navigate("PaymentCollection", {
         partyId,

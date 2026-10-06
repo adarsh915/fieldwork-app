@@ -13,8 +13,7 @@
                     <x-lucide-arrow-left class="w-6 h-6 text-slate-700" />
                 </a>
                 <div class="flex-1">
-                    <h1 class="text-3xl font-bold text-slate-900">{{ $fieldWorker->name }}</h1>
-                    <p class="text-slate-600">{{ $fieldWorker->employee_id }} • {{ $fieldWorker->position ?? 'Field Worker' }}</p>
+                    <h1 class="text-3xl font-bold text-slate-900">{{ $fieldWorker->name }} ({{ $fieldWorker->role_name }})</h1>
                 </div>
                 <span class="px-4 py-2 rounded-full font-bold @class([
                     'bg-green-100 text-green-700' => $fieldWorker->is_active,

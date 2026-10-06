@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type OTPScreenNavigationProp = NativeStackNavigationProp<
@@ -31,7 +31,10 @@ export default function OTPScreen() {
   const isOtpValid = otp === "123456";
 
   return (
-    <View style={styles.container}>
+    <KeyboardAwareScreen
+      backgroundColor="#EEF2FF"
+      contentStyle={styles.container}
+    >
       <View style={styles.card}>
         <Text style={styles.title}>Enter OTP</Text>
         <Text style={styles.subtitle}>We sent a 6-digit code to</Text>
@@ -43,6 +46,8 @@ export default function OTPScreen() {
           value={otp}
           onChangeText={(value) => setOtp(value.replace(/[^0-9]/g, ""))}
           maxLength={6}
+          returnKeyType="done"
+          onSubmitEditing={() => isOtpValid && navigation.replace("Dashboard")}
         />
         <TouchableOpacity
           style={[styles.button, !isOtpValid && styles.buttonDisabled]}
@@ -54,7 +59,7 @@ export default function OTPScreen() {
         </TouchableOpacity>
         <Text style={styles.hint}>Demo OTP: 123456</Text>
       </View>
-    </View>
+    </KeyboardAwareScreen>
   );
 }
 

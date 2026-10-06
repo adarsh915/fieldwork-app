@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\DataScope;
 use App\Services\ReportingService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -14,36 +15,25 @@ class ReportController extends Controller
     public function __construct(private readonly ReportingService $reportingService) {}
 
     /**
-     * Display Employee 360 Performance KPI Matrix.
+     * Display Employee 360 Performance KPI Matrix (initial page load only).
+     * Filter changes use matrixJson() via AJAX — no full page reload.
      */
     public function index(Request $request)
     {
-        $scopedUserIds = DataScope::visibleUserIds('reports');
-        $dateRange = $this->reportingService->resolveDateRange(
+        $scopedUserIds  = DataScope::visibleUserIds('reports');
+        $dateRange      = $this->reportingService->resolveDateRange(
             $request->input('preset', 'this_month'),
             $request->input('from'),
             $request->input('to')
         );
 
         $selectedUserId = $request->filled('user_id') ? (int) $request->user_id : null;
-
-        // Verify if selected user is within scope
         if ($selectedUserId && $scopedUserIds !== null && !in_array($selectedUserId, $scopedUserIds)) {
-            $selectedUserId = -1; // No results
+            $selectedUserId = -1;
         }
 
-        $reportData = $this->reportingService->getEmployeePerformanceMatrix(
-            $dateRange,
-            $selectedUserId,
-            $scopedUserIds
-        );
-
-        // Employee filter dropdown list
-        $employeeQuery = User::where('is_active', true);
-        if ($scopedUserIds !== null) {
-            $employeeQuery->whereIn('id', $scopedUserIds);
-        }
-        $employeesList = $employeeQuery->orderBy('name')->get(['id', 'name', 'employee_id']);
+        $reportData    = $this->reportingService->getEmployeePerformanceMatrix($dateRange, $selectedUserId, $scopedUserIds);
+        $employeesList = $this->employeesDropdown($scopedUserIds);
 
         return view('admin.reports.index', [
             'matrix'        => $reportData['users_matrix'],
@@ -52,6 +42,48 @@ class ReportController extends Controller
             'employeesList' => $employeesList,
             'selectedUser'  => $selectedUserId,
         ]);
+    }
+
+    /**
+     * AJAX: GET /admin/reports/matrix-json
+     * Returns matrix + totals as JSON — called by the filter bar without page reload.
+     */
+    public function matrixJson(Request $request): JsonResponse
+    {
+        $scopedUserIds  = DataScope::visibleUserIds('reports');
+        $dateRange      = $this->reportingService->resolveDateRange(
+            $request->input('preset', 'this_month'),
+            $request->input('from'),
+            $request->input('to')
+        );
+
+        $selectedUserId = $request->filled('user_id') ? (int) $request->user_id : null;
+        if ($selectedUserId && $scopedUserIds !== null && !in_array($selectedUserId, $scopedUserIds)) {
+            $selectedUserId = -1;
+        }
+
+        $reportData = $this->reportingService->getEmployeePerformanceMatrix($dateRange, $selectedUserId, $scopedUserIds);
+
+        return response()->json([
+            'matrix'    => $reportData['users_matrix']->values(),
+            'totals'    => $reportData['totals'],
+            'dateRange' => $dateRange,
+        ]);
+    }
+
+    private function employeesDropdown(?array $scopedUserIds)
+    {
+        $q = User::query()->where('is_active', true);
+        if ($scopedUserIds !== null) {
+            $q->whereIn('id', $scopedUserIds);
+        } else {
+            $q->where(function ($query) {
+                $query->whereHas('roles', function ($rq) {
+                    $rq->whereIn('name', ['Field Worker', 'field_worker', 'Employee', 'employee', 'Manager', 'manager', 'Supervisor', 'supervisor', 'Sales', 'sales']);
+                })->orWhereNotNull('employee_id');
+            });
+        }
+        return $q->with('roles')->orderBy('name')->get();
     }
 
     /**
@@ -96,12 +128,7 @@ class ReportController extends Controller
         }
 
         $ledgerRecords = $this->reportingService->getDailyLedger($dateRange, $selectedUserId, $scopedUserIds);
-
-        $employeeQuery = User::where('is_active', true);
-        if ($scopedUserIds !== null) {
-            $employeeQuery->whereIn('id', $scopedUserIds);
-        }
-        $employeesList = $employeeQuery->orderBy('name')->get(['id', 'name', 'employee_id']);
+        $employeesList = $this->employeesDropdown($scopedUserIds);
 
         return view('admin.reports.daily-ledger', [
             'records'       => $ledgerRecords,
@@ -208,12 +235,7 @@ class ReportController extends Controller
         }
 
         $fieldworkers = $query->get();
-
-        $employeeListQuery = User::orderBy('name');
-        if ($scopedUserIds !== null) {
-            $employeeListQuery->whereIn('id', $scopedUserIds);
-        }
-        $employeesList = $employeeListQuery->get(['id', 'name', 'employee_id']);
+        $employeesList = $this->employeesDropdown($scopedUserIds);
 
         return view('admin.reports.fieldworker-parties', compact('fieldworkers', 'employeesList', 'employeeId'));
     }

@@ -33,12 +33,21 @@ class UserController extends Controller
     public function updateRoles(Request $request, User $user)
     {
         $data = $request->validate([
-            'roles' => ['array'],
-            'roles.*' => ['string'],
+            'role' => ['nullable', 'string', 'exists:roles,name'],
+            'roles' => ['nullable'],
+            'roles.*' => ['string', 'exists:roles,name'],
         ]);
 
-        $user->syncRoles($data['roles'] ?? []);
+        $roleToSync = [];
+        if (!empty($data['role'])) {
+            $roleToSync = [$data['role']];
+        } elseif (!empty($data['roles'])) {
+            $rolesArr = is_array($data['roles']) ? $data['roles'] : [$data['roles']];
+            $roleToSync = array_slice(array_filter($rolesArr), 0, 1);
+        }
 
-        return back()->with('status', 'User roles updated.');
+        $user->syncRoles($roleToSync);
+
+        return back()->with('status', 'User role updated.');
     }
 }

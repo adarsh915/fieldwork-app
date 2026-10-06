@@ -77,8 +77,7 @@
                                     {{ strtoupper(substr($fw->name, 0, 1)) }}
                                 </div>
                                 <div class="flex-1">
-                                    <h3 class="font-bold text-white text-lg">{{ $fw->name }}</h3>
-                                    <p class="text-blue-100 text-sm">{{ $fw->employee_id }}</p>
+                                    <h3 class="font-bold text-white text-lg">{{ $fw->name }} ({{ $fw->role_name }})</h3>
                                     <div class="mt-2">
                                         <span class="inline-block px-2 py-1 rounded-full text-xs font-bold @class([
                                             'bg-green-100 text-green-700' => $fw->is_active,

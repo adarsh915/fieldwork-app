@@ -32,6 +32,7 @@ class User extends Authenticatable
         'salary',
         'is_active',
         'reporting_to',
+        'fcm_token',
     ];
 
     /**
@@ -103,5 +104,30 @@ class User extends Authenticatable
     public function canSelectAllParties(): bool
     {
         return $this->hasAnyRole(['admin', 'Admin', 'Super Admin']);
+    }
+
+    protected $appends = [
+        'role_name',
+        'name_with_role',
+    ];
+
+    /**
+     * Get the display role name for the user (e.g. "VP", "Manager", "Field Worker", "Admin").
+     */
+    public function getRoleNameAttribute(): string
+    {
+        $role = $this->roles->first()?->name ?? $this->position ?? 'Field Worker';
+        if (strcasecmp($role, 'vp') === 0) {
+            return 'VP';
+        }
+        return ucwords(str_replace(['_', '-'], ' ', $role));
+    }
+
+    /**
+     * Get the formatted name with role in parentheses: "Name (Role)".
+     */
+    public function getNameWithRoleAttribute(): string
+    {
+        return "{$this->name} ({$this->role_name})";
     }
 }

@@ -57,7 +57,15 @@ export type RootStackParamList = {
     partyMobile: string | null;
     partyAddress: string | null;
   };
-  Order: { visitId?: number | null; partyId: number; partyName?: string; isDirectPhoneOrder?: boolean };
+  Order: {
+    visitId?: number | null;
+    partyId: number;
+    partyName?: string;
+    partyMobile?: string | null;
+    partyAddress?: string | null;
+    partyCity?: string | null;
+    isDirectPhoneOrder?: boolean;
+  };
   OrderList: { partyId?: number; partyName?: string } | undefined;
   OrderDetails: { order: any };
   PaymentCollection: {
@@ -102,7 +110,15 @@ export type AppStackParamList = {
     partyMobile: string | null;
     partyAddress: string | null;
   };
-  Order: { visitId: number; partyId: number };
+  Order: {
+    visitId?: number | null;
+    partyId: number;
+    partyName?: string;
+    partyMobile?: string | null;
+    partyAddress?: string | null;
+    partyCity?: string | null;
+    isDirectPhoneOrder?: boolean;
+  };
   OrderList: { partyId?: number; partyName?: string } | undefined;
   OrderDetails: { order: any };
   PaymentCollection: {

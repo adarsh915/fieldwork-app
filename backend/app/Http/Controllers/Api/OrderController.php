@@ -66,13 +66,14 @@ class OrderController extends Controller
             'dispatch_date' => 'nullable|date',
             'remarks' => 'nullable|string',
             'schema' => 'nullable|string',
-            'order_type' => 'required|string',
-            'payment_mode' => 'required|string',
+            'order_type' => 'nullable|string',
+            'payment_mode' => 'nullable|string',
+            'order_date' => 'nullable|date',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.product_unit_id' => 'required|exists:product_units,id',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.price' => 'required|numeric|min:0',
+            'items.*.price' => 'nullable|numeric|min:0',
         ]);
 
         $isPhoneOrder = empty($request->visit_id) || $request->order_source === 'phone';
@@ -103,8 +104,11 @@ class OrderController extends Controller
 
             $totalAmount = 0;
             foreach ($request->items as $item) {
-                $totalAmount += ($item['quantity'] * $item['price']);
+                $price = isset($item['price']) ? (float)$item['price'] : 0;
+                $totalAmount += ($item['quantity'] * $price);
             }
+
+            $orderDate = $request->order_date ? Carbon::parse($request->order_date) : Carbon::today();
 
             $order = Order::create([
                 'order_no' => 'ORD-' . date('YmdHis') . '-' . rand(100, 999),
@@ -119,21 +123,22 @@ class OrderController extends Controller
                 'dispatch_date' => $request->dispatch_date,
                 'remarks' => $request->remarks,
                 'schema' => $request->schema,
-                'order_type' => $request->order_type,
-                'payment_mode' => $request->payment_mode,
+                'order_type' => $request->order_type ?? 'Visit Report',
+                'payment_mode' => $request->payment_mode ?? 'Report',
                 'total_amount' => $totalAmount,
                 'status' => 'pending',
-                'order_date' => Carbon::today(),
+                'order_date' => $orderDate,
             ]);
 
             foreach ($request->items as $item) {
+                $price = isset($item['price']) ? (float)$item['price'] : 0;
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $item['product_id'],
                     'product_unit_id' => $item['product_unit_id'],
                     'qty' => $item['quantity'],
-                    'rate' => $item['price'],
-                    'total' => $item['quantity'] * $item['price'],
+                    'rate' => $price,
+                    'total' => $item['quantity'] * $price,
                 ]);
             }
 

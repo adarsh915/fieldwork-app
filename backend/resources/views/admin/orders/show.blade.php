@@ -25,7 +25,7 @@
             </div>
             <div>
                 <span class="block text-xs font-semibold text-gray-500 uppercase">Created By (Field Worker)</span>
-                <span class="block text-sm text-gray-900 mt-1 font-medium">{{ $order->user ? $order->user->name : 'N/A' }}</span>
+                <span class="block text-sm text-gray-900 mt-1 font-medium">{{ $order->user ? $order->user->name . ' (' . $order->user->role_name . ')' : 'N/A' }}</span>
             </div>
             <div>
                 <span class="block text-xs font-semibold text-gray-500 uppercase">Order Type</span>
@@ -59,20 +59,61 @@
                     @endif
                 </div>
             </div>
-            <div>
+            <div x-data="{
+                status: '{{ $order->status }}',
+                saving: false,
+                saved: false,
+                async saveStatus() {
+                    this.saving = true;
+                    this.saved = false;
+                    try {
+                        const res = await fetch('{{ route('admin.orders.update-status', $order->id) }}', {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: JSON.stringify({ status: this.status })
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.success) {
+                            this.saved = true;
+                            setTimeout(() => this.saved = false, 3000);
+                        } else {
+                            alert(data.message || 'Failed to update order status.');
+                        }
+                    } catch (e) {
+                        alert('Error updating order status.');
+                    } finally {
+                        this.saving = false;
+                    }
+                }
+            }">
                 <span class="block text-xs font-semibold text-gray-500 uppercase">Status</span>
-                <form action="{{ route('admin.orders.update-status', $order->id) }}" method="POST" class="mt-1 flex items-center gap-2">
-                    @csrf
-                    @method('PATCH')
-                    <select name="status" class="text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1 pl-2 pr-8">
-                        <option value="pending" {{ $order->status == 'pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="approved" {{ $order->status == 'approved' ? 'selected' : '' }}>Approved</option>
-                        <option value="dispatched" {{ $order->status == 'dispatched' ? 'selected' : '' }}>Dispatched</option>
-                        <option value="delivered" {{ $order->status == 'delivered' ? 'selected' : '' }}>Delivered</option>
-                        <option value="cancelled" {{ $order->status == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                <div class="mt-1 flex items-center gap-2">
+                    <select x-model="status" @change="saveStatus" :disabled="saving" class="text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1.5 pl-2.5 pr-8">
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="dispatched">Dispatched</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
                     </select>
-                    <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded-md text-xs font-bold hover:bg-indigo-700 transition">Save</button>
-                </form>
+                    <button type="button" @click="saveStatus" :disabled="saving" class="bg-indigo-600 text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-indigo-700 transition flex items-center gap-1.5 shadow-sm">
+                        <span x-show="!saving">Save</span>
+                        <span x-show="saving" class="flex items-center gap-1">
+                            <svg class="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Saving...
+                        </span>
+                    </button>
+                    <span x-show="saved" x-transition class="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                        ✓ Saved!
+                    </span>
+                </div>
             </div>
         </div>
     </div>

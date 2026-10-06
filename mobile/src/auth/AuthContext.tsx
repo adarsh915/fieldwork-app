@@ -19,6 +19,7 @@ import {
   logout as apiLogout,
   fetchMe,
 } from "../api/auth";
+import { registerForPushNotificationsAsync } from "../services/notificationService";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (token) {
           const data = await fetchMe(); // GET /api/auth/me
           setUser(data as AuthUser);
+          // Register device for push notifications in background
+          registerForPushNotificationsAsync().catch(() => {});
         }
       } catch {
         // Token expired or invalid → clear it
@@ -83,6 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await loginWithEmailPassword(email, password);
       setUser(res.data.user as AuthUser);
+      // Register device for push notifications upon login
+      registerForPushNotificationsAsync().catch(() => {});
     } catch (err: any) {
       const msg = err?.message ?? "Login failed. Please try again.";
       setError(msg);

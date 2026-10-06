@@ -252,6 +252,9 @@ export default function DealerListScreen() {
             navigation.navigate("Order", {
               partyId: dealer.id,
               partyName: dealer.name,
+              partyMobile: dealer.mobile,
+              partyAddress: dealer.address,
+              partyCity: dealer.city,
               visitId: null,
               isDirectPhoneOrder: true,
             });

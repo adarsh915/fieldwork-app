@@ -72,12 +72,7 @@
                                 class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-400"
                             >
                             <div>
-                                <div>{{ $emp->name }}</div>
-                                @if($emp->employee_id)
-                                    <div class="text-xs text-slate-400">{{ $emp->employee_id }}</div>
-                                @elseif($emp->email)
-                                    <div class="text-xs text-slate-400">{{ $emp->email }}</div>
-                                @endif
+                                <div>{{ $emp->name }} ({{ $emp->role_name }})</div>
                             </div>
                         </label>
                     @empty

@@ -7,9 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 
 import { submitDayStart } from "../api/day";
@@ -196,19 +195,11 @@ export default function DayStartScreen() {
     );
   }
 
-  // ── Main form ─────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
       <ScreenHeader title="Day Start" onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
 
-        <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 30 }]}
-          keyboardShouldPersistTaps="handled"
-        >
+      <KeyboardAwareScreen contentStyle={styles.scrollContent}>
         <View style={styles.card}>
           {/* Tour Purpose */}
           <FieldSelect
@@ -345,7 +336,7 @@ export default function DayStartScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScreen>
 
       {/* Tour Purpose Picker */}
       <PickerModal
@@ -394,7 +385,6 @@ export default function DayStartScreen() {
         onDone={() => setPartyModalOpen(false)}
         onCancel={() => setPartyModalOpen(false)}
       />
-      </KeyboardAvoidingView>
     </View>
   );
 }

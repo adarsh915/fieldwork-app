@@ -1,20 +1,17 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 
 import { submitParty } from "../api/party";
@@ -26,37 +23,16 @@ const PARTY_TYPES = ["Retailer", "Distributor", "Wholesaler", "Dealer"];
 
 export default function AddPartyScreen() {
   const navigation = useNavigation<Nav>();
-  const scrollViewRef = useRef<ScrollView>(null);
 
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      (e) => {
-        setIsKeyboardOpen(true);
-        setKeyboardHeight(e.endCoordinates?.height || 250);
-      }
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => {
-        setIsKeyboardOpen(false);
-        setKeyboardHeight(0);
-      }
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
-
-  const handleFocusScroll = () => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 150);
-  };
+  // Input refs for smooth chained navigation
+  const mobileRef = useRef<TextInput>(null);
+  const ownerNameRef = useRef<TextInput>(null);
+  const addressRef = useRef<TextInput>(null);
+  const cityRef = useRef<TextInput>(null);
+  const stateRef = useRef<TextInput>(null);
+  const pincodeRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const gstRef = useRef<TextInput>(null);
 
   // Required
   const [name, setName] = useState("");
@@ -124,10 +100,8 @@ export default function AddPartyScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
       <ScreenHeader title="Add New Party" onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+
+      <KeyboardAwareScreen contentStyle={{ padding: 16, paddingBottom: 60 }}>
         {/* Notice */}
         <View style={styles.notice}>
           <MaterialCommunityIcons name="information-outline" size={16} color="#7367F0" />
@@ -136,166 +110,187 @@ export default function AddPartyScreen() {
           </Text>
         </View>
 
-        <ScrollView
-          ref={scrollViewRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={[styles.form, { paddingBottom: isKeyboardOpen ? keyboardHeight : 20 }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+        {/* ── Required Fields ─────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>BASIC INFO <Text style={styles.required}>*</Text></Text>
 
-          {/* ── Required Fields ─────────────────────────────────────── */}
-          <Text style={styles.sectionLabel}>BASIC INFO <Text style={styles.required}>*</Text></Text>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Party / Shop Name <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Sharma General Store"
-              placeholderTextColor="#9ca3af"
-              value={name}
-              onChangeText={setName}
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Mobile Number <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={styles.input}
-              placeholder="10-digit mobile"
-              placeholderTextColor="#9ca3af"
-              value={mobile}
-              onChangeText={setMobile}
-              keyboardType="phone-pad"
-              maxLength={10}
-            />
-          </View>
-
-          {/* Party Type Picker */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Party Type</Text>
-            <View style={styles.typeRow}>
-              {PARTY_TYPES.map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  style={[styles.typeChip, partyType === t && styles.typeChipActive]}
-                  onPress={() => setPartyType(t)}
-                >
-                  <Text style={[styles.typeChipText, partyType === t && styles.typeChipTextActive]}>
-                    {t}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* ── Optional Fields ─────────────────────────────────────── */}
-          <Text style={[styles.sectionLabel, { marginTop: 16 }]}>CONTACT & ADDRESS</Text>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Owner Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Owner / Contact person"
-              placeholderTextColor="#9ca3af"
-              value={ownerName}
-              onChangeText={setOwnerName}
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Address</Text>
-            <TextInput
-              style={[styles.input, styles.textarea]}
-              placeholder="Shop address"
-              placeholderTextColor="#9ca3af"
-              value={address}
-              onChangeText={setAddress}
-              multiline
-              numberOfLines={3}
-            />
-          </View>
-
-          <View style={styles.row}>
-            <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>City</Text>
-              <TextInput style={styles.input} placeholder="City" placeholderTextColor="#9ca3af"
-                value={city} onChangeText={setCity} />
-            </View>
-            <View style={[styles.field, { flex: 1 }]}>
-              <Text style={styles.label}>State</Text>
-              <TextInput style={styles.input} placeholder="State" placeholderTextColor="#9ca3af"
-                value={state} onChangeText={setState} />
-            </View>
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Pincode</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="6-digit pincode"
-              placeholderTextColor="#9ca3af"
-              value={pincode}
-              onChangeText={setPincode}
-              keyboardType="number-pad"
-              maxLength={6}
-              onFocus={handleFocusScroll}
-            />
-          </View>
-
-          <Text style={[styles.sectionLabel, { marginTop: 16 }]}>BUSINESS DETAILS</Text>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="email@example.com"
-              placeholderTextColor="#9ca3af"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              onFocus={handleFocusScroll}
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>GST Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="GST number (optional)"
-              placeholderTextColor="#9ca3af"
-              value={gstNumber}
-              onChangeText={setGstNumber}
-              autoCapitalize="characters"
-              maxLength={15}
-              onFocus={handleFocusScroll}
-            />
-          </View>
-
-          <View style={{ height: 32 }} />
-
-        </ScrollView>
-
-        {/* Submit Button */}
-        <View style={[styles.footer, { paddingBottom: isKeyboardOpen ? 12 : 14 }]}>
-          <TouchableOpacity
-            style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
-            activeOpacity={0.85}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <MaterialCommunityIcons name="send-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.submitText}>Submit for Approval</Text>
-              </>
-            )}
-          </TouchableOpacity>
+        <View style={styles.field}>
+          <Text style={styles.label}>Party / Shop Name <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Sharma General Store"
+            placeholderTextColor="#9ca3af"
+            value={name}
+            onChangeText={setName}
+            returnKeyType="next"
+            onSubmitEditing={() => mobileRef.current?.focus()}
+          />
         </View>
-      </KeyboardAvoidingView>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Mobile Number <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            ref={mobileRef}
+            style={styles.input}
+            placeholder="10-digit mobile"
+            placeholderTextColor="#9ca3af"
+            value={mobile}
+            onChangeText={setMobile}
+            keyboardType="phone-pad"
+            maxLength={10}
+            returnKeyType="next"
+            onSubmitEditing={() => ownerNameRef.current?.focus()}
+          />
+        </View>
+
+        {/* Party Type Picker */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Party Type</Text>
+          <View style={styles.typeRow}>
+            {PARTY_TYPES.map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.typeChip, partyType === t && styles.typeChipActive]}
+                onPress={() => setPartyType(t)}
+              >
+                <Text style={[styles.typeChipText, partyType === t && styles.typeChipTextActive]}>
+                  {t}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Optional Fields ─────────────────────────────────────── */}
+        <Text style={[styles.sectionLabel, { marginTop: 16 }]}>CONTACT & ADDRESS</Text>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Owner Name</Text>
+          <TextInput
+            ref={ownerNameRef}
+            style={styles.input}
+            placeholder="Owner / Contact person"
+            placeholderTextColor="#9ca3af"
+            value={ownerName}
+            onChangeText={setOwnerName}
+            returnKeyType="next"
+            onSubmitEditing={() => addressRef.current?.focus()}
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Address</Text>
+          <TextInput
+            ref={addressRef}
+            style={[styles.input, styles.textarea]}
+            placeholder="Shop address"
+            placeholderTextColor="#9ca3af"
+            value={address}
+            onChangeText={setAddress}
+            multiline
+            numberOfLines={3}
+          />
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+            <Text style={styles.label}>City</Text>
+            <TextInput
+              ref={cityRef}
+              style={styles.input}
+              placeholder="City"
+              placeholderTextColor="#9ca3af"
+              value={city}
+              onChangeText={setCity}
+              returnKeyType="next"
+              onSubmitEditing={() => stateRef.current?.focus()}
+            />
+          </View>
+          <View style={[styles.field, { flex: 1 }]}>
+            <Text style={styles.label}>State</Text>
+            <TextInput
+              ref={stateRef}
+              style={styles.input}
+              placeholder="State"
+              placeholderTextColor="#9ca3af"
+              value={state}
+              onChangeText={setState}
+              returnKeyType="next"
+              onSubmitEditing={() => pincodeRef.current?.focus()}
+            />
+          </View>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Pincode</Text>
+          <TextInput
+            ref={pincodeRef}
+            style={styles.input}
+            placeholder="6-digit pincode"
+            placeholderTextColor="#9ca3af"
+            value={pincode}
+            onChangeText={setPincode}
+            keyboardType="number-pad"
+            maxLength={6}
+            returnKeyType="next"
+            onSubmitEditing={() => emailRef.current?.focus()}
+          />
+        </View>
+
+        <Text style={[styles.sectionLabel, { marginTop: 16 }]}>BUSINESS DETAILS</Text>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            ref={emailRef}
+            style={styles.input}
+            placeholder="email@example.com"
+            placeholderTextColor="#9ca3af"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            returnKeyType="next"
+            onSubmitEditing={() => gstRef.current?.focus()}
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>GST Number</Text>
+          <TextInput
+            ref={gstRef}
+            style={styles.input}
+            placeholder="GST number (optional)"
+            placeholderTextColor="#9ca3af"
+            value={gstNumber}
+            onChangeText={setGstNumber}
+            autoCapitalize="characters"
+            maxLength={15}
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
+          />
+        </View>
+
+        <View style={{ height: 20 }} />
+
+        {/* Submit Button Inside Form */}
+        <TouchableOpacity
+          style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
+          onPress={handleSubmit}
+          disabled={submitting}
+          activeOpacity={0.85}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="send-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.submitText}>Submit for Approval</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={{ height: 20 }} />
+      </KeyboardAwareScreen>
     </View>
   );
 }

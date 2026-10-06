@@ -147,10 +147,7 @@
                             <option value="">— Do not assign globally —</option>
                             @foreach($employees as $emp)
                                 <option value="{{ $emp->id }}">
-                                    {{ $emp->name }}
-                                    @if($emp->email)
-                                        ({{ $emp->email }})
-                                    @endif
+                                    {{ $emp->name }} ({{ $emp->role_name }})
                                 </option>
                             @endforeach
                         </select>

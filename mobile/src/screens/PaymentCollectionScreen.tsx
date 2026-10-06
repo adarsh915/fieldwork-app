@@ -9,16 +9,15 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
   Platform,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 import {
   getPartyPayments,
@@ -221,279 +220,274 @@ export default function PaymentCollectionScreen() {
         onBack={() => navigation.goBack()}
       />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAwareScreen
+        contentStyle={styles.scrollContent}
+        backgroundColor="#F3F4F6"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#7367F0"]} />}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#7367F0"]} />}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Dealer Financial Balance Summary Banner */}
-          <View style={styles.dealerCard}>
-            <View style={styles.dealerHeader}>
-              <MaterialCommunityIcons name="store" size={20} color="#7367F0" />
-              <Text style={styles.dealerName} numberOfLines={1}>{partyName}</Text>
-            </View>
-
-            <View style={styles.balanceGrid}>
-              <View style={styles.balanceCol}>
-                <Text style={styles.balanceLabel}>Outstanding Due</Text>
-                <Text style={[styles.balanceValue, { color: (dealerInfo?.outstanding_balance ?? 0) > 0 ? "#EF4444" : "#10B981" }]}>
-                  ₹ {Number(dealerInfo?.outstanding_balance || 0).toFixed(2)}
-                </Text>
-              </View>
-
-              <View style={styles.balanceDivider} />
-
-              <View style={styles.balanceCol}>
-                <Text style={styles.balanceLabel}>Pending Approval</Text>
-                <Text style={[styles.balanceValue, { color: "#F59E0B" }]}>
-                  ₹ {Number(dealerInfo?.pending_amount || 0).toFixed(2)}
-                </Text>
-              </View>
-
-              <View style={styles.balanceDivider} />
-
-              <View style={styles.balanceCol}>
-                <Text style={styles.balanceLabel}>Credit Limit</Text>
-                <Text style={styles.balanceValue}>
-                  ₹ {Number(dealerInfo?.credit_limit || 0).toFixed(2)}
-                </Text>
-              </View>
-            </View>
+        {/* Dealer Financial Balance Summary Banner */}
+        <View style={styles.dealerCard}>
+          <View style={styles.dealerHeader}>
+            <MaterialCommunityIcons name="store" size={20} color="#7367F0" />
+            <Text style={styles.dealerName} numberOfLines={1}>{partyName}</Text>
           </View>
 
-          {/* Payment Collection Form */}
-          <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Record Payment Collection</Text>
-
-            {/* Amount */}
-            <Text style={styles.label}>
-              Amount (₹) <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={styles.amountInputWrap}>
-              <Text style={styles.rupeeSymbol}>₹</Text>
-              <TextInput
-                style={styles.amountInput}
-                placeholder="0.00"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                value={amount}
-                onChangeText={setAmount}
-              />
+          <View style={styles.balanceGrid}>
+            <View style={styles.balanceCol}>
+              <Text style={styles.balanceLabel}>Outstanding Due</Text>
+              <Text style={[styles.balanceValue, { color: (dealerInfo?.outstanding_balance ?? 0) > 0 ? "#EF4444" : "#10B981" }]}>
+                ₹ {Number(dealerInfo?.outstanding_balance || 0).toFixed(2)}
+              </Text>
             </View>
 
-            {/* Payment Mode Selector */}
-            <Text style={styles.label}>
-              Payment Mode <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={styles.modeGrid}>
-              {[
-                { key: "cash", label: "Cash", icon: "cash" },
-                { key: "upi", label: "UPI (Company QR)", icon: "qrcode-scan" },
-                { key: "bank_transfer", label: "Bank Transfer", icon: "bank" },
-                { key: "cheque", label: "Cheque", icon: "checkbook" },
-              ].map((mode) => (
-                <TouchableOpacity
-                  key={mode.key}
-                  style={[
-                    styles.modeChip,
-                    paymentMode === mode.key && styles.modeChipActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setPaymentMode(mode.key as PaymentMode)}
-                >
-                  <MaterialCommunityIcons
-                    name={mode.icon as any}
-                    size={18}
-                    color={paymentMode === mode.key ? "#7367F0" : "#6B7280"}
-                  />
-                  <Text
-                    style={[
-                      styles.modeChipText,
-                      paymentMode === mode.key && styles.modeChipTextActive,
-                    ]}
-                  >
-                    {mode.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.balanceDivider} />
+
+            <View style={styles.balanceCol}>
+              <Text style={styles.balanceLabel}>Pending Approval</Text>
+              <Text style={[styles.balanceValue, { color: "#F59E0B" }]}>
+                ₹ {Number(dealerInfo?.pending_amount || 0).toFixed(2)}
+              </Text>
             </View>
 
-            {/* Official Company UPI QR Code Banner (Strict Security Rule) */}
-            {paymentMode === "upi" && (
-              <View style={styles.upiBanner}>
-                <View style={styles.upiHeader}>
-                  <MaterialCommunityIcons name="shield-check" size={18} color="#059669" />
-                  <Text style={styles.upiTitle}>Official Company UPI Account</Text>
-                </View>
-                <Text style={styles.upiSub}>Ask dealer to scan or pay directly to the company account below:</Text>
-                
-                <View style={styles.upiBox}>
-                  <Text style={styles.upiIdLabel}>Company UPI ID:</Text>
-                  <Text style={styles.upiIdValue} selectable>
-                    {settings?.company_upi_id || "amplindustries@icici"}
-                  </Text>
-                </View>
-                <Text style={styles.upiWarning}>* Never receive money into any personal account.</Text>
-              </View>
-            )}
+            <View style={styles.balanceDivider} />
 
-            {/* Bank Transfer Details Banner */}
-            {paymentMode === "bank_transfer" && settings?.company_bank_details && (
-              <View style={styles.bankBanner}>
-                <Text style={styles.bankTitle}>Official Company Bank Account</Text>
-                <Text style={styles.bankDetail}>Bank: {settings.company_bank_details.bank_name}</Text>
-                <Text style={styles.bankDetail}>Account No: {settings.company_bank_details.account_no}</Text>
-                <Text style={styles.bankDetail}>IFSC: {settings.company_bank_details.ifsc_code}</Text>
-                <Text style={styles.bankDetail}>Branch: {settings.company_bank_details.branch}</Text>
-              </View>
-            )}
+            <View style={styles.balanceCol}>
+              <Text style={styles.balanceLabel}>Credit Limit</Text>
+              <Text style={styles.balanceValue}>
+                ₹ {Number(dealerInfo?.credit_limit || 0).toFixed(2)}
+              </Text>
+            </View>
+          </View>
+        </View>
 
-            {/* Reference Number / Cheque No / UTR */}
-            {paymentMode !== "cash" && (
-              <View style={{ marginTop: 12 }}>
-                <Text style={styles.label}>
-                  {paymentMode === "cheque"
-                    ? "Cheque Number"
-                    : paymentMode === "upi"
-                    ? "UPI UTR / Txn Ref ID"
-                    : "Bank Reference (UTR)"}{" "}
-                  <Text style={styles.required}>*</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter reference / transaction ID..."
-                  placeholderTextColor="#9CA3AF"
-                  value={referenceNumber}
-                  onChangeText={setReferenceNumber}
+        {/* Payment Collection Form */}
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Record Payment Collection</Text>
+
+          {/* Amount */}
+          <Text style={styles.label}>
+            Amount (₹) <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.amountInputWrap}>
+            <Text style={styles.rupeeSymbol}>₹</Text>
+            <TextInput
+              style={styles.amountInput}
+              placeholder="0.00"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+            />
+          </View>
+
+          {/* Payment Mode Selector */}
+          <Text style={styles.label}>
+            Payment Mode <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.modeGrid}>
+            {[
+              { key: "cash", label: "Cash", icon: "cash" },
+              { key: "upi", label: "UPI (Company QR)", icon: "qrcode-scan" },
+              { key: "bank_transfer", label: "Bank Transfer", icon: "bank" },
+              { key: "cheque", label: "Cheque", icon: "checkbook" },
+            ].map((mode) => (
+              <TouchableOpacity
+                key={mode.key}
+                style={[
+                  styles.modeChip,
+                  paymentMode === mode.key && styles.modeChipActive,
+                ]}
+                activeOpacity={0.8}
+                onPress={() => setPaymentMode(mode.key as PaymentMode)}
+              >
+                <MaterialCommunityIcons
+                  name={mode.icon as any}
+                  size={18}
+                  color={paymentMode === mode.key ? "#7367F0" : "#6B7280"}
                 />
-              </View>
-            )}
+                <Text
+                  style={[
+                    styles.modeChipText,
+                    paymentMode === mode.key && styles.modeChipTextActive,
+                  ]}
+                >
+                  {mode.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-            {/* Photo Proof Upload */}
+          {/* Official Company UPI QR Code Banner (Strict Security Rule) */}
+          {paymentMode === "upi" && (
+            <View style={styles.upiBanner}>
+              <View style={styles.upiHeader}>
+                <MaterialCommunityIcons name="shield-check" size={18} color="#059669" />
+                <Text style={styles.upiTitle}>Official Company UPI Account</Text>
+              </View>
+              <Text style={styles.upiSub}>Ask dealer to scan or pay directly to the company account below:</Text>
+
+              <View style={styles.upiBox}>
+                <Text style={styles.upiIdLabel}>Company UPI ID:</Text>
+                <Text style={styles.upiIdValue} selectable>
+                  {settings?.company_upi_id || "amplindustries@icici"}
+                </Text>
+              </View>
+              <Text style={styles.upiWarning}>* Never receive money into any personal account.</Text>
+            </View>
+          )}
+
+          {/* Bank Transfer Details Banner */}
+          {paymentMode === "bank_transfer" && settings?.company_bank_details && (
+            <View style={styles.bankBanner}>
+              <Text style={styles.bankTitle}>Official Company Bank Account</Text>
+              <Text style={styles.bankDetail}>Bank: {settings.company_bank_details.bank_name}</Text>
+              <Text style={styles.bankDetail}>Account No: {settings.company_bank_details.account_no}</Text>
+              <Text style={styles.bankDetail}>IFSC: {settings.company_bank_details.ifsc_code}</Text>
+              <Text style={styles.bankDetail}>Branch: {settings.company_bank_details.branch}</Text>
+            </View>
+          )}
+
+          {/* Reference Number / Cheque No / UTR */}
+          {paymentMode !== "cash" && (
             <View style={{ marginTop: 12 }}>
               <Text style={styles.label}>
-                Proof Photo {paymentMode === "cheque" ? <Text style={styles.required}>* (Cheque Photo Required)</Text> : "(Optional for Cash/UPI)"}
+                {paymentMode === "cheque"
+                  ? "Cheque Number"
+                  : paymentMode === "upi"
+                    ? "UPI UTR / Txn Ref ID"
+                    : "Bank Reference (UTR)"}{" "}
+                <Text style={styles.required}>*</Text>
               </Text>
-              {proofPhotoUri ? (
-                <View style={styles.proofPreviewWrap}>
-                  <Image source={{ uri: proofPhotoUri }} style={styles.proofImage} />
-                  <TouchableOpacity
-                    style={styles.removePhotoBtn}
-                    onPress={() => setProofPhotoUri(null)}
-                  >
-                    <MaterialIcons name="close" size={16} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.uploadBox}
-                  activeOpacity={0.8}
-                  onPress={handlePhotoOptions}
-                >
-                  <MaterialCommunityIcons name="camera-plus-outline" size={26} color="#7367F0" />
-                  <Text style={styles.uploadText}>Attach Photo / Cheque Slip</Text>
-                </TouchableOpacity>
-              )}
+              <TextInput
+                style={styles.input}
+                placeholder="Enter reference / transaction ID..."
+                placeholderTextColor="#9CA3AF"
+                value={referenceNumber}
+                onChangeText={setReferenceNumber}
+              />
             </View>
+          )}
 
-            {/* Remarks / Notes */}
-            <Text style={styles.label}>Notes (Optional)</Text>
-            <TextInput
-              style={[styles.input, { height: 60, textAlignVertical: "top" }]}
-              placeholder="Add any collection remarks..."
-              placeholderTextColor="#9CA3AF"
-              multiline
-              value={notes}
-              onChangeText={setNotes}
-            />
+          {/* Photo Proof Upload */}
+          <View style={{ marginTop: 12 }}>
+            <Text style={styles.label}>
+              Proof Photo {paymentMode === "cheque" ? <Text style={styles.required}>* (Cheque Photo Required)</Text> : "(Optional for Cash/UPI)"}
+            </Text>
+            {proofPhotoUri ? (
+              <View style={styles.proofPreviewWrap}>
+                <Image source={{ uri: proofPhotoUri }} style={styles.proofImage} />
+                <TouchableOpacity
+                  style={styles.removePhotoBtn}
+                  onPress={() => setProofPhotoUri(null)}
+                >
+                  <MaterialIcons name="close" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.uploadBox}
+                activeOpacity={0.8}
+                onPress={handlePhotoOptions}
+              >
+                <MaterialCommunityIcons name="camera-plus-outline" size={26} color="#7367F0" />
+                <Text style={styles.uploadText}>Attach Photo / Cheque Slip</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-            {/* Submit Button */}
-            <TouchableOpacity
-              style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
-              activeOpacity={0.85}
-              onPress={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="check-circle-outline" size={20} color="#fff" />
-                  <Text style={styles.submitBtnText}>Record Payment</Text>
-                </>
-              )}
+          {/* Remarks / Notes */}
+          <Text style={styles.label}>Notes (Optional)</Text>
+          <TextInput
+            style={[styles.input, { height: 60, textAlignVertical: "top" }]}
+            placeholder="Add any collection remarks..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            value={notes}
+            onChangeText={setNotes}
+          />
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
+            activeOpacity={0.85}
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="check-circle-outline" size={20} color="#fff" />
+                <Text style={styles.submitBtnText}>Record Payment</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Payment History Section */}
+        <View style={styles.historyCard}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.sectionTitle}>Payment History ({payments.length})</Text>
+            <TouchableOpacity onPress={() => setShowHistory(!showHistory)}>
+              <Text style={styles.toggleText}>{showHistory ? "Hide" : "Show All"}</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Payment History Section */}
-          <View style={styles.historyCard}>
-            <View style={styles.historyHeader}>
-              <Text style={styles.sectionTitle}>Payment History ({payments.length})</Text>
-              <TouchableOpacity onPress={() => setShowHistory(!showHistory)}>
-                <Text style={styles.toggleText}>{showHistory ? "Hide" : "Show All"}</Text>
-              </TouchableOpacity>
+          {loading ? (
+            <ActivityIndicator color="#7367F0" style={{ paddingVertical: 20 }} />
+          ) : payments.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <MaterialCommunityIcons name="clipboard-text-outline" size={36} color="#D1D5DB" />
+              <Text style={styles.emptyText}>No payments recorded for this dealer yet.</Text>
             </View>
+          ) : (
+            (showHistory ? payments : payments.slice(0, 5)).map((item) => {
+              const isConfirmed = item.status === "confirmed";
+              const isRejected = item.status === "rejected";
 
-            {loading ? (
-              <ActivityIndicator color="#7367F0" style={{ paddingVertical: 20 }} />
-            ) : payments.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <MaterialCommunityIcons name="clipboard-text-outline" size={36} color="#D1D5DB" />
-                <Text style={styles.emptyText}>No payments recorded for this dealer yet.</Text>
-              </View>
-            ) : (
-              (showHistory ? payments : payments.slice(0, 5)).map((item) => {
-                const isConfirmed = item.status === "confirmed";
-                const isRejected = item.status === "rejected";
-
-                return (
-                  <View key={item.id} style={styles.paymentItem}>
-                    <View style={styles.itemTopRow}>
-                      <Text style={styles.receiptNo}>{item.receipt_no}</Text>
-                      <View
+              return (
+                <View key={item.id} style={styles.paymentItem}>
+                  <View style={styles.itemTopRow}>
+                    <Text style={styles.receiptNo}>{item.receipt_no}</Text>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        isConfirmed && styles.statusConfirmed,
+                        isRejected && styles.statusRejected,
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.statusBadge,
-                          isConfirmed && styles.statusConfirmed,
-                          isRejected && styles.statusRejected,
+                          styles.statusBadgeText,
+                          isConfirmed && styles.statusConfirmedText,
+                          isRejected && styles.statusRejectedText,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.statusBadgeText,
-                            isConfirmed && styles.statusConfirmedText,
-                            isRejected && styles.statusRejectedText,
-                          ]}
-                        >
-                          {isConfirmed ? "CONFIRMED" : isRejected ? "REJECTED" : "PENDING CONFIRMATION"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.itemBodyRow}>
-                      <Text style={styles.itemDate}>
-                        {new Date(item.collection_datetime || item.created_at).toLocaleDateString()}
+                        {isConfirmed ? "CONFIRMED" : isRejected ? "REJECTED" : "PENDING CONFIRMATION"}
                       </Text>
-                      <Text style={styles.itemMode}>{item.payment_mode.toUpperCase()}</Text>
-                      <Text style={styles.itemAmount}>₹ {Number(item.amount).toFixed(2)}</Text>
                     </View>
-
-                    {isRejected && item.rejection_reason && (
-                      <View style={styles.rejectionBox}>
-                        <Text style={styles.rejectionLabel}>Rejection Reason:</Text>
-                        <Text style={styles.rejectionText}>{item.rejection_reason}</Text>
-                      </View>
-                    )}
                   </View>
-                );
-              })
-            )}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+
+                  <View style={styles.itemBodyRow}>
+                    <Text style={styles.itemDate}>
+                      {new Date(item.collection_datetime || item.created_at).toLocaleDateString()}
+                    </Text>
+                    <Text style={styles.itemMode}>{item.payment_mode.toUpperCase()}</Text>
+                    <Text style={styles.itemAmount}>₹ {Number(item.amount).toFixed(2)}</Text>
+                  </View>
+
+                  {isRejected && item.rejection_reason && (
+                    <View style={styles.rejectionBox}>
+                      <Text style={styles.rejectionLabel}>Rejection Reason:</Text>
+                      <Text style={styles.rejectionText}>{item.rejection_reason}</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </View>
+      </KeyboardAwareScreen>
     </View>
   );
 }

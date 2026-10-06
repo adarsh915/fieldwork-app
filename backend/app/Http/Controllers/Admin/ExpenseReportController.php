@@ -89,6 +89,11 @@ class ExpenseReportController extends Controller
 
     public function workerStatement(Request $request, $user_id)
     {
+        $scopedUserIds = DataScope::visibleUserIds('expenses');
+        if ($scopedUserIds !== null && !in_array((int) $user_id, $scopedUserIds, true)) {
+            abort(403, 'Unauthorized access to this worker statement.');
+        }
+
         $monthInput = $request->input('month', Carbon::now()->format('Y-m'));
         $month = Carbon::parse($monthInput);
         

@@ -103,8 +103,10 @@ class ReportingService
         if ($scopedUserIds !== null) {
             $userQuery->whereIn('id', $scopedUserIds);
         } else {
-            $userQuery->whereHas('roles', function ($q) {
-                $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee', 'Manager', 'manager']);
+            $userQuery->where(function ($query) {
+                $query->whereHas('roles', function ($rq) {
+                    $rq->whereIn('name', ['Field Worker', 'field_worker', 'Employee', 'employee', 'Manager', 'manager', 'Supervisor', 'supervisor', 'Sales', 'sales']);
+                })->orWhereNotNull('employee_id');
             });
         }
 

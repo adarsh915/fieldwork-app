@@ -5,24 +5,32 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
-
+import DatePickerModal from "../components/DatePickerModal";
 import ProductSelectionModal from "./ProductSelectionModal";
-import { submitOrder, OrderPayload, OrderItemPayload } from "../api/order";
+import { submitOrder, OrderPayload } from "../api/order";
 import { getProducts, Product, ProductUnit } from "../api/product";
-import type { AppStackParamList } from "../navigation/RootNavigator";
+import { getPartyDetails, PartyProfile } from "../api/party";
 
 type OrderScreenRouteProp = RouteProp<
-  { Order: { visitId?: number | null; partyId: number; partyName?: string; isDirectPhoneOrder?: boolean } },
+  {
+    Order: {
+      visitId?: number | null;
+      partyId: number;
+      partyName?: string;
+      partyMobile?: string | null;
+      partyAddress?: string | null;
+      partyCity?: string | null;
+      isDirectPhoneOrder?: boolean;
+    };
+  },
   "Order"
 >;
 
@@ -35,41 +43,71 @@ export interface CartItem {
 export default function OrderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const route = useRoute<OrderScreenRouteProp>();
-  const { visitId, partyId, partyName, isDirectPhoneOrder } = route.params;
+  const {
+    visitId,
+    partyId,
+    partyName: initialPartyName,
+    partyMobile: initialPartyMobile,
+    partyAddress: initialPartyAddress,
+    partyCity: initialPartyCity,
+    isDirectPhoneOrder,
+  } = route.params;
+
   const isPhoneOrder = !visitId || isDirectPhoneOrder;
 
-  const [loading, setLoading] = useState(false);
+  // Party state (Autofilled)
+  const [party, setParty] = useState<PartyProfile | null>(null);
+  const [loadingParty, setLoadingParty] = useState(false);
+
+  // Products & Cart
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showProductModal, setShowProductModal] = useState(false);
 
-  // Form Fields
-  const [deliveryDestination, setDeliveryDestination] = useState("");
-  const [preferredTransport, setPreferredTransport] = useState("");
-  const [vehicleNo, setVehicleNo] = useState("");
-  const [dispatchDate, setDispatchDate] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [schema, setSchema] = useState("");
-  const [orderType, setOrderType] = useState("Standard");
-  const [paymentMode, setPaymentMode] = useState("Credit");
+  // Date State & Picker
+  const getTodayStr = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
 
+  const [reportDate, setReportDate] = useState<string>(getTodayStr());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
+
+  // Notes / Remarks
+  const [remarks, setRemarks] = useState("");
+
+  // Load products and party details
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
-        const res = await getProducts();
-        if (res.success) {
-          setProducts(res.data);
+        setLoading(true);
+        const [prodRes, partyRes] = await Promise.all([
+          getProducts(),
+          partyId ? getPartyDetails(partyId).catch(() => null) : Promise.resolve(null),
+        ]);
+
+        if (prodRes.success) {
+          setProducts(prodRes.data);
+        }
+        if (partyRes && partyRes.success) {
+          setParty(partyRes.data);
         }
       } catch (err: any) {
-        Alert.alert("Error", "Failed to load products");
+        Alert.alert("Error", "Failed to load products list");
       } finally {
         setLoading(false);
       }
     };
-    fetchProducts();
-  }, []);
+    fetchData();
+  }, [partyId]);
 
+  // Handle adding products from selection modal
   const handleAddProduct = (item: CartItem) => {
     setCart((prev) => {
       const existingIndex = prev.findIndex(
@@ -84,56 +122,80 @@ export default function OrderScreen() {
     });
   };
 
+  const handleUpdateQuantity = (index: number, newQty: number) => {
+    if (newQty <= 0) {
+      handleRemoveItem(index);
+      return;
+    }
+    setCart((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], quantity: newQty };
+      return updated;
+    });
+  };
+
   const handleRemoveItem = (index: number) => {
     setCart((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const calculateTotal = () => {
-    return cart.reduce(
-      (total, item) => total + item.unit.price * item.quantity,
-      0,
-    );
+  const handleDateChange = (newDate: string) => {
+    const today = getTodayStr();
+    if (newDate > today) {
+      setDateError("Report date cannot be in the future");
+      Alert.alert("Invalid Date", "Report date cannot be in the future.");
+      return;
+    }
+    setDateError(null);
+    setReportDate(newDate);
   };
 
+  const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Validate and Submit Report
   const handleSubmit = async () => {
     if (cart.length === 0) {
       Alert.alert(
-        "Validation Error",
-        "Please add at least one product to the order.",
+        "Product Required",
+        "Please add at least one product with quantity to this report.",
       );
       return;
     }
 
+    if (!reportDate) {
+      Alert.alert("Validation Error", "Please select a valid report date.");
+      return;
+    }
+
     setSubmitting(true);
-    const payload: any = {
+    const payload: OrderPayload = {
       visit_id: visitId || null,
       party_id: partyId,
       order_source: isPhoneOrder ? "phone" : "visit",
-      delivery_destination: deliveryDestination,
-      preferred_transport: preferredTransport,
-      vehicle_no: vehicleNo,
-      dispatch_date: dispatchDate,
-      remarks,
-      schema,
-      order_type: orderType,
-      payment_mode: paymentMode,
+      order_date: reportDate,
+      order_type: "Visit Report",
+      payment_mode: "Report",
+      remarks: remarks.trim() || undefined,
       items: cart.map((c) => ({
         product_id: c.product.id,
         product_unit_id: c.unit.id,
         quantity: c.quantity,
-        price: c.unit.price,
+        price: c.unit.price || 0,
       })),
     };
 
     try {
       const res = await submitOrder(payload);
       if (res.success) {
-        Alert.alert("Success", "Order created successfully!", [
-          { text: "OK", onPress: () => navigation.goBack() },
-        ]);
+        Alert.alert(
+          "Report Submitted",
+          "Visit product report has been saved successfully without stock deduction.",
+          [{ text: "OK", onPress: () => navigation.goBack() }],
+        );
+      } else {
+        Alert.alert("Error", res.message || "Failed to submit report");
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to submit order");
+      Alert.alert("Error", err.message || "Failed to submit product report");
     } finally {
       setSubmitting(false);
     }
@@ -141,357 +203,670 @@ export default function OrderScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
-        <ScreenHeader title="New Order" onBack={() => navigation.goBack()} />
-        <ActivityIndicator
-          size="large"
-          color="#7367F0"
-          style={{ marginTop: 40 }}
+      <View style={{ flex: 1, backgroundColor: "#F8F9FA" }}>
+        <ScreenHeader
+          title="Visit Product Report"
+          onBack={() => navigation.goBack()}
         />
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color="#7367F0" />
+          <Text style={styles.loadingText}>Loading products & party details...</Text>
+        </View>
       </View>
     );
   }
 
-  return (
-    <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
-      <ScreenHeader title="New Order" onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+  const partyName = party?.name || initialPartyName || "Selected Party";
+  const partyMobile = party?.mobile || initialPartyMobile;
+  const partyAddress = party?.address || initialPartyAddress;
+  const partyCity = party?.city || initialPartyCity;
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {isPhoneOrder && (
-            <View style={styles.phoneOrderBanner}>
-              <MaterialCommunityIcons name="phone-in-talk" size={20} color="#2563EB" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.phoneOrderTitle}>Direct / Phone Order</Text>
-                <Text style={styles.phoneOrderSubtitle}>
-                  Booking for {partyName || "Party"} without requiring physical store check-in.
+  return (
+    <View style={{ flex: 1, backgroundColor: "#F4F5FA" }}>
+      <ScreenHeader
+        title="Visit Product Report"
+        onBack={() => navigation.goBack()}
+      />
+
+      <KeyboardAwareScreen
+        contentStyle={styles.container}
+        extraScrollHeight={120}
+      >
+        {/* Source Badge (Visit vs Direct) */}
+        {isPhoneOrder && (
+          <View style={styles.phoneOrderBanner}>
+            <MaterialIcons name="phone-in-talk" size={20} color="#7367F0" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.phoneOrderTitle}>Direct / Phone Entry</Text>
+              <Text style={styles.phoneOrderSubtitle}>
+                Creating a product report without an active check-in visit
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* 1. Autofilled Party Details Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <View style={styles.partyIconWrap}>
+                <MaterialCommunityIcons name="store" size={20} color="#7367F0" />
+              </View>
+              <Text style={styles.cardTitle}>Party Details</Text>
+            </View>
+            <View style={styles.autofillBadge}>
+              <MaterialIcons name="check-circle" size={13} color="#10B981" />
+              <Text style={styles.autofillBadgeText}>Autofilled</Text>
+            </View>
+          </View>
+
+          <View style={styles.partyInfoBody}>
+            <Text style={styles.partyNameText}>{partyName}</Text>
+
+            {partyMobile ? (
+              <View style={styles.partyMetaRow}>
+                <MaterialIcons name="phone" size={16} color="#6B7280" />
+                <Text style={styles.partyMetaText}>{partyMobile}</Text>
+              </View>
+            ) : null}
+
+            {(partyAddress || partyCity) ? (
+              <View style={styles.partyMetaRow}>
+                <MaterialIcons name="location-on" size={16} color="#6B7280" />
+                <Text style={styles.partyMetaText}>
+                  {[partyAddress, partyCity].filter(Boolean).join(", ")}
+                </Text>
+              </View>
+            ) : null}
+
+            {party?.party_type ? (
+              <View style={styles.partyTypeTag}>
+                <Text style={styles.partyTypeTagText}>{party.party_type}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        {/* 2. Date Picker Card with Validation */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <View style={[styles.partyIconWrap, { backgroundColor: "#FEF3C7" }]}>
+                <MaterialCommunityIcons name="calendar-month" size={20} color="#D97706" />
+              </View>
+              <Text style={styles.cardTitle}>Report Date</Text>
+            </View>
+            {reportDate === getTodayStr() ? (
+              <View style={[styles.autofillBadge, { backgroundColor: "#ECFDF5" }]}>
+                <Text style={[styles.autofillBadgeText, { color: "#059669" }]}>Today</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.dateSelectorBtn, dateError ? styles.dateSelectorError : null]}
+            activeOpacity={0.8}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <View style={styles.dateSelectorLeft}>
+              <MaterialCommunityIcons name="calendar-clock" size={22} color="#7367F0" />
+              <View style={{ marginLeft: 10 }}>
+                <Text style={styles.dateLabel}>Selected Date</Text>
+                <Text style={styles.dateValue}>{reportDate}</Text>
+              </View>
+            </View>
+            <View style={styles.changeDateBtn}>
+              <Text style={styles.changeDateBtnText}>Change</Text>
+              <MaterialIcons name="chevron-right" size={18} color="#7367F0" />
+            </View>
+          </TouchableOpacity>
+
+          {dateError ? (
+            <Text style={styles.errorText}>{dateError}</Text>
+          ) : null}
+        </View>
+
+        {/* 3. Product Selection & Quantities Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <View style={[styles.partyIconWrap, { backgroundColor: "#EEF2FF" }]}>
+                <MaterialCommunityIcons name="package-variant" size={20} color="#7367F0" />
+              </View>
+              <Text style={styles.cardTitle}>Products ({cart.length})</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addProductBtn}
+              activeOpacity={0.85}
+              onPress={() => setShowProductModal(true)}
+            >
+              <MaterialIcons name="add" size={18} color="#FFFFFF" />
+              <Text style={styles.addProductBtnText}>Add Products</Text>
+            </TouchableOpacity>
+          </View>
+
+          {cart.length === 0 ? (
+            <TouchableOpacity
+              style={styles.emptyProductBox}
+              activeOpacity={0.8}
+              onPress={() => setShowProductModal(true)}
+            >
+              <MaterialCommunityIcons
+                name="cart-plus"
+                size={42}
+                color="#9CA3AF"
+              />
+              <Text style={styles.emptyProductTitle}>No Products Selected</Text>
+              <Text style={styles.emptyProductSub}>
+                Tap here to search and select products & quantities
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.productList}>
+              {cart.map((item, index) => (
+                <View key={`${item.product.id}-${item.unit.id}`} style={styles.productRowCard}>
+                  <View style={styles.productRowMain}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.productRowName}>{item.product.name}</Text>
+                      <View style={styles.productRowMeta}>
+                        <Text style={styles.productUnitBadge}>
+                          {item.unit.unit_name || "Standard Unit"}
+                        </Text>
+                        {item.product.code ? (
+                          <Text style={styles.productSkuText}>
+                            SKU: {item.product.code}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+
+                    {/* Delete Item */}
+                    <TouchableOpacity
+                      onPress={() => handleRemoveItem(index)}
+                      style={styles.deleteItemBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialIcons name="delete-outline" size={22} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Quantity Stepper & Manual Input */}
+                  <View style={styles.qtyControlRow}>
+                    <Text style={styles.qtyLabel}>Quantity:</Text>
+                    <View style={styles.stepperContainer}>
+                      <TouchableOpacity
+                        style={styles.stepBtn}
+                        onPress={() => handleUpdateQuantity(index, item.quantity - 1)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <MaterialIcons name="remove" size={18} color="#4B5563" />
+                      </TouchableOpacity>
+
+                      <TextInput
+                        style={styles.qtyInput}
+                        keyboardType="numeric"
+                        value={String(item.quantity)}
+                        onChangeText={(txt) => {
+                          const val = parseInt(txt, 10);
+                          if (!isNaN(val)) {
+                            handleUpdateQuantity(index, val);
+                          } else if (txt === "") {
+                            handleUpdateQuantity(index, 0);
+                          }
+                        }}
+                      />
+
+                      <TouchableOpacity
+                        style={[styles.stepBtn, styles.stepBtnAdd]}
+                        onPress={() => handleUpdateQuantity(index, item.quantity + 1)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <MaterialIcons name="add" size={18} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))}
+
+              {/* Summary of quantities */}
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Total Items: {cart.length}</Text>
+                <Text style={styles.summaryValue}>
+                  Total Quantity: <Text style={{ color: "#7367F0", fontWeight: "700" }}>{totalQuantity}</Text>
                 </Text>
               </View>
             </View>
           )}
-
-          {/* Selected Products Section */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.sectionTitle}>Selected Products</Text>
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={() => setShowProductModal(true)}
-              >
-                <MaterialIcons name="add" size={16} color="#fff" />
-                <Text style={styles.addBtnText}>Add Items</Text>
-              </TouchableOpacity>
-            </View>
-
-            {cart.length === 0 ? (
-              <View style={styles.emptyState}>
-                <MaterialCommunityIcons
-                  name="cart-outline"
-                  size={32}
-                  color="#ccc"
-                />
-                <Text style={styles.emptyText}>Cart is empty</Text>
-              </View>
-            ) : (
-              cart.map((item, index) => (
-                <View
-                  key={`${item.product.id}-${item.unit.id}`}
-                  style={styles.cartItem}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemName}>{item.product.name}</Text>
-                    <Text style={styles.itemVariant}>
-                      {item.unit.unit_name} | ₹{item.unit.price} x{" "}
-                      {item.quantity}
-                    </Text>
-                  </View>
-                  <Text style={styles.itemTotal}>
-                    ₹{(item.unit.price * item.quantity).toFixed(2)}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.removeBtn}
-                    onPress={() => handleRemoveItem(index)}
-                  >
-                    <MaterialIcons name="close" size={16} color="#ef4444" />
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
-
-            {cart.length > 0 && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Grand Total</Text>
-                <Text style={styles.totalAmount}>
-                  ₹{calculateTotal().toFixed(2)}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Form Fields Section */}
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Order Details</Text>
-
-            <Text style={styles.label}>Order Type</Text>
-            <View style={styles.chipContainer}>
-              {["Sales Order", "Pre-Order", "Sample"].map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[styles.chip, orderType === type && styles.chipActive]}
-                  onPress={() => setOrderType(type)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      orderType === type && styles.chipTextActive,
-                    ]}
-                  >
-                    {type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Payment Mode</Text>
-            <View style={styles.chipContainer}>
-              {["Cash", "Credit", "Online", "Cheque"].map((mode) => (
-                <TouchableOpacity
-                  key={mode}
-                  style={[
-                    styles.chip,
-                    paymentMode === mode && styles.chipActive,
-                  ]}
-                  onPress={() => setPaymentMode(mode)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      paymentMode === mode && styles.chipTextActive,
-                    ]}
-                  >
-                    {mode}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Schema</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 10% Discount"
-              value={schema}
-              onChangeText={setSchema}
-            />
-
-            <Text style={styles.label}>Delivery Destination</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Address..."
-              value={deliveryDestination}
-              onChangeText={setDeliveryDestination}
-            />
-
-            <Text style={styles.label}>Preferred Transport</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. VRL Logistics"
-              value={preferredTransport}
-              onChangeText={setPreferredTransport}
-            />
-
-            <Text style={styles.label}>Vehicle No</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. MP 04 AB 1234"
-              value={vehicleNo}
-              onChangeText={setVehicleNo}
-            />
-
-            <Text style={styles.label}>Dispatch Request Date (YYYY-MM-DD)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="YYYY-MM-DD"
-              value={dispatchDate}
-              onChangeText={setDispatchDate}
-            />
-
-            <Text style={styles.label}>Remarks</Text>
-            <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: "top" }]}
-              placeholder="Additional notes..."
-              multiline
-              value={remarks}
-              onChangeText={setRemarks}
-            />
-          </View>
-        </ScrollView>
-
-        {/* Footer Submit */}
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[
-              styles.submitBtn,
-              (cart.length === 0 || submitting) && { opacity: 0.7 },
-            ]}
-            onPress={handleSubmit}
-            disabled={cart.length === 0 || submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitBtnText}>Submit Order</Text>
-            )}
-          </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
 
-      {/* Modals */}
+        {/* 4. Visit Notes / Remarks */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <View style={[styles.partyIconWrap, { backgroundColor: "#F3F4F6" }]}>
+                <MaterialCommunityIcons name="note-text-outline" size={20} color="#4B5563" />
+              </View>
+              <Text style={styles.cardTitle}>Visit Notes / Remarks</Text>
+            </View>
+          </View>
+          <TextInput
+            style={styles.textArea}
+            placeholder="Enter discussion notes, requirements, or feedback from party..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            numberOfLines={3}
+            value={remarks}
+            onChangeText={setRemarks}
+          />
+        </View>
+      </KeyboardAwareScreen>
+
+      {/* Floating Bottom Submit Button */}
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomBarInfo}>
+          <Text style={styles.bottomBarQtyLabel}>Total Quantity</Text>
+          <Text style={styles.bottomBarQtyVal}>{totalQuantity} units</Text>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
+          activeOpacity={0.85}
+          disabled={submitting}
+          onPress={handleSubmit}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <MaterialIcons name="send" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.submitBtnText}>Submit Report</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Product Selection Modal */}
       <ProductSelectionModal
         visible={showProductModal}
-        onClose={() => setShowProductModal(false)}
         products={products}
+        onClose={() => setShowProductModal(false)}
         onAddToCart={handleAddProduct}
+      />
+
+      {/* Date Picker Modal */}
+      <DatePickerModal
+        visible={showDatePicker}
+        value={reportDate}
+        maxDate={getTodayStr()}
+        title="Select Report Date"
+        onChange={handleDateChange}
+        onClose={() => setShowDatePicker(false)}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    backgroundColor: "#7367F0",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+  container: {
+    padding: 14,
+    gap: 12,
+  },
+  centerLoading: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+  },
+  loadingText: {
+    color: "#6B7280",
+    fontSize: 14,
+  },
+  phoneOrderBanner: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#F5F3FF",
+    borderLeftWidth: 4,
+    borderLeftColor: "#7367F0",
+    borderRadius: 12,
+    padding: 12,
   },
-  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "800",
+  phoneOrderTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#5B21B6",
   },
-  scrollContent: { padding: 14, paddingBottom: 20 },
+  phoneOrderSubtitle: {
+    fontSize: 12,
+    color: "#6D28D9",
+    marginTop: 2,
+  },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
-    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#111827" },
-  addBtn: {
+  cardHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#10B981",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    gap: 8,
   },
-  addBtnText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "bold",
-    marginLeft: 4,
-  },
-  emptyState: { alignItems: "center", paddingVertical: 20 },
-  emptyText: { color: "#8e8e8e", marginTop: 8, fontWeight: "600" },
-  cartItem: {
-    flexDirection: "row",
+  partyIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#F5F3FF",
+    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
   },
-  itemName: { fontSize: 14, fontWeight: "bold", color: "#374151" },
-  itemVariant: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  itemTotal: {
-    fontSize: 14,
-    fontWeight: "800",
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
     color: "#111827",
-    marginRight: 12,
   },
-  removeBtn: { padding: 4, backgroundColor: "#fee2e2", borderRadius: 12 },
-  totalRow: {
+  autofillBadge: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 16,
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    gap: 4,
+  },
+  autofillBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  partyInfoBody: {
+    gap: 6,
+  },
+  partyNameText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  partyMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  partyMetaText: {
+    fontSize: 13,
+    color: "#4B5563",
+  },
+  partyTypeTag: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
     marginTop: 4,
   },
-  totalLabel: { fontSize: 16, fontWeight: "bold", color: "#374151" },
-  totalAmount: { fontSize: 18, fontWeight: "900", color: "#10B981" },
-  label: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#374151",
-    marginBottom: 6,
-    marginTop: 12,
+  partyTypeTagText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#4B5563",
   },
-  input: {
-    backgroundColor: "#f9fafb",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: "#111827",
-  },
-  chipContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#f3f4f6",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  chipActive: { backgroundColor: "#e0e7ff", borderColor: "#7367F0" },
-  chipText: { fontSize: 12, fontWeight: "600", color: "#4b5563" },
-  chipTextActive: { color: "#7367F0" },
-  footer: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    elevation: 20,
-  },
-  submitBtn: {
-    backgroundColor: "#7367F0",
-    padding: 16,
-    borderRadius: 12,
+  dateSelectorBtn: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
   },
-  submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  phoneOrderBanner: {
+  dateSelectorError: {
+    borderColor: "#EF4444",
+  },
+  dateSelectorLeft: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EFF6FF",
+  },
+  dateLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  dateValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111827",
+    marginTop: 2,
+  },
+  changeDateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  changeDateBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#7367F0",
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginTop: 6,
+    fontWeight: "500",
+  },
+  addProductBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#7367F0",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    gap: 4,
+  },
+  addProductBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  emptyProductBox: {
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderStyle: "dashed",
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
-    padding: 12,
-    marginBottom: 16,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  emptyProductTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#374151",
+    marginTop: 4,
+  },
+  emptyProductSub: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  productList: {
     gap: 10,
   },
-  phoneOrderTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#1E40AF",
+  productRowCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
-  phoneOrderSubtitle: {
+  productRowMain: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  productRowName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  productRowMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  productUnitBadge: {
     fontSize: 11,
-    color: "#3B82F6",
-    marginTop: 2,
+    fontWeight: "600",
+    color: "#7367F0",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  productSkuText: {
+    fontSize: 11,
+    color: "#6B7280",
+  },
+  deleteItemBtn: {
+    padding: 4,
+  },
+  qtyControlRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  qtyLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4B5563",
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    overflow: "hidden",
+  },
+  stepBtn: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  stepBtnAdd: {
+    backgroundColor: "#7367F0",
+  },
+  qtyInput: {
+    width: 48,
+    height: 32,
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    padding: 0,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  summaryValue: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "600",
+  },
+  textArea: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: "#1F2937",
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  bottomBarInfo: {
+    justifyContent: "center",
+  },
+  bottomBarQtyLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  bottomBarQtyVal: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  submitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#7367F0",
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 12,
+    shadowColor: "#7367F0",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitBtnDisabled: {
+    opacity: 0.6,
+  },
+  submitBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

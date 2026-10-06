@@ -12,6 +12,7 @@ use App\Models\PartyEmployeeMap;
 use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\JsonResponse;
 
 class FieldWorkerManagementController extends Controller
 {
@@ -56,9 +57,11 @@ class FieldWorkerManagementController extends Controller
 
         $fieldWorkers = $query->paginate(15);
 
-        // Calculate stats for each field worker
-        $fieldWorkers->each(function ($fw) {
-            $fw->stats = $this->getFieldWorkerStats($fw->id);
+        // Bulk-fetch stats in ONE query per metric instead of N×6 queries
+        $fwIds = $fieldWorkers->pluck('id')->toArray();
+        $bulkStats = $this->getBulkFieldWorkerStats($fwIds);
+        $fieldWorkers->each(function ($fw) use ($bulkStats) {
+            $fw->stats = $bulkStats[$fw->id] ?? $this->emptyStats();
         });
 
         $departments = User::role('Field Worker')->distinct()->pluck('department');
@@ -67,27 +70,90 @@ class FieldWorkerManagementController extends Controller
     }
 
     /**
-     * Get comprehensive stats for a specific field worker
+     * AJAX: return stats JSON for a single field worker (used by card lazy-load).
      */
-    private function getFieldWorkerStats($userId)
+    public function statsJson(int $id): JsonResponse
+    {
+        $this->authorize('view', User::findOrFail($id));
+        return response()->json(['stats' => $this->getFieldWorkerStats($id)]);
+    }
+
+    /**
+     * Single-worker stats (used by metrics page & statsJson).
+     */
+    private function getFieldWorkerStats(int $userId): array
     {
         $assignments = PartyEmployeeMap::where('employee_id', $userId)
             ->where('is_active', true)
             ->pluck('party_id');
 
         return [
-            'total_parties' => $assignments->count(),
-            'total_orders' => Order::whereIn('party_id', $assignments)->count(),
-            'pending_orders' => Order::whereIn('party_id', $assignments)
-                ->where('status', 'pending')->count(),
-            'total_visits' => Visit::where('user_id', $userId)->count(),
-            'pending_payments' => Transaction::whereIn('party_id', $assignments)
-                ->where('status', 'pending')
-                ->sum('amount'),
-            'total_revenue' => Order::whereIn('party_id', $assignments)
-                ->sum('total_amount'),
+            'total_parties'   => $assignments->count(),
+            'total_orders'    => Order::whereIn('party_id', $assignments)->count(),
+            'pending_orders'  => Order::whereIn('party_id', $assignments)->where('status', 'pending')->count(),
+            'total_visits'    => Visit::where('user_id', $userId)->count(),
+            'pending_payments'=> Transaction::whereIn('party_id', $assignments)->where('status', 'pending')->sum('amount'),
+            'total_revenue'   => Order::whereIn('party_id', $assignments)->sum('total_amount'),
             'avg_order_value' => Order::whereIn('party_id', $assignments)->avg('total_amount') ?? 0,
         ];
+    }
+
+    /**
+     * Bulk stats for multiple field workers — 4 queries instead of N×6.
+     */
+    private function getBulkFieldWorkerStats(array $userIds): array
+    {
+        if (empty($userIds)) return [];
+
+        // Party counts per employee
+        $partyCounts = PartyEmployeeMap::whereIn('employee_id', $userIds)
+            ->where('is_active', true)
+            ->selectRaw('employee_id, count(party_id) as total_parties, group_concat(party_id) as party_ids_csv')
+            ->groupBy('employee_id')
+            ->get()
+            ->keyBy('employee_id');
+
+        // Visit counts per user
+        $visitCounts = Visit::whereIn('user_id', $userIds)
+            ->selectRaw('user_id, count(id) as total_visits')
+            ->groupBy('user_id')
+            ->get()
+            ->keyBy('user_id');
+
+        // Build result per user
+        $result = [];
+        foreach ($userIds as $uid) {
+            $pc  = $partyCounts->get($uid);
+            $vc  = $visitCounts->get($uid);
+            $pids = $pc ? array_filter(explode(',', $pc->party_ids_csv)) : [];
+
+            $orderStats = $pids
+                ? Order::whereIn('party_id', $pids)
+                    ->selectRaw('count(id) as total, sum(case when status="pending" then 1 else 0 end) as pending, sum(total_amount) as revenue, avg(total_amount) as avg_val')
+                    ->first()
+                : null;
+
+            $pendingPay = $pids
+                ? Transaction::whereIn('party_id', $pids)->where('status', 'pending')->sum('amount')
+                : 0;
+
+            $result[$uid] = [
+                'total_parties'   => $pc ? (int) $pc->total_parties : 0,
+                'total_orders'    => $orderStats ? (int) $orderStats->total : 0,
+                'pending_orders'  => $orderStats ? (int) $orderStats->pending : 0,
+                'total_visits'    => $vc ? (int) $vc->total_visits : 0,
+                'pending_payments'=> (float) $pendingPay,
+                'total_revenue'   => $orderStats ? (float) $orderStats->revenue : 0,
+                'avg_order_value' => $orderStats ? (float) $orderStats->avg_val : 0,
+            ];
+        }
+
+        return $result;
+    }
+
+    private function emptyStats(): array
+    {
+        return ['total_parties'=>0,'total_orders'=>0,'pending_orders'=>0,'total_visits'=>0,'pending_payments'=>0,'total_revenue'=>0,'avg_order_value'=>0];
     }
 
     /**
@@ -278,37 +344,39 @@ class FieldWorkerManagementController extends Controller
             ->where('is_active', true)
             ->pluck('party_id');
 
-        // Last 6 months performance
-        $months = [];
-        $ordersCount = [];
-        $visitsCounts = [];
-        $revenueData = [];
+        // Last 6 months — 2 GROUP BY queries instead of 18 individual queries
+        $sixMonthsAgo = now()->subMonths(5)->startOfMonth();
 
+        $ordersByMonth = Order::where('user_id', $id)
+            ->where('order_date', '>=', $sixMonthsAgo)
+            ->selectRaw("DATE_FORMAT(order_date,'%Y-%m') as ym, DATE_FORMAT(order_date,'%b %Y') as label, count(id) as cnt, sum(total_amount) as revenue")
+            ->groupBy('ym', 'label')
+            ->orderBy('ym')
+            ->get()
+            ->keyBy('ym');
+
+        $visitsByMonth = Visit::where('user_id', $id)
+            ->where('check_in_time', '>=', $sixMonthsAgo)
+            ->selectRaw("DATE_FORMAT(check_in_time,'%Y-%m') as ym, count(id) as cnt")
+            ->groupBy('ym')
+            ->get()
+            ->keyBy('ym');
+
+        $months = $ordersCount = $visitsCounts = $revenueData = [];
         for ($i = 5; $i >= 0; $i--) {
-            $monthStart = now()->subMonths($i)->startOfMonth();
-            $monthEnd = now()->subMonths($i)->endOfMonth();
-            $monthLabel = $monthStart->format('M Y');
-
-            $months[] = $monthLabel;
-
-            $ordersCount[] = Order::where('user_id', $id)
-                ->whereBetween('order_date', [$monthStart, $monthEnd])
-                ->count();
-
-            $visitsCounts[] = Visit::where('user_id', $id)
-                ->whereBetween('check_in_time', [$monthStart, $monthEnd])
-                ->count();
-
-            $revenueData[] = Order::where('user_id', $id)
-                ->whereBetween('order_date', [$monthStart, $monthEnd])
-                ->sum('total_amount');
+            $m   = now()->subMonths($i);
+            $ym  = $m->format('Y-m');
+            $months[]      = $m->format('M Y');
+            $ordersCount[] = (int)   ($ordersByMonth->get($ym)?->cnt     ?? 0);
+            $revenueData[] = (float) ($ordersByMonth->get($ym)?->revenue  ?? 0);
+            $visitsCounts[]= (int)   ($visitsByMonth->get($ym)?->cnt     ?? 0);
         }
 
         return response()->json([
             'success' => true,
-            'months' => $months,
-            'orders' => $ordersCount,
-            'visits' => $visitsCounts,
+            'months'  => $months,
+            'orders'  => $ordersCount,
+            'visits'  => $visitsCounts,
             'revenue' => $revenueData,
         ]);
     }

@@ -34,11 +34,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware(['auth'])->group(function () {
 
         // Dashboard — any authenticated user
-        Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/',              [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/stats', [DashboardController::class, 'statsJson'])->name('dashboard.stats');
 
         // Notifications — any authenticated user (read-only self-service)
         Route::post('/notifications/{id}/read',  [NotificationController::class, 'markAsRead'])->name('notifications.read');
         Route::post('/notifications/read-all',   [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+
+        // Push Notifications (Admin / Manager)
+        Route::get('/push-notifications',  [\App\Http\Controllers\Admin\PushNotificationController::class, 'index'])->name('push-notifications.index');
+        Route::post('/push-notifications', [\App\Http\Controllers\Admin\PushNotificationController::class, 'send'])->name('push-notifications.send');
 
         // ── User Management ──────────────────────────────────────────────────
         Route::get('/users',                    [UserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
@@ -61,6 +66,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // ── Employee Management ───────────────────────────────────────────────
         Route::prefix('employees')->name('employees.')->group(function () {
             Route::get('/',                             [EmployeeWebController::class, 'index'])->middleware('permission:employees.view')->name('index');
+            Route::get('/active-dropdown',              [EmployeeWebController::class, 'activeDropdown'])->name('active-dropdown');
             Route::get('/create',                       [EmployeeWebController::class, 'create'])->middleware('permission:employees.create')->name('create');
             Route::post('/',                            [EmployeeWebController::class, 'store'])->middleware('permission:employees.create')->name('store');
             Route::get('/{id}/edit',                    [EmployeeWebController::class, 'edit'])->middleware('permission:employees.edit')->name('edit');
@@ -75,6 +81,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // ── Field Worker Management ───────────────────────────────────────────
         Route::prefix('field-workers')->name('field-workers.')->middleware('permission:employees.view')->group(function () {
             Route::get('/',                     [FieldWorkerManagementController::class, 'index'])->name('index');
+            Route::get('/{id}/stats',           [FieldWorkerManagementController::class, 'statsJson'])->name('stats');  // AJAX
             Route::get('/{id}/metrics',         [FieldWorkerManagementController::class, 'showMetrics'])->name('metrics');
             Route::get('/{id}/visits',          [FieldWorkerManagementController::class, 'showVisits'])->name('visits');
             Route::get('/{id}/visits/{visitId}',[FieldWorkerManagementController::class, 'visitDetails'])->name('visit-details');
@@ -99,6 +106,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 Route::get('/export-pdf',               [PartyController::class, 'exportPdf'])->name('export-pdf');
                 Route::get('/download-template',        [PartyController::class, 'downloadTemplate'])->name('download-template');
                 Route::get('/{id}/show',                [PartyController::class, 'show'])->name('show');
+                Route::get('/{id}/tab-data',            [PartyController::class, 'tabData'])->name('tab-data');  // AJAX
                 Route::get('/{id}/export-pdf',          [PartyController::class, 'exportSinglePdf'])->name('export-single-pdf');
                 Route::get('/{id}/export-excel',        [PartyController::class, 'exportSingleExcel'])->name('export-single-excel');
                 Route::get('/{id}/assignment-history',  [PartyController::class, 'assignmentHistory'])->name('assignment-history');
@@ -181,9 +189,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         // ── Leave Types (Admin/Super Admin) ───────────────────────────────────
         Route::middleware('permission:leave.manage')->group(function () {
-            Route::get('/leave-types',              [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'index'])->name('leave-types.index');
-            Route::post('/leave-types',             [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'store'])->name('leave-types.store');
-            Route::put('/leave-types/{leaveType}',  [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'update'])->name('leave-types.update');
+            Route::get('/leave-types',                     [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'index'])->name('leave-types.index');
+            Route::post('/leave-types',                    [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'store'])->name('leave-types.store');
+            Route::put('/leave-types/{leaveType}',         [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'update'])->name('leave-types.update');
+            Route::post('/leave-types/{leaveType}/toggle', [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'toggleStatus'])->name('leave-types.toggle');
+            Route::delete('/leave-types/{leaveType}',      [\App\Http\Controllers\Admin\LeaveTypeWebController::class, 'destroy'])->name('leave-types.destroy');
         });
 
         // ── Leave Balances (Admin/Super Admin) ────────────────────────────────
@@ -211,6 +221,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // ── Reports ───────────────────────────────────────────────────────────
         Route::prefix('reports')->name('reports.')->middleware('permission:reports.view')->group(function () {
             Route::get('/',                     [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('index');
+            Route::get('/matrix-json',          [\App\Http\Controllers\Admin\ReportController::class, 'matrixJson'])->name('matrix-json');  // AJAX
             Route::get('/scorecard/{id}',       [\App\Http\Controllers\Admin\ReportController::class, 'employeeScorecard'])->name('scorecard');
             Route::get('/daily-ledger',         [\App\Http\Controllers\Admin\ReportController::class, 'dailyLedger'])->name('daily-ledger');
             Route::get('/export-csv',           [\App\Http\Controllers\Admin\ReportController::class, 'exportCsv'])->name('export-csv');

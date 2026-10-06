@@ -55,7 +55,7 @@
                         <option value="">All Employees ({{ $employeesList->count() }})</option>
                         @foreach($employeesList as $emp)
                             <option value="{{ $emp->id }}" {{ $selectedUser == $emp->id ? 'selected' : '' }}>
-                                {{ $emp->name }} ({{ $emp->employee_id ?? 'EMP-' . $emp->id }})
+                                {{ $emp->name }} ({{ $emp->role_name }})
                             </option>
                         @endforeach
                     </select>
@@ -102,8 +102,7 @@
                                 {{ \Carbon\Carbon::parse($rec->date)->format('D, d M Y') }}
                             </td>
                             <td class="py-3.5 px-4">
-                                <div class="font-bold text-slate-900">{{ $rec->user->name ?? 'N/A' }}</div>
-                                <div class="text-[11px] text-slate-400">{{ $rec->user->employee_id ?? 'EMP-' . ($rec->user_id ?? 0) }}</div>
+                                <div class="font-bold text-slate-900">{{ $rec->user ? $rec->user->name . ' (' . $rec->user->role_name . ')' : 'N/A' }}</div>
                             </td>
                             <td class="py-3.5 px-3 text-center text-slate-600 font-medium">
                                 {{ $rec->opening_km ?? '—' }}

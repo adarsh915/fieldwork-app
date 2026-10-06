@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "501520806202",
+    "project_id": "ampl-fieldworker",
+    "storage_bucket": "ampl-fieldworker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:501520806202:android:b593d299f27b67e1456003",
+        "android_client_info": {
+          "package_name": "com.adarsh55.amplfieldworkmobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbpwXUk33ZR2yuiQIOHMPpazbYHWgRjHY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

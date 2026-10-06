@@ -1,23 +1,20 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import { useAuth } from "../auth/AuthContext";
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const passwordRef = useRef<TextInput>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,105 +40,98 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>AMPL SOLUTION</Text>
-        </View>
+    <View style={styles.safe}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>AMPL SOLUTION</Text>
+      </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.card}>
-            <View style={styles.heroWrap}>
-              <MaterialIcons name="terrain" size={48} color="#7367F0" />
-              <Text style={styles.cardTitle}>Welcome back 👋</Text>
-              <Text style={styles.cardSubtitle}>Sign in to your account</Text>
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email Address</Text>
-              <View style={styles.inputRow}>
-                <MaterialIcons
-                  name="email"
-                  size={20}
-                  color="#7367F0"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="you@company.com"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={email}
-                  onChangeText={setEmail}
-                  returnKeyType="next"
-                />
-              </View>
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.inputRow}>
-                <MaterialIcons
-                  name="lock"
-                  size={20}
-                  color="#7367F0"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[styles.input, styles.inputFlex]}
-                  placeholder="••••••••"
-                  placeholderTextColor="#9ca3af"
-                  secureTextEntry={!showPass}
-                  value={password}
-                  onChangeText={setPassword}
-                  returnKeyType="done"
-                  onSubmitEditing={handleLogin}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPass((v) => !v)}
-                  style={styles.eyeBtn}
-                >
-                  <MaterialIcons
-                    name={showPass ? "visibility-off" : "visibility"}
-                    size={20}
-                    color="#9ca3af"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.btn, (!isValid || loading) && styles.btnDisabled]}
-              onPress={handleLogin}
-              disabled={!isValid || loading}
-              activeOpacity={0.85}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <MaterialIcons name="login" size={20} color="#fff" />
-                  <Text style={styles.btnText}>Sign In</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <Text style={styles.hint}>
-              Contact your admin if you forgot your credentials.
-            </Text>
+      <KeyboardAwareScreen contentStyle={[styles.scrollContent, { paddingBottom: 60 }]}>
+        <View style={styles.card}>
+          <View style={styles.heroWrap}>
+            <MaterialIcons name="terrain" size={48} color="#7367F0" />
+            <Text style={styles.cardTitle}>Welcome back 👋</Text>
+            <Text style={styles.cardSubtitle}>Sign in to your account</Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Email Address</Text>
+            <View style={styles.inputRow}>
+              <MaterialIcons
+                name="email"
+                size={20}
+                color="#7367F0"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="you@company.com"
+                placeholderTextColor="#9ca3af"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={email}
+                onChangeText={setEmail}
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+              />
+            </View>
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.inputRow}>
+              <MaterialIcons
+                name="lock"
+                size={20}
+                color="#7367F0"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                ref={passwordRef}
+                style={[styles.input, styles.inputFlex]}
+                placeholder="••••••••"
+                placeholderTextColor="#9ca3af"
+                secureTextEntry={!showPass}
+                value={password}
+                onChangeText={setPassword}
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPass((v) => !v)}
+                style={styles.eyeBtn}
+              >
+                <MaterialIcons
+                  name={showPass ? "visibility-off" : "visibility"}
+                  size={20}
+                  color="#9ca3af"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.btn, (!isValid || loading) && styles.btnDisabled]}
+            onPress={handleLogin}
+            disabled={!isValid || loading}
+            activeOpacity={0.85}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <MaterialIcons name="login" size={20} color="#fff" />
+                <Text style={styles.btnText}>Sign In</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.hint}>
+            Contact your admin if you forgot your credentials.
+          </Text>
+        </View>
+      </KeyboardAwareScreen>
+    </View>
   );
 }
 

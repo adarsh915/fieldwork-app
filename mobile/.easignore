@@ -1,0 +1,9 @@
+# Exclude backend
+../backend/
+backend/
+.uploads/
+../.uploads/
+
+# Exclude local out-of-sync native directories so EAS generates a clean, managed build on cloud
+android/
+ios/

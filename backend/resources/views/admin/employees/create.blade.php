@@ -4,247 +4,409 @@
 @section('breadcrumb', 'Admin / Employees / Create')
 @section('page_title', 'Create New Employee')
 
-@push('styles')
-    <link rel="stylesheet" href="{{ asset('css/employee-management.css') }}">
-@endpush
-
 @section('content')
-    <div class="mb-5 flex items-center justify-between">
-        <a href="{{ route('admin.employees.index') }}" class="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-950">
-            ← View All Employees
+<div x-data="createEmployeeForm({
+    storeUrl: '{{ route('admin.employees.store') }}',
+    indexUrl: '{{ route('admin.employees.index') }}',
+    csrfToken: '{{ csrf_token() }}'
+})" class="max-w-4xl space-y-5">
+
+    <div class="flex items-center justify-between">
+        <a href="{{ route('admin.employees.index') }}" class="inline-flex items-center gap-1.5 text-xs font-bold text-ink-600 hover:text-ink-900 transition">
+            <x-lucide-arrow-left class="w-4 h-4" /> Back to All Employees
         </a>
     </div>
 
-    {{-- Show General Error --}}
-    @if($errors->has('error'))
-        <div class="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3">
-            <div class="flex items-start gap-3">
-                <span class="text-red-600">⚠️</span>
-                <div class="flex-1">
-                    <p class="font-semibold text-red-800">Error Creating Employee</p>
-                    <p class="mt-1 text-sm text-red-700">{{ $errors->first('error') }}</p>
-                </div>
-            </div>
-        </div>
-    @endif
+    {{-- Notification Banner --}}
+    <div x-show="bannerMessage" x-cloak class="flex items-center gap-3 rounded-xl border px-4 py-3 transition-all"
+         :class="bannerType === 'success' ? 'border-green-200 bg-success-bg text-success-text' : 'border-red-200 bg-danger-bg text-danger-text'">
+        <template x-if="bannerType === 'success'">
+            <x-lucide-check-circle class="w-5 h-5 shrink-0" />
+        </template>
+        <template x-if="bannerType === 'error'">
+            <x-lucide-alert-circle class="w-5 h-5 shrink-0" />
+        </template>
+        <div class="flex-1 text-sm font-medium" x-text="bannerMessage"></div>
+        <button type="button" @click="bannerMessage = ''" class="opacity-70 hover:opacity-100">
+            <x-lucide-x class="w-4 h-4" />
+        </button>
+    </div>
 
-    {{-- Show Validation Errors Summary --}}
-    @if($errors->any() && !$errors->has('error'))
-        <div class="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3">
-            <div class="flex items-start gap-3">
-                <span class="text-red-600">⚠️</span>
-                <div class="flex-1">
-                    <p class="font-semibold text-red-800">Please fix the following errors:</p>
-                    <ul class="mt-2 list-inside list-disc space-y-1 text-sm text-red-700">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    <section class="panel max-w-4xl">
+    <section class="panel overflow-hidden">
         <div class="panel-header">
-            <h2 class="font-semibold text-slate-950">Employee Information</h2>
-            <p class="mt-1 text-sm text-slate-500">Fill in the details to create a new employee account.</p>
+            <h2 class="text-base font-bold text-ink-900">Employee Information</h2>
+            <p class="text-xs text-ink-500 mt-0.5">Fill in the details below. Form submits dynamically via AJAX without page reloads.</p>
         </div>
 
-        <form method="POST" action="{{ route('admin.employees.store') }}" class="p-6">
-            @csrf
-
+        <form @submit.prevent="submitForm()" class="p-6 space-y-8">
             {{-- Personal Information --}}
-            <div class="mb-8">
-                <h3 class="mb-4 text-lg font-bold text-slate-950">Personal Information</h3>
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div>
+                <h3 class="text-sm font-bold text-ink-900 border-b border-surface-border pb-2 mb-4 flex items-center gap-2">
+                    <x-lucide-user class="w-4 h-4 text-primary-600" /> Personal Information
+                </h3>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {{-- Full Name --}}
                     <div>
-                        <label class="form-label">Full Name <span class="text-red-500">*</span></label>
-                        <input type="text" name="name" value="{{ old('name') }}" class="form-input @error('name') border-red-500 ring-2 ring-red-200 @enderror" required>
-                        @error('name')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Full Name <span class="text-rose-500">*</span></label>
+                        <input type="text"
+                               x-model="form.name"
+                               required
+                               placeholder="e.g. John Doe"
+                               class="form-input text-xs w-full"
+                               :class="errors.name ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.name">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.name[0]"></p>
+                        </template>
                     </div>
 
+                    {{-- Employee ID --}}
                     <div>
-                        <label class="form-label">Employee ID</label>
-                        <input type="text" name="employee_id" value="{{ old('employee_id') }}" class="form-input @error('employee_id') border-red-500 ring-2 ring-red-200 @enderror" placeholder="e.g., EMP001">
-                        @error('employee_id')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @else
-                            <p class="mt-1 text-xs text-slate-500">Optional: Unique employee identifier</p>
-                        @enderror
+                        <label class="form-label text-xs">Employee ID</label>
+                        <input type="text"
+                               x-model="form.employee_id"
+                               placeholder="e.g. EMP001"
+                               class="form-input text-xs w-full"
+                               :class="errors.employee_id ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.employee_id">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.employee_id[0]"></p>
+                        </template>
+                        <p x-show="!errors.employee_id" class="mt-1 text-[11px] text-ink-400">Optional: Unique identifier</p>
                     </div>
 
+                    {{-- Email --}}
                     <div>
-                        <label class="form-label">Email <span class="text-red-500">*</span></label>
-                        <input type="email" name="email" value="{{ old('email') }}" class="form-input @error('email') border-red-500 ring-2 ring-red-200 @enderror" required>
-                        @error('email')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Email Address <span class="text-rose-500">*</span></label>
+                        <input type="email"
+                               x-model="form.email"
+                               required
+                               placeholder="john@company.com"
+                               class="form-input text-xs w-full"
+                               :class="errors.email ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.email">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.email[0]"></p>
+                        </template>
                     </div>
 
+                    {{-- Phone --}}
                     <div>
-                        <label class="form-label">Phone Number</label>
-                        <input type="text" name="phone" value="{{ old('phone') }}" class="form-input @error('phone') border-red-500 ring-2 ring-red-200 @enderror" placeholder="+91 1234567890">
-                        @error('phone')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Phone Number</label>
+                        <input type="text"
+                               x-model="form.phone"
+                               placeholder="+91 9876543210"
+                               class="form-input text-xs w-full"
+                               :class="errors.phone ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.phone">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.phone[0]"></p>
+                        </template>
                     </div>
 
+                    {{-- Date of Birth --}}
                     <div>
-                        <label class="form-label">Date of Birth</label>
-                        <input type="date" name="date_of_birth" value="{{ old('date_of_birth') }}" class="form-input @error('date_of_birth') border-red-500 ring-2 ring-red-200 @enderror" max="{{ date('Y-m-d') }}">
-                        @error('date_of_birth')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Date of Birth</label>
+                        <input type="date"
+                               x-model="form.date_of_birth"
+                               max="{{ date('Y-m-d') }}"
+                               class="form-input text-xs w-full"
+                               :class="errors.date_of_birth ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.date_of_birth">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.date_of_birth[0]"></p>
+                        </template>
                     </div>
 
+                    {{-- Password --}}
                     <div>
-                        <label class="form-label">Password <span class="text-red-500">*</span></label>
-                        <input type="password" name="password" class="form-input @error('password') border-red-500 ring-2 ring-red-200 @enderror" required minlength="8">
-                        @error('password')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @else
-                            <p class="mt-1 text-xs text-slate-500">Minimum 8 characters required</p>
-                        @enderror
+                        <label class="form-label text-xs">Password <span class="text-rose-500">*</span></label>
+                        <div class="relative">
+                            <input :type="showPassword ? 'text' : 'password'"
+                                   x-model="form.password"
+                                   required
+                                   minlength="8"
+                                   placeholder="Minimum 8 characters"
+                                   class="form-input text-xs w-full pr-8"
+                                   :class="errors.password ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                            <button type="button"
+                                    @click="showPassword = !showPassword"
+                                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700">
+                                <template x-if="!showPassword">
+                                    <x-lucide-eye class="w-3.5 h-3.5" />
+                                </template>
+                                <template x-if="showPassword">
+                                    <x-lucide-eye-off class="w-3.5 h-3.5" />
+                                </template>
+                            </button>
+                        </div>
+                        <template x-if="errors.password">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.password[0]"></p>
+                        </template>
+                        <p x-show="!errors.password" class="mt-1 text-[11px] text-ink-400">Minimum 8 characters required</p>
                     </div>
 
+                    {{-- Address --}}
                     <div class="md:col-span-2">
-                        <label class="form-label">Address</label>
-                        <textarea name="address" rows="3" class="form-input @error('address') border-red-500 @enderror">{{ old('address') }}</textarea>
-                        @error('address')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Address</label>
+                        <textarea x-model="form.address"
+                                  rows="2"
+                                  placeholder="Residential / Work address"
+                                  class="form-input text-xs w-full"
+                                  :class="errors.address ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''"></textarea>
+                        <template x-if="errors.address">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.address[0]"></p>
+                        </template>
                     </div>
                 </div>
             </div>
 
             {{-- Employment Information --}}
-            <div class="mb-8">
-                <h3 class="mb-4 text-lg font-bold text-slate-950">Employment Information</h3>
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div>
+                <h3 class="text-sm font-bold text-ink-900 border-b border-surface-border pb-2 mb-4 flex items-center gap-2">
+                    <x-lucide-briefcase class="w-4 h-4 text-primary-600" /> Employment Information
+                </h3>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {{-- Department --}}
                     <div>
-                        <label class="form-label">Department</label>
-                        <input type="text" name="department" value="{{ old('department') }}" class="form-input @error('department') border-red-500 @enderror" placeholder="e.g., IT, Sales, Operations">
-                        @error('department')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Department</label>
+                        <input type="text"
+                               x-model="form.department"
+                               placeholder="e.g. Sales, Operations, IT"
+                               class="form-input text-xs w-full"
+                               :class="errors.department ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.department">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.department[0]"></p>
+                        </template>
                     </div>
 
+                    {{-- Position --}}
                     <div>
-                        <label class="form-label">Position</label>
-                        <input type="text" name="position" value="{{ old('position') }}" class="form-input @error('position') border-red-500 @enderror" placeholder="e.g., Manager, Developer">
-                        @error('position')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Position / Designation</label>
+                        <input type="text"
+                               x-model="form.position"
+                               placeholder="e.g. Field Officer, Sales Executive"
+                               class="form-input text-xs w-full"
+                               :class="errors.position ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.position">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.position[0]"></p>
+                        </template>
                     </div>
 
+                    {{-- Hire Date --}}
                     <div>
-                        <label class="form-label">Hire Date</label>
-                        <input type="date" name="hire_date" value="{{ old('hire_date') }}" class="form-input @error('hire_date') border-red-500 @enderror">
-                        @error('hire_date')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Hire Date</label>
+                        <input type="date"
+                               x-model="form.hire_date"
+                               class="form-input text-xs w-full"
+                               :class="errors.hire_date ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.hire_date">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.hire_date[0]"></p>
+                        </template>
                     </div>
 
+                    {{-- Salary --}}
                     <div>
-                        <label class="form-label">Salary (₹)</label>
-                        <input type="number" name="salary" value="{{ old('salary') }}" class="form-input @error('salary') border-red-500 @enderror" step="0.01" min="0" placeholder="50000">
-                        @error('salary')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label text-xs">Salary (₹)</label>
+                        <input type="number"
+                               x-model="form.salary"
+                               step="0.01"
+                               min="0"
+                               placeholder="50000"
+                               class="form-input text-xs w-full"
+                               :class="errors.salary ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
+                        <template x-if="errors.salary">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.salary[0]"></p>
+                        </template>
                     </div>
 
+                    {{-- Reporting To --}}
                     <div class="md:col-span-2">
-                        <label class="form-label font-bold text-slate-800">Reporting To (Manager / VP)</label>
-                        <select name="reporting_to" class="form-input @error('reporting_to') border-red-500 @enderror">
+                        <label class="form-label text-xs font-bold text-ink-800">Reporting To (Manager / VP)</label>
+                        <select x-model="form.reporting_to" class="form-input text-xs w-full"
+                                :class="errors.reporting_to ? 'border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : ''">
                             <option value="">-- No Manager (Top Level / Direct Admin Report) --</option>
                             @foreach ($managers as $mgr)
-                                <option value="{{ $mgr->id }}" @selected(old('reporting_to') == $mgr->id)>
-                                    {{ $mgr->name }} ({{ $mgr->employee_id ?? 'ID: '.$mgr->id }})
+                                <option value="{{ $mgr->id }}">
+                                    {{ $mgr->name }} ({{ $mgr->role_name }})
                                 </option>
                             @endforeach
                         </select>
-                        <p class="mt-1 text-xs text-slate-500">Assign who this employee directly reports to (used for team data scoping).</p>
-                        @error('reporting_to')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <p class="mt-1 text-[11px] text-ink-400">Assign who this employee directly reports to (used for hierarchical data scoping).</p>
+                        <template x-if="errors.reporting_to">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.reporting_to[0]"></p>
+                        </template>
                     </div>
                 </div>
             </div>
 
             {{-- Roles & Status --}}
-            <div class="mb-8">
-                <h3 class="mb-4 text-lg font-bold text-slate-950">Roles & Status</h3>
+            <div>
+                <h3 class="text-sm font-bold text-ink-900 border-b border-surface-border pb-2 mb-4 flex items-center gap-2">
+                    <x-lucide-shield class="w-4 h-4 text-primary-600" /> Roles & Account Status
+                </h3>
                 
-                <div class="mb-5">
-                    <label class="form-label">Assign Roles</label>
-                    <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div class="mb-4">
+                    <label class="form-label text-xs">Assign Role <span class="text-rose-500">*</span></label>
+                    <select x-model="form.role" class="form-input text-xs w-full max-w-md">
+                        <option value="">Select Role</option>
                         @foreach ($roles as $role)
-                            <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
-                                <input
-                                    type="checkbox"
-                                    name="roles[]"
-                                    value="{{ $role->name }}"
-                                    @checked(in_array($role->name, old('roles', [])))
-                                    class="rounded border-slate-300 text-slate-950 focus:ring-slate-300"
-                                >
-                                <span>{{ ucfirst($role->name) }}</span>
-                            </label>
+                            <option value="{{ $role->name }}">{{ ucfirst($role->name) }}</option>
                         @endforeach
-                    </div>
-                    @error('roles')
-                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
+                    </select>
+                    <template x-if="errors.role || errors.roles">
+                        <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="(errors.role || errors.roles)[0]"></p>
+                    </template>
                 </div>
 
-                <div>
-                    <label class="flex items-center gap-3">
-                        <input
-                            type="checkbox"
-                            name="is_active"
-                            value="1"
-                            @checked(old('is_active', true))
-                            class="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        >
-                        <span class="font-medium text-slate-700">Active Employee</span>
+                <div class="p-3 bg-surface-subtle rounded-xl border border-surface-border flex items-center justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-ink-900 block">Account Status</span>
+                        <span class="text-[11px] text-ink-500" x-text="form.is_active ? 'Active (Employee can login and perform field operations)' : 'Inactive (Account is disabled)'"></span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="form.is_active" class="sr-only peer">
+                        <div class="w-9 h-5 bg-surface-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
                     </label>
-                    <p class="ml-8 mt-1 text-sm text-slate-500">Uncheck to create an inactive employee account</p>
                 </div>
             </div>
 
-            @include('admin.employees.partials.party-assignment')
+            {{-- Assigned Parties --}}
+            <div>
+                <h3 class="text-sm font-bold text-ink-900 border-b border-surface-border pb-2 mb-2 flex items-center gap-2">
+                    <x-lucide-building class="w-4 h-4 text-primary-600" /> Assigned Parties (Customers)
+                </h3>
+                <p class="mb-3 text-xs text-ink-500">
+                    Select which parties this employee can choose when submitting a Day Start tour plan.
+                </p>
 
-            {{-- Actions --}}
-            <div class="flex items-center gap-3 border-t border-slate-200 pt-6">
-                <button type="submit" class="btn-primary">
-                    Create Employee
-                </button>
-                <a href="{{ route('admin.employees.index') }}" class="btn-secondary">
+                <div class="mb-3 relative max-w-sm">
+                    <input type="text"
+                           x-model="partySearch"
+                           class="form-input text-xs pl-8 w-full"
+                           placeholder="Filter parties list...">
+                    <x-lucide-search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
+                </div>
+
+                <div class="max-h-56 overflow-y-auto rounded-xl border border-surface-border p-3 bg-surface-subtle/40">
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        @forelse ($customers as $customer)
+                            <label x-show="!partySearch || '{{ strtolower(addslashes($customer->name)) }}'.includes(partySearch.toLowerCase())"
+                                   class="flex items-center gap-2 rounded-lg border border-surface-border bg-white px-3 py-2 text-xs font-medium text-ink-800 transition hover:bg-surface-subtle cursor-pointer"
+                                   :class="form.parties.includes('{{ $customer->id }}') ? 'border-primary-500 ring-1 ring-primary-300' : ''">
+                                <input type="checkbox"
+                                       value="{{ $customer->id }}"
+                                       x-model="form.parties"
+                                       class="rounded border-surface-border text-primary-600 focus:ring-primary-500">
+                                <span class="truncate">{{ $customer->name }}</span>
+                            </label>
+                        @empty
+                            <p class="text-xs text-ink-400 py-2">No parties found in system.</p>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
+
+            {{-- Form Actions --}}
+            <div class="flex items-center justify-between border-t border-surface-border pt-5">
+                <a href="{{ route('admin.employees.index') }}" class="btn-secondary text-xs px-4 py-2">
                     Cancel
                 </a>
+                <button type="submit"
+                        :disabled="submitting"
+                        class="btn-primary text-xs px-5 py-2 inline-flex items-center gap-2 disabled:opacity-50"
+                        style="background-color: #4f46e5; color: #ffffff;">
+                    <template x-if="submitting">
+                        <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </template>
+                    <span x-text="submitting ? 'Creating Employee...' : 'Create Employee'"></span>
+                </button>
             </div>
         </form>
-
-        {{-- Debug Info (Remove in production) --}}
-        @if(config('app.debug'))
-            <div class="border-t border-slate-200 bg-slate-50 px-6 py-4">
-                <details class="text-sm">
-                    <summary class="cursor-pointer font-semibold text-slate-600">🔧 Debug Info (DEV only)</summary>
-                    <div class="mt-3 space-y-2 text-slate-600">
-                        <p><strong>Form Action:</strong> {{ route('admin.employees.store') }}</p>
-                        <p><strong>Method:</strong> POST</p>
-                        <p><strong>CSRF:</strong> {{ csrf_token() ? '✅ Present' : '❌ Missing' }}</p>
-                        <p><strong>Old Input:</strong> {{ old() ? json_encode(array_keys(old())) : 'None' }}</p>
-                        <p><strong>Validation Errors:</strong> {{ $errors->count() }}</p>
-                    </div>
-                </details>
-            </div>
-        @endif
     </section>
-@endsection
+</div>
 
 @push('scripts')
-    <script src="{{ asset('js/employee-management.js') }}"></script>
+<script>
+function createEmployeeForm(config) {
+    return {
+        form: {
+            name: '',
+            employee_id: '',
+            email: '',
+            phone: '',
+            date_of_birth: '',
+            password: '',
+            address: '',
+            department: '',
+            position: '',
+            hire_date: '',
+            salary: '',
+            reporting_to: '',
+            is_active: true,
+            role: '',
+            roles: [],
+            parties: []
+        },
+        partySearch: '',
+        showPassword: false,
+        submitting: false,
+        errors: {},
+        bannerMessage: '',
+        bannerType: 'success',
+
+        showBanner(msg, type = 'success') {
+            this.bannerMessage = msg;
+            this.bannerType = type;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (type === 'success') {
+                setTimeout(() => {
+                    window.location.href = config.indexUrl;
+                }, 1200);
+            }
+        },
+
+        async submitForm() {
+            this.submitting = true;
+            this.errors = {};
+            this.bannerMessage = '';
+
+            try {
+                const payload = {
+                    ...this.form,
+                    roles: this.form.role ? [this.form.role] : [],
+                    parties: this.form.parties.map(id => parseInt(id, 10))
+                };
+
+                const response = await fetch(config.storeUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': config.csrfToken
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    this.showBanner(data.message || 'Employee created successfully! Redirecting...', 'success');
+                } else if (response.status === 422) {
+                    this.errors = data.errors || {};
+                    this.showBanner(data.message || 'Please fix the validation errors below.', 'error');
+                } else {
+                    this.showBanner(data.message || 'An error occurred while creating the employee.', 'error');
+                }
+            } catch (err) {
+                console.error('AJAX Error:', err);
+                this.showBanner('Failed to submit form. Please check your network connection.', 'error');
+            } finally {
+                this.submitting = false;
+            }
+        }
+    };
+}
+</script>
 @endpush
+@endsection
+

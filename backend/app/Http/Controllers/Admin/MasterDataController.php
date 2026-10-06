@@ -34,12 +34,22 @@ class MasterDataController extends Controller
         ],
     ];
 
-    public function index(string $type)
+    public function index(Request $request, string $type)
     {
         $config = $this->resolveType($type);
         /** @var Model $modelClass */
         $modelClass = $config['model'];
         $records = $modelClass::query()->orderBy('name')->get();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'type' => $type,
+                'config' => $config,
+                'records' => $records,
+                'types' => $this->types,
+            ]);
+        }
 
         return view('admin.master-data.index', [
             'type' => $type,
@@ -56,7 +66,15 @@ class MasterDataController extends Controller
 
         /** @var Model $modelClass */
         $modelClass = $config['model'];
-        $modelClass::create($validated);
+        $record = $modelClass::create($validated);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "{$config['label']} record created successfully.",
+                'record' => $record,
+            ]);
+        }
 
         return redirect()
             ->route('admin.master-data.index', $type)
@@ -71,16 +89,31 @@ class MasterDataController extends Controller
 
         $record->update($validated);
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "{$config['label']} record updated successfully.",
+                'record' => $record->fresh(),
+            ]);
+        }
+
         return redirect()
             ->route('admin.master-data.index', $type)
             ->with('success', "{$config['label']} record updated successfully.");
     }
 
-    public function destroy(string $type, int $id)
+    public function destroy(Request $request, string $type, int $id)
     {
         $config = $this->resolveType($type);
         $record = $this->findRecord($config, $id);
         $record->delete();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "{$config['label']} record deleted successfully.",
+            ]);
+        }
 
         return redirect()
             ->route('admin.master-data.index', $type)

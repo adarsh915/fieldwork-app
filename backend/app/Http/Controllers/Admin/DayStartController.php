@@ -32,7 +32,7 @@ class DayStartController extends Controller
 
         $query = DayStart::query()
             ->forUser($user)
-            ->with(['user', 'tourPurpose', 'tourType', 'vehicleType', 'party'])
+            ->with(['user.roles', 'tourPurpose', 'tourType', 'vehicleType', 'party'])
             ->orderByDesc('date')
             ->orderByDesc('created_at');
 
@@ -53,11 +53,46 @@ class DayStartController extends Controller
             }
         }
 
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
         $dayStarts = $query->paginate(20)->withQueryString();
 
-        $employees = $visibleIds === null
-            ? User::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
-            : User::query()->whereIn('id', $visibleIds)->where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'records' => $dayStarts->map(function ($ds) {
+                    return [
+                        'id'                => $ds->id,
+                        'user_name'         => $ds->user ? $ds->user->name_with_role : 'Unknown',
+                        'date_formatted'    => $ds->date?->format('d M Y') ?? '—',
+                        'tour_purpose'      => $ds->tourPurpose?->name ?? '—',
+                        'opening_km'        => $ds->opening_km ?? '—',
+                        'closing_km'        => $ds->closing_km ?? '—',
+                        'status'            => $ds->status,
+                        'end_time'          => $ds->end_time,
+                        'show_url'          => route('admin.day-starts.show', $ds->id),
+                        'update_status_url' => route('admin.day-starts.updateStatus', $ds->id),
+                    ];
+                }),
+                'pagination' => [
+                    'current_page' => $dayStarts->currentPage(),
+                    'last_page'    => $dayStarts->lastPage(),
+                    'per_page'     => $dayStarts->perPage(),
+                    'total'        => $dayStarts->total(),
+                    'from'         => $dayStarts->firstItem() ?? 0,
+                    'to'           => $dayStarts->lastItem() ?? 0,
+                ],
+                'can_approve' => $user->can('day-start.approve'),
+            ]);
+        }
+
+        $employees = User::with('roles')
+            ->where('is_active', true)
+            ->when($visibleIds !== null, fn($q) => $q->whereIn('id', $visibleIds))
+            ->orderBy('name')
+            ->get();
 
         return view('admin.day-starts.index', compact('dayStarts', 'employees'));
     }
@@ -190,6 +225,14 @@ class DayStartController extends Controller
                 'status' => $request->status,
                 'approved_by' => $user->id,
             ]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'status'  => $request->status,
+                'message' => 'Day status updated to ' . ucfirst($request->status),
+            ]);
+        }
 
         return back()->with('success', 'Day status updated to ' . ucfirst($request->status));
     }

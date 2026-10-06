@@ -11,14 +11,15 @@ export interface OrderPayload {
   visit_id?: number | null;
   party_id: number;
   order_source?: "visit" | "phone";
+  order_date?: string;
   delivery_destination?: string;
   preferred_transport?: string;
   vehicle_no?: string;
   dispatch_date?: string;
   remarks?: string;
   schema?: string;
-  order_type: string;
-  payment_mode: string;
+  order_type?: string;
+  payment_mode?: string;
   items: OrderItemPayload[];
 }
 

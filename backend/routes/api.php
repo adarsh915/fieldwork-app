@@ -22,8 +22,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Auth
     Route::prefix('auth')->name('api.auth.')->group(function () {
-        Route::get('me',     [AuthController::class, 'me'])->name('me');
-        Route::post('logout',[AuthController::class, 'logout'])->name('logout');
+        Route::get('me',             [AuthController::class, 'me'])->name('me');
+        Route::post('logout',        [AuthController::class, 'logout'])->name('logout');
+        Route::post('fcm-token',     [AuthController::class, 'updateFcmToken'])->name('fcm-token');
+    });
+
+    // In-App Notifications
+    Route::prefix('notifications')->name('api.notifications.')->group(function () {
+        Route::get('latest',          [\App\Http\Controllers\Api\NotificationController::class, 'latest'])->name('latest');
+        Route::post('{id}/read',      [\App\Http\Controllers\Api\NotificationController::class, 'markRead'])->name('read');
     });
 
     // Master Data (dropdowns / pickers)

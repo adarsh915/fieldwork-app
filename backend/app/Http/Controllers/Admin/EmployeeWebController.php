@@ -27,14 +27,43 @@ class EmployeeWebController extends Controller
      */
     public function bulkSyncParties(Request $request, User $employee)
     {
+        $this->authorize('update', $employee);
+
         $validated = $request->validate([
-            'customer_ids' => ['required', 'array'],
+            'customer_ids' => ['nullable', 'array'],
             'customer_ids.*' => ['integer', 'distinct', 'exists:customers,id'],
         ]);
 
-        $customerIds = array_values($validated['customer_ids']);
+        $customerIds = array_values($validated['customer_ids'] ?? []);
+
+        // Check if any of the selected parties are already actively assigned to another employee
+        $alreadyAssigned = PartyEmployeeMap::whereIn('party_id', $customerIds)
+            ->where('is_active', true)
+            ->where('employee_id', '!=', $employee->id)
+            ->with(['party', 'employee.roles'])
+            ->get();
+
+        if ($alreadyAssigned->isNotEmpty()) {
+            $conflictNames = $alreadyAssigned->map(fn($m) => "'{$m->party?->name}' (assigned to {$m->employee?->name_with_role})")->join(', ');
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cannot assign already assigned party: {$conflictNames}. A party cannot be assigned to multiple employees.",
+                ], 422);
+            }
+            return redirect()->back()->withErrors(['customer_ids' => "Cannot assign already assigned party: {$conflictNames}"]);
+        }
 
         $this->syncEmployeeParties($employee->id, $customerIds);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Parties assigned successfully! Total assigned: ' . count($customerIds),
+                'assigned_count' => count($customerIds),
+                'assigned_party_ids' => $customerIds,
+            ]);
+        }
 
         return redirect()->back()->with('status', 'Parties assigned successfully. Updated: ' . count($customerIds));
     }
@@ -81,7 +110,7 @@ class EmployeeWebController extends Controller
             $statusFilter = $request->get('status');
 
             $query = User::query()
-                ->with('roles')
+                ->with(['roles', 'reportingManager.roles', 'parties:id,name'])
                 ->orderBy('created_at', 'desc');
 
             // Data scoping: restrict to visible team members
@@ -116,8 +145,10 @@ class EmployeeWebController extends Controller
 
             $employees = $query->get();
             $roles = Role::orderBy('name')->get();
+            $customers = Customer::active()->orderBy('name')->get(['id', 'name']);
+            $managers = User::with('roles')->where('is_active', true)->orderBy('name')->get();
 
-            return view('admin.employees.index', compact('employees', 'roles', 'search', 'roleFilter', 'statusFilter'));
+            return view('admin.employees.index', compact('employees', 'roles', 'customers', 'managers', 'search', 'roleFilter', 'statusFilter'));
         } catch (\Exception $e) {
             \Log::error('Employee index error: ' . $e->getMessage());
             return redirect()->route('admin.dashboard')->with('error', 'Unable to load employee list: ' . $e->getMessage());
@@ -131,7 +162,7 @@ class EmployeeWebController extends Controller
     {
         $roles = Role::orderBy('name')->get();
         $customers = Customer::active()->orderBy('name')->get(['id', 'name']);
-        $managers = User::where('is_active', true)->orderBy('name')->get(['id', 'name', 'employee_id']);
+        $managers = User::with('roles')->where('is_active', true)->orderBy('name')->get();
 
         return view('admin.employees.create', compact('roles', 'customers', 'managers'));
     }
@@ -156,7 +187,8 @@ class EmployeeWebController extends Controller
                 'salary' => ['nullable', 'numeric', 'min:0'],
                 'reporting_to' => ['nullable', 'exists:users,id'],
                 'is_active' => ['nullable', 'boolean'],
-                'roles' => ['nullable', 'array'],
+                'role' => ['nullable', 'string', 'exists:roles,name'],
+                'roles' => ['nullable'],
                 'roles.*' => ['exists:roles,name'],
                 'parties' => ['nullable', 'array'],
                 'parties.*' => ['exists:customers,id'],
@@ -179,9 +211,17 @@ class EmployeeWebController extends Controller
                 'is_active' => $request->boolean('is_active', true),
             ]);
 
-            // Assign roles if provided
-            if (isset($validated['roles']) && !empty($validated['roles'])) {
-                $employee->assignRole($validated['roles']);
+            // Assign single role if provided
+            $roleToAssign = [];
+            if (!empty($validated['role'])) {
+                $roleToAssign = [$validated['role']];
+            } elseif (!empty($validated['roles'])) {
+                $rolesArr = is_array($validated['roles']) ? $validated['roles'] : [$validated['roles']];
+                $roleToAssign = array_slice(array_filter($rolesArr), 0, 1);
+            }
+
+            if (!empty($roleToAssign)) {
+                $employee->syncRoles($roleToAssign);
             }
 
             if (isset($validated['parties'])) {
@@ -196,11 +236,26 @@ class EmployeeWebController extends Controller
                 'roles' => $validated['roles'] ?? []
             ]);
 
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Employee created successfully! ID: ' . ($employee->employee_id ?? '#' . $employee->id),
+                    'employee_id' => $employee->id,
+                    'redirect_url' => route('admin.employees.index'),
+                ]);
+            }
+
             return redirect()->route('admin.employees.index')
                 ->with('status', 'Employee created successfully! ID: ' . $employee->id);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            // Validation errors - Laravel will handle this automatically
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please correct the validation errors below.',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
             throw $e;
         } catch (\Exception $e) {
             \Log::error('Failed to create employee', [
@@ -210,6 +265,13 @@ class EmployeeWebController extends Controller
                 'data' => $request->except('password')
             ]);
 
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create employee: ' . $e->getMessage(),
+                ], 500);
+            }
+
             return redirect()->back()
                 ->withInput($request->except('password'))
                 ->withErrors(['error' => 'Failed to create employee: ' . $e->getMessage()]);
@@ -217,15 +279,72 @@ class EmployeeWebController extends Controller
     }
 
     /**
-     * Show edit employee form
+     * AJAX endpoint returning fresh active employees / managers
      */
-    public function edit($id)
+    public function activeDropdown(Request $request)
+    {
+        $scopedUserIds = DataScope::visibleUserIds('employees');
+        $query = User::with('roles')->where('is_active', true)->orderBy('name');
+        if ($scopedUserIds !== null) {
+            $query->whereIn('id', $scopedUserIds);
+        }
+        if ($excludeId = $request->query('exclude_id')) {
+            $query->where('id', '!=', $excludeId);
+        }
+        $employees = $query->get()->map(fn($u) => [
+            'id'        => $u->id,
+            'name'      => $u->name_with_role,
+            'role_name' => $u->role_name,
+        ]);
+
+        return response()->json([
+            'success'   => true,
+            'employees' => $employees,
+            'managers'  => $employees,
+        ]);
+    }
+
+    /**
+     * Show edit employee form (or return JSON for AJAX modal)
+     */
+    public function edit(Request $request, $id)
     {
         $employee = User::with(['roles', 'parties'])->findOrFail($id);
+        $this->authorize('update', $employee);
+
         $roles = Role::orderBy('name')->get();
         $customers = Customer::active()->orderBy('name')->get(['id', 'name']);
-        $managers = User::where('is_active', true)->where('id', '!=', $id)->orderBy('name')->get(['id', 'name', 'employee_id']);
+        $managers = User::with('roles')->where('is_active', true)->where('id', '!=', $id)->orderBy('name')->get();
         $assignedPartyIds = $employee->parties->pluck('id')->all();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'employee' => [
+                    'id' => $employee->id,
+                    'name' => $employee->name,
+                    'email' => $employee->email,
+                    'phone' => $employee->phone,
+                    'employee_id' => $employee->employee_id,
+                    'address' => $employee->address,
+                    'date_of_birth' => $employee->date_of_birth ? $employee->date_of_birth->format('Y-m-d') : null,
+                    'hire_date' => $employee->hire_date ? $employee->hire_date->format('Y-m-d') : null,
+                    'department' => $employee->department,
+                    'position' => $employee->position,
+                    'salary' => $employee->salary,
+                    'reporting_to' => $employee->reporting_to,
+                    'is_active' => (bool)$employee->is_active,
+                    'roles' => $employee->roles->pluck('name')->all(),
+                    'parties' => $assignedPartyIds,
+                ],
+                'managers' => $managers->map(fn($m) => [
+                    'id'        => $m->id,
+                    'name'      => $m->name_with_role,
+                    'role_name' => $m->role_name,
+                ]),
+                'assigned_party_ids' => $assignedPartyIds,
+            ]);
+        }
 
         return view('admin.employees.edit', compact('employee', 'roles', 'customers', 'managers', 'assignedPartyIds'));
     }
@@ -235,69 +354,147 @@ class EmployeeWebController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $employee = User::findOrFail($id);
+        try {
+            $employee = User::findOrFail($id);
+            $this->authorize('update', $employee);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($employee->id)],
-            'password' => ['nullable', Password::defaults()],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'employee_id' => ['nullable', 'string', 'max:50', Rule::unique('users')->ignore($employee->id)],
-            'address' => ['nullable', 'string', 'max:500'],
-            'date_of_birth' => ['nullable', 'date', 'before:today'],
-            'hire_date' => ['nullable', 'date'],
-            'department' => ['nullable', 'string', 'max:100'],
-            'position' => ['nullable', 'string', 'max:100'],
-            'salary' => ['nullable', 'numeric', 'min:0'],
-            'reporting_to' => ['nullable', 'exists:users,id'],
-            'is_active' => ['boolean'],
-            'roles' => ['nullable', 'array'],
-            'roles.*' => ['exists:roles,name'],
-            'parties' => ['nullable', 'array'],
-            'parties.*' => ['exists:customers,id'],
-        ]);
+            $validated = $request->validate([
+                'name' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($employee->id)],
+                'password' => ['nullable', Password::defaults()],
+                'phone' => ['nullable', 'string', 'max:20'],
+                'employee_id' => ['nullable', 'string', 'max:50', Rule::unique('users')->ignore($employee->id)],
+                'address' => ['nullable', 'string', 'max:500'],
+                'date_of_birth' => ['nullable', 'date', 'before:today'],
+                'hire_date' => ['nullable', 'date'],
+                'department' => ['nullable', 'string', 'max:100'],
+                'position' => ['nullable', 'string', 'max:100'],
+                'salary' => ['nullable', 'numeric', 'min:0'],
+                'reporting_to' => ['nullable', 'exists:users,id'],
+                'is_active' => ['nullable', 'boolean'],
+                'role' => ['nullable', 'string', 'exists:roles,name'],
+                'roles' => ['nullable'],
+                'roles.*' => ['exists:roles,name'],
+                'parties' => ['nullable', 'array'],
+                'parties.*' => ['exists:customers,id'],
+            ]);
 
-        $updateData = [
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'] ?? null,
-            'employee_id' => $validated['employee_id'] ?? null,
-            'address' => $validated['address'] ?? null,
-            'date_of_birth' => $validated['date_of_birth'] ?? null,
-            'hire_date' => $validated['hire_date'] ?? null,
-            'department' => $validated['department'] ?? null,
-            'position' => $validated['position'] ?? null,
-            'salary' => $validated['salary'] ?? null,
-            'reporting_to' => $validated['reporting_to'] ?? null,
-            'is_active' => $request->boolean('is_active', true),
-        ];
+            $updateData = [
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'] ?? null,
+                'employee_id' => $validated['employee_id'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'date_of_birth' => $validated['date_of_birth'] ?? null,
+                'hire_date' => $validated['hire_date'] ?? null,
+                'department' => $validated['department'] ?? null,
+                'position' => $validated['position'] ?? null,
+                'salary' => $validated['salary'] ?? null,
+                'reporting_to' => $validated['reporting_to'] ?? null,
+                'is_active' => $request->boolean('is_active', true),
+            ];
 
-        if (!empty($validated['password'])) {
-            $updateData['password'] = Hash::make($validated['password']);
+            if (!empty($validated['password'])) {
+                $updateData['password'] = Hash::make($validated['password']);
+            }
+
+            $employee->update($updateData);
+
+            if ($request->has('role') || $request->has('roles')) {
+                $roleToSync = [];
+                if (!empty($validated['role'])) {
+                    $roleToSync = [$validated['role']];
+                } elseif (!empty($validated['roles'])) {
+                    $rolesArr = is_array($validated['roles']) ? $validated['roles'] : [$validated['roles']];
+                    $roleToSync = array_slice(array_filter($rolesArr), 0, 1);
+                }
+                $employee->syncRoles($roleToSync);
+            }
+
+            if (isset($validated['parties'])) {
+                $this->syncEmployeeParties($employee->id, $validated['parties']);
+            }
+
+            if ($request->ajax() || $request->wantsJson()) {
+                $employee->load(['roles', 'parties', 'reportingManager.roles']);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Employee updated successfully!',
+                    'employee' => [
+                        'id' => $employee->id,
+                        'name' => $employee->name,
+                        'email' => $employee->email,
+                        'phone' => $employee->phone,
+                        'employee_id' => $employee->employee_id,
+                        'position' => $employee->position,
+                        'department' => $employee->department,
+                        'is_active' => (bool)$employee->is_active,
+                        'roles' => $employee->roles->pluck('name')->all(),
+                        'reporting_to' => $employee->reporting_to,
+                        'reporting_to_name' => $employee->reportingManager?->name_with_role ?? '—',
+                        'parties_count' => $employee->parties->count(),
+                        'assigned_party_ids' => $employee->parties->pluck('id')->all(),
+                    ],
+                    'redirect_url' => route('admin.employees.index'),
+                ]);
+            }
+
+            return redirect()->route('admin.employees.index')
+                ->with('status', 'Employee updated successfully!');
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please correct the validation errors below.',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+            throw $e;
+        } catch (\Exception $e) {
+            \Log::error('Failed to update employee', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update employee: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->withInput($request->except('password'))
+                ->withErrors(['error' => 'Failed to update employee: ' . $e->getMessage()]);
         }
-
-        $employee->update($updateData);
-
-        $employee->syncRoles($request->input('roles', []));
-
-        $this->syncEmployeeParties($employee->id, $request->input('parties', []));
-
-        return redirect()->route('admin.employees.index')
-            ->with('status', 'Employee updated successfully!');
     }
 
     /**
      * Delete employee
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $employee = User::findOrFail($id);
+        $this->authorize('delete', $employee);
 
         if (auth()->id() === $employee->id) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'You cannot delete your own account.'], 422);
+            }
             return back()->withErrors(['error' => 'You cannot delete your own account']);
         }
 
+        $name = $employee->name;
         $employee->delete();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Employee '{$name}' deleted successfully!",
+            ]);
+        }
 
         return redirect()->route('admin.employees.index')
             ->with('status', 'Employee deleted successfully!');
@@ -306,10 +503,23 @@ class EmployeeWebController extends Controller
     /**
      * Toggle employee status
      */
-    public function toggleStatus($id)
+    public function toggleStatus(Request $request, $id)
     {
         $employee = User::findOrFail($id);
+        $this->authorize('update', $employee);
+
         $employee->update(['is_active' => !$employee->is_active]);
+
+        $statusStr = $employee->is_active ? 'activated' : 'deactivated';
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'is_active' => (bool)$employee->is_active,
+                'status_label' => $employee->is_active ? 'Active' : 'Inactive',
+                'message' => "Employee '{$employee->name}' {$statusStr} successfully!",
+            ]);
+        }
 
         return back()->with('status', 'Employee status updated successfully!');
     }
@@ -319,7 +529,41 @@ class EmployeeWebController extends Controller
      */
     public function showParties(Request $request, $id)
     {
-        $employee = User::with('roles')->findOrFail($id);
+        $employee = User::with(['roles', 'parties'])->findOrFail($id);
+        $this->authorize('view', $employee);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            $customers = Customer::active()
+                ->with(['activeAssignment.employee.roles'])
+                ->orderBy('name')
+                ->get();
+
+            $partiesList = $customers->map(function ($c) use ($employee) {
+                $activeAssignment = $c->activeAssignment;
+                $assignedEmp = $activeAssignment?->employee;
+                $isAssignedToThis = $assignedEmp && (int)$assignedEmp->id === (int)$employee->id;
+                $isAssignedToOther = $assignedEmp && (int)$assignedEmp->id !== (int)$employee->id;
+
+                return [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'city' => $c->city ?? '',
+                    'is_assigned_to_this' => $isAssignedToThis,
+                    'is_assigned_to_other' => $isAssignedToOther,
+                    'assigned_to_name' => $isAssignedToOther ? $assignedEmp->name_with_role : null,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'employee' => [
+                    'id' => $employee->id,
+                    'name' => $employee->name_with_role,
+                ],
+                'assigned_party_ids' => $employee->parties->pluck('id')->all(),
+                'parties' => $partiesList,
+            ]);
+        }
 
         $search = $request->input('q');
 
@@ -344,6 +588,7 @@ class EmployeeWebController extends Controller
     public function showProfile($id)
     {
         $employee = User::with(['roles', 'permissions'])->findOrFail($id);
+        $this->authorize('view', $employee);
 
         // Get assigned parties with their latest transactions and visits
         $assignedParties = Customer::query()

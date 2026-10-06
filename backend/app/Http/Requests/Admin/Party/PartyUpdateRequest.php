@@ -12,6 +12,20 @@ class PartyUpdateRequest extends FormRequest
         return $this->user()->can('customers.manage');
     }
 
+    protected function prepareForValidation(): void
+    {
+        $merge = [];
+        if ($this->has('credit_days') && ($this->credit_days === '' || $this->credit_days === null)) {
+            $merge['credit_days'] = 0;
+        }
+        if ($this->has('credit_limit') && ($this->credit_limit === '' || $this->credit_limit === null)) {
+            $merge['credit_limit'] = 0;
+        }
+        if (!empty($merge)) {
+            $this->merge($merge);
+        }
+    }
+
     public function rules(): array
     {
         $partyId = $this->route('id');

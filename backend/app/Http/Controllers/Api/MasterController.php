@@ -59,9 +59,9 @@ class MasterController extends Controller
         $user = $request->user();
 
         if ($user->canSelectAllParties()) {
-            $parties = Customer::active()->orderBy('name')->get(['id', 'name', 'mobile', 'address']);
+            $parties = Customer::active()->where('approval_status', 'approved')->orderBy('name')->get(['id', 'name', 'mobile', 'address']);
         } else {
-            $parties = $user->parties()->active()->orderBy('name')->get(['customers.id', 'customers.name', 'customers.mobile', 'customers.address']);
+            $parties = $user->parties()->active()->where('approval_status', 'approved')->orderBy('name')->get(['customers.id', 'customers.name', 'customers.mobile', 'customers.address']);
         }
 
         return response()->json(['success' => true, 'data' => $parties]);

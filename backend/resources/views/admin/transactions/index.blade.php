@@ -71,7 +71,7 @@
                             <div class="text-caption">{{ $transaction->customer?->mobile ?? '' }}</div>
                         </td>
                         <td>
-                            <div class="text-body">{{ $transaction->user?->name ?? '—' }}</div>
+                            <div class="text-body font-medium">{{ $transaction->user?->name_with_role ?? '—' }}</div>
                             <div class="text-caption">{{ $transaction->user?->email ?? '' }}</div>
                         </td>
                         <td><span class="badge badge-neutral">{{ ucfirst($transaction->type) }}</span></td>

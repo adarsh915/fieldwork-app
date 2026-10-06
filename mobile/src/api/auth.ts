@@ -86,3 +86,14 @@ export async function logout(): Promise<void> {
     await clearAuthToken();
   }
 }
+
+/**
+ * Register device push notification token (FCM or Expo push token) with backend.
+ */
+export async function updateFcmToken(fcmToken: string): Promise<void> {
+  await requestJson("/auth/fcm-token", {
+    method: "POST",
+    body: { fcm_token: fcmToken },
+  });
+}
+

@@ -16,12 +16,10 @@
                 </div>
                 <div>
                     <div class="flex items-center gap-2.5">
-                        <h1 class="text-2xl font-black text-slate-900">{{ $scorecard['user']->name }}</h1>
-                        <span class="badge badge-secondary py-0.5 px-2 text-xs font-bold">{{ $scorecard['user']->employee_id ?? 'EMP-' . $scorecard['user']->id }}</span>
-                        <span class="badge badge-primary py-0.5 px-2 text-xs">{{ $scorecard['user']->roles->first()?->name ?? 'Field Worker' }}</span>
+                        <h1 class="text-2xl font-black text-slate-900">{{ $scorecard['user']->name }} ({{ $scorecard['user']->role_name }})</h1>
                     </div>
                     <p class="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-4">
-                        <span><strong class="text-slate-700">Reporting Manager:</strong> {{ $scorecard['user']->reportingManager?->name ?? 'None' }}</span>
+                        <span><strong class="text-slate-700">Reporting Manager:</strong> {{ $scorecard['user']->reportingManager ? $scorecard['user']->reportingManager->name . ' (' . $scorecard['user']->reportingManager->role_name . ')' : 'None' }}</span>
                         <span><strong class="text-slate-700">Email:</strong> {{ $scorecard['user']->email }}</span>
                         <span><strong class="text-slate-700">Phone:</strong> {{ $scorecard['user']->phone ?? '—' }}</span>
                     </p>

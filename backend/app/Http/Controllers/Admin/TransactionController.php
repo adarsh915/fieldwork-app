@@ -21,7 +21,7 @@ class TransactionController extends Controller
         }
 
         $txQuery = Transaction::query()
-            ->with(['user', 'customer']);
+            ->with(['user.roles', 'customer']);
         if ($scopedIds !== null) {
             $txQuery->whereIn('user_id', $scopedIds);
         }

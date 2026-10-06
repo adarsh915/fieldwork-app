@@ -8,6 +8,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <!-- Quill Rich Text Editor -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <style>[x-cloak] { display: none !important; }</style>
     @stack('styles')
 </head>
 <body class="admin-shell">
@@ -215,6 +216,13 @@
                         <span x-show="!sidebarCollapsed" class="truncate">Roles & Permissions</span>
                     </a>
                     @endrole
+
+                    <a href="{{ route('admin.push-notifications.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.push-notifications.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Push Notifications' : ''">
+                        <x-lucide-bell-ring class="w-5 h-5 shrink-0 text-indigo-500" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Push Notifications</span>
+                    </a>
 
                     @can('master-data.manage')
                     <a href="{{ route('admin.master-data.index', 'tour-purposes') }}"
@@ -432,72 +440,137 @@
 @stack('scripts')
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 
-{{-- ── Permission Denied Toast (pure JS — Alpine loads too early via Vite) ── --}}
-@if (session('permission_denied'))
-<div id="perm-toast" style="
-    position: fixed; top: 20px; right: 20px; z-index: 9999;
-    display: flex; align-items: flex-start; gap: 12px;
-    max-width: 360px; width: 100%;
-    background: #fff; border: 1px solid #fecaca;
-    border-radius: 16px; padding: 14px 16px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.12);
-    animation: toast-in 0.3s ease-out;
-    overflow: hidden;
-">
-    {{-- Icon --}}
-    <span style="flex-shrink:0; width:36px; height:36px; background:#fff1f2; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-top:1px;">
-        <svg width="20" height="20" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.25-8.25-3.286z"/>
-        </svg>
-    </span>
-
-    {{-- Text --}}
-    <div style="flex:1; min-width:0;">
-        <p style="margin:0; font-size:13px; font-weight:600; color:#b91c1c; line-height:1.3;">Access Denied</p>
-        <p style="margin:4px 0 0; font-size:13px; color:#dc2626; line-height:1.4;">{{ session('permission_denied') }}</p>
-    </div>
-
-    {{-- Close --}}
-    <button onclick="document.getElementById('perm-toast').remove()"
-        style="flex-shrink:0; background:none; border:none; cursor:pointer; padding:4px; border-radius:6px; line-height:0; margin-top:1px;">
-        <svg width="16" height="16" fill="none" stroke="#f87171" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-    </button>
-
-    {{-- Progress bar --}}
-    <div id="perm-toast-bar" style="
-        position:absolute; bottom:0; left:0; height:3px;
-        background:#fca5a5; border-radius:2px;
-        width:100%; animation: toast-shrink 4.5s linear forwards;
-    "></div>
-</div>
+{{-- ── Global Toast Notification Container (Fixed Top-Right) ── --}}
+<div id="global-toast-container" style="
+    position: fixed; top: 20px; right: 20px; z-index: 99999;
+    display: flex; flex-direction: column; gap: 10px;
+    max-width: 380px; width: calc(100vw - 40px);
+    pointer-events: none;
+"></div>
 
 <style>
-    @@keyframes toast-in {
-        from { opacity: 0; transform: translateX(20px) translateY(-8px); }
-        to   { opacity: 1; transform: translateX(0) translateY(0); }
+    @keyframes toast-slide-in {
+        from { opacity: 0; transform: translateX(40px) scale(0.95); }
+        to   { opacity: 1; transform: translateX(0) scale(1); }
     }
-    @@keyframes toast-shrink {
+    @keyframes toast-progress-shrink {
         from { width: 100%; }
         to   { width: 0%; }
     }
+    .admin-toast-card {
+        pointer-events: auto;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        background: #ffffff;
+        border-radius: 14px;
+        padding: 12px 14px;
+        box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05);
+        animation: toast-slide-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        position: relative;
+        overflow: hidden;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    .admin-toast-card.toast-success { border-left: 4px solid #10b981; }
+    .admin-toast-card.toast-error   { border-left: 4px solid #f43f5e; }
+    .admin-toast-card.toast-warning { border-left: 4px solid #f59e0b; }
+    .admin-toast-card.toast-info    { border-left: 4px solid #6366f1; }
 </style>
 
 <script>
-    // Auto-dismiss after 4.5s with fade-out
-    setTimeout(function() {
-        var t = document.getElementById('perm-toast');
-        if (!t) return;
-        t.style.transition = 'opacity 0.3s, transform 0.3s';
-        t.style.opacity = '0';
-        t.style.transform = 'translateX(20px)';
-        setTimeout(function() { if (t) t.remove(); }, 300);
-    }, 4500);
+    (function() {
+        const icons = {
+            success: `<svg width="20" height="20" fill="none" stroke="#059669" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+            error: `<svg width="20" height="20" fill="none" stroke="#e11d48" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>`,
+            warning: `<svg width="20" height="20" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`,
+            info: `<svg width="20" height="20" fill="none" stroke="#4f46e5" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
+        };
+
+        const iconBgs = {
+            success: '#ecfdf5',
+            error: '#fff1f2',
+            warning: '#fffbeb',
+            info: '#eef2ff'
+        };
+
+        const titles = {
+            success: 'Success',
+            error: 'Action Failed',
+            warning: 'Warning',
+            info: 'Notice'
+        };
+
+        window.toast = function(message, type = 'success', customTitle = null, durationMs = 4500) {
+            const container = document.getElementById('global-toast-container');
+            if (!container) return;
+
+            const safeType = ['success', 'error', 'danger', 'warning', 'info'].includes(type) ? (type === 'danger' ? 'error' : type) : 'info';
+            const title = customTitle || titles[safeType];
+
+            const card = document.createElement('div');
+            card.className = `admin-toast-card toast-${safeType}`;
+
+            card.innerHTML = `
+                <span style="flex-shrink:0; width:34px; height:34px; background:${iconBgs[safeType]}; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-top:1px;">
+                    ${icons[safeType]}
+                </span>
+                <div style="flex:1; min-width:0;">
+                    <p style="margin:0; font-size:12.5px; font-weight:700; color:#0f172a; line-height:1.3;">${title}</p>
+                    <p style="margin:2px 0 0; font-size:12px; color:#475569; line-height:1.4; word-break:break-word;">${message}</p>
+                </div>
+                <button type="button" class="toast-close-btn" style="flex-shrink:0; background:none; border:none; cursor:pointer; padding:3px; border-radius:6px; color:#94a3b8; line-height:0; margin-top:1px;" title="Dismiss">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+                <div class="toast-progress" style="position:absolute; bottom:0; left:0; height:3px; background:${safeType === 'success' ? '#6ee7b7' : (safeType === 'error' ? '#fda4af' : (safeType === 'warning' ? '#fde68a' : '#c7d2fe'))}; width:100%; animation: toast-progress-shrink ${durationMs}ms linear forwards;"></div>
+            `;
+
+            container.appendChild(card);
+
+            const removeToast = () => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateX(40px) scale(0.95)';
+                setTimeout(() => { card.remove(); }, 250);
+            };
+
+            const closeBtn = card.querySelector('.toast-close-btn');
+            if (closeBtn) closeBtn.addEventListener('click', removeToast);
+
+            const timeoutId = setTimeout(removeToast, durationMs);
+            card.addEventListener('mouseenter', () => {
+                const prog = card.querySelector('.toast-progress');
+                if (prog) prog.style.animationPlayState = 'paused';
+                clearTimeout(timeoutId);
+            });
+        };
+
+        window.showToast = window.toast;
+
+        // Listen for standard custom events
+        window.addEventListener('notify', function(e) {
+            if (e.detail) {
+                window.toast(e.detail.message || e.detail.text, e.detail.type || 'success', e.detail.title);
+            }
+        });
+        window.addEventListener('toast', function(e) {
+            if (e.detail) {
+                window.toast(e.detail.message || e.detail.text, e.detail.type || 'success', e.detail.title);
+            }
+        });
+
+        // Trigger Laravel session flash messages on page load
+        @if(session('status') || session('success'))
+            window.toast(@json(session('status') ?? session('success')), 'success', 'Success');
+        @endif
+        @if(session('error'))
+            window.toast(@json(session('error')), 'error', 'Error');
+        @endif
+        @if(session('warning'))
+            window.toast(@json(session('warning')), 'warning', 'Warning');
+        @endif
+        @if(session('permission_denied'))
+            window.toast(@json(session('permission_denied')), 'error', 'Access Denied');
+        @endif
+    })();
 </script>
-@endif
-
-
-
 </body>
 </html>

@@ -35,7 +35,7 @@
         </div>
 
         {{-- Name + Info --}}
-        <h2 class="text-page-title mb-1">{{ $employee->name }}</h2>
+        <h2 class="text-page-title mb-1">{{ $employee->name }} ({{ $employee->role_name }})</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 mt-2">
             <p class="text-body flex items-center gap-2">
                 <x-lucide-mail class="w-4 h-4 text-ink-400 shrink-0" />
@@ -47,10 +47,6 @@
                     {{ $employee->phone }}
                 </p>
             @endif
-            <p class="text-body flex items-center gap-2">
-                <x-lucide-badge class="w-4 h-4 text-ink-400 shrink-0" />
-                Employee ID: <span class="font-semibold">{{ $employee->employee_id ?? 'N/A' }}</span>
-            </p>
             @if($employee->department || $employee->position)
                 <p class="text-body flex items-center gap-2">
                     <x-lucide-briefcase class="w-4 h-4 text-ink-400 shrink-0" />

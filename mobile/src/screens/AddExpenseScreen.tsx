@@ -1,14 +1,12 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 
 import { submitExpense, getExpenseCategories, type ExpenseCategory } from "../api/expense";
@@ -43,11 +42,14 @@ export default function AddExpenseScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Stationery Items State
+  // Stationery Items State & refs
   const [items, setItems] = useState<{ item_name: string; quantity: number; unit_price: number; total_price: number }[]>([]);
   const [newItemName, setNewItemName] = useState("");
   const [newItemQty, setNewItemQty] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
+
+  const itemQtyRef = useRef<TextInput>(null);
+  const itemPriceRef = useRef<TextInput>(null);
 
   useEffect(() => {
     getExpenseCategories()
@@ -193,11 +195,7 @@ export default function AddExpenseScreen() {
     <View style={{ flex: 1, backgroundColor: "#F3F4F6" }}>
       <ScreenHeader title="Add Expense" onBack={() => navigation.goBack()} />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 20 }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScreen contentStyle={{ padding: 16, paddingBottom: 60 }} backgroundColor="#F3F4F6">
         <View style={styles.card}>
           {/* Date Selector */}
           <Text style={styles.fieldLabel}>Expense Date</Text>
@@ -273,23 +271,31 @@ export default function AddExpenseScreen() {
                 onChangeText={setNewItemName}
                 placeholder="Item name (e.g. Pen)"
                 placeholderTextColor="#A5B4FC"
+                returnKeyType="next"
+                onSubmitEditing={() => itemQtyRef.current?.focus()}
               />
               <View style={styles.itemInputsRow}>
                 <TextInput
+                  ref={itemQtyRef}
                   style={[styles.itemInput, { flex: 1 }]}
                   value={newItemQty}
                   onChangeText={(v) => setNewItemQty(v.replace(/[^0-9]/g, ""))}
                   keyboardType="number-pad"
                   placeholder="Qty"
                   placeholderTextColor="#A5B4FC"
+                  returnKeyType="next"
+                  onSubmitEditing={() => itemPriceRef.current?.focus()}
                 />
                 <TextInput
+                  ref={itemPriceRef}
                   style={[styles.itemInput, { flex: 1.5 }]}
                   value={newItemPrice}
                   onChangeText={(v) => setNewItemPrice(v.replace(/[^0-9.]/g, ""))}
                   keyboardType="numeric"
                   placeholder="Price per unit"
                   placeholderTextColor="#A5B4FC"
+                  returnKeyType="done"
+                  onSubmitEditing={handleAddItem}
                 />
                 <TouchableOpacity style={styles.addItemRowBtn} onPress={handleAddItem}>
                   <MaterialIcons name="add" size={24} color="#fff" />
@@ -334,8 +340,7 @@ export default function AddExpenseScreen() {
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.startBtnText}>Submit Expense</Text>}
           </TouchableOpacity>
         </View>
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
     </View>
   );
 }

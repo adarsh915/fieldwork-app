@@ -33,7 +33,7 @@
                             {{ $log->created_at->format('Y-m-d H:i:s') }}
                         </td>
                         <td class="p-3 font-medium">
-                            {{ $log->causer?->name ?? 'System / Unknown' }}
+                            {{ $log->causer?->name_with_role ?? 'System / Unknown' }}
                         </td>
                         <td class="p-3">
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">

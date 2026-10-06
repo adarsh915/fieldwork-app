@@ -127,6 +127,9 @@ class ComprehensivePermissionsSeeder extends Seeder
 
             // Reports
             'reports.view',
+            'reports.view-own',
+            'reports.view-team',
+            'reports.view-all',
             'reports.create',
             'reports.edit',
             'reports.delete',
@@ -235,7 +238,7 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'parties.view-team', 'parties.assign', 'employees.view-team',
                 'attendance.view-team', 'orders.view-team', 'payments.view-team',
                 'visits.view-team', 'leaves.view-team', 'expenses.view-team',
-                'day-start.view-team'
+                'day-start.view-team', 'reports.view-team'
             ]);
             $this->command->info('✅ Manager: ' . $manager->fresh()->permissions->count() . ' permissions');
         }
@@ -249,7 +252,7 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'parties.view-team', 'parties.assign', 'employees.view-team',
                 'attendance.view-team', 'orders.view-team', 'payments.view-team',
                 'visits.view-team', 'leaves.view-team', 'expenses.view-team',
-                'day-start.view-team'
+                'day-start.view-team', 'reports.view-team'
             ]);
             $this->command->info('✅ VP: ' . $vp->fresh()->permissions->count() . ' permissions');
         }
@@ -271,6 +274,7 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'expenses.view',
                 'expenses.manage',
                 'reports.view',
+                'reports.view-all',
             ]);
             $this->command->info('✅ Finance: Financial permissions');
         }
@@ -286,6 +290,7 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'visits.view',
                 'activities.view',
                 'reports.view',
+                'reports.view-own',
                 'attendance.view',
                 'attendance.view-own',
                 'products.view',
@@ -335,6 +340,7 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'attendance.view-own',
                 'employees.view',
                 'employees.view-own',
+                'reports.view-own',
             ]);
             $this->command->info('✅ Field Worker: Field operation permissions');
         } else {

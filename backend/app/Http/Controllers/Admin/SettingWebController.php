@@ -10,9 +10,17 @@ class SettingWebController extends Controller
 {
     public function __construct(private readonly SettingsService $settings) {}
 
-    public function index()
+    public function index(Request $request)
     {
         $settings = $this->settings->all();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success'  => true,
+                'settings' => $settings,
+            ]);
+        }
+
         return view('admin.settings.index', compact('settings'));
     }
 
@@ -22,6 +30,14 @@ class SettingWebController extends Controller
 
         foreach ($inputSettings as $key => $value) {
             $this->settings->set($key, $value, auth()->id());
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success'  => true,
+                'message'  => 'System settings saved and applied successfully.',
+                'settings' => $this->settings->all(),
+            ]);
         }
 
         return back()->with('success', 'System settings updated successfully.');

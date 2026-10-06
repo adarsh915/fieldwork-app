@@ -2,57 +2,188 @@
 
 @section('title', 'Expenses')
 @section('breadcrumb', 'ADMIN / EXPENSES')
-@section('page_title', 'Expense Tracking')
+@section('page_title', 'Expense Tracking & Claims')
 
 @section('content')
-<div class="panel p-6 mb-6">
-    <div class="flex justify-between items-center mb-4">
-        <h2 class="text-lg font-bold text-ink-900">Expense Filter</h2>
-        <a href="{{ route('admin.expenses.reports.monthly') }}" class="btn-primary flex items-center gap-2">
-            <x-lucide-calendar class="w-4 h-4" /> Monthly Summary
-        </a>
-    </div>
-    <form method="GET" action="{{ route('admin.expenses.index') }}" class="flex flex-wrap gap-4 items-end">
-        <div class="w-full sm:w-1/2 md:w-1/5">
-            <label class="form-label">Field Worker</label>
-            <select name="user_id" class="form-input">
-                <option value="">All Workers</option>
-                @foreach($users as $user)
-                    <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>
-                        {{ $user->name }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-        <div class="w-full sm:w-1/2 md:w-1/5">
-            <label class="form-label">Status</label>
-            <select name="status" class="form-input">
-                <option value="">All Statuses</option>
-                <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
-                <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
-            </select>
-        </div>
-        <div class="w-full sm:w-1/2 md:w-1/5">
-            <label class="form-label">Submission Timing</label>
-            <select name="timing" class="form-input">
-                <option value="">All Timings</option>
-                <option value="during_shift" {{ request('timing') == 'during_shift' ? 'selected' : '' }}>During Shift</option>
-                <option value="after_day_end" {{ request('timing') == 'after_day_end' ? 'selected' : '' }}>Post Day-End / Backdated</option>
-            </select>
-        </div>
-        <div class="w-full sm:w-1/2 md:w-1/5">
-            <label class="form-label">Month</label>
-            <input type="month" name="month" value="{{ request('month') }}" class="form-input">
-        </div>
-        <div>
-            <x-button type="submit" variant="primary">Filter</x-button>
-        </div>
-    </form>
-</div>
+<div class="panel" x-data="{
+    userId: '{{ request('user_id') }}',
+    status: '{{ request('status') }}',
+    timing: '{{ request('timing') }}',
+    month: '{{ request('month') }}',
+    search: '{{ request('search') }}',
+    loading: false,
+    records: {{ Js::from($expenses->map(fn($expense) => [
+        'id'                  => $expense->id,
+        'date_formatted'      => $expense->date ? $expense->date->format('d M Y') : '—',
+        'user_name'           => $expense->user?->name ?? 'Unknown',
+        'category_name'       => $expense->is_system_generated ? 'System Travel' : ($expense->category?->name ?? 'N/A'),
+        'is_system_generated' => (bool) $expense->is_system_generated,
+        'amount_formatted'    => number_format((float) $expense->amount, 2),
+        'is_after_day_end'    => (bool) $expense->is_after_day_end,
+        'bill_photo_url'      => $expense->bill_photo ? asset('storage/' . $expense->bill_photo) : null,
+        'status'              => $expense->status,
+        'day_start_id'        => $expense->day_start_id,
+        'day_report_url'      => $expense->day_start_id ? route('admin.expenses.reports.daily', $expense->day_start_id) : null,
+        'update_status_url'   => route('admin.expenses.updateStatus', $expense->id),
+    ])) }},
+    pagination: {
+        current_page: {{ $expenses->currentPage() }},
+        last_page: {{ $expenses->lastPage() }},
+        per_page: {{ $expenses->perPage() }},
+        total: {{ $expenses->total() }},
+        from: {{ $expenses->firstItem() ?? 0 }},
+        to: {{ $expenses->lastItem() ?? 0 }}
+    },
 
-<div class="panel overflow-hidden">
-    <div class="table-wrap">
+    async fetchRecords(page = 1) {
+        this.loading = true;
+        try {
+            const params = new URLSearchParams();
+            if (this.userId) params.append('user_id', this.userId);
+            if (this.status) params.append('status', this.status);
+            if (this.timing) params.append('timing', this.timing);
+            if (this.month) params.append('month', this.month);
+            if (this.search) params.append('search', this.search);
+            params.append('page', page);
+
+            const res = await fetch(`{{ route('admin.expenses.index') }}?${params.toString()}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                this.records = data.records;
+                this.pagination = data.pagination;
+            }
+        } catch (e) {
+            console.error('Failed to load expenses', e);
+        } finally {
+            this.loading = false;
+        }
+    },
+
+    resetFilters() {
+        this.userId = '';
+        this.status = '';
+        this.timing = '';
+        this.month = '';
+        this.search = '';
+        this.fetchRecords(1);
+    },
+
+    async updateRecordStatus(record, newStatus) {
+        if (!confirm(`Are you sure you want to mark this expense as ${newStatus}?`)) return;
+
+        try {
+            const res = await fetch(record.update_status_url, {
+                method: 'PATCH',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                record.status = newStatus;
+                window.toast(data.message || `Expense marked as ${newStatus} successfully.`, newStatus === 'approved' ? 'success' : (newStatus === 'rejected' ? 'warning' : 'info'));
+            } else {
+                window.toast(data.message || 'Failed to update expense status.', 'error');
+            }
+        } catch (e) {
+            window.toast('Error updating expense status.', 'error');
+        }
+    }
+}">
+    {{-- Header --}}
+    <div class="panel-header">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="text-section-title">Expense Claims & Bills</h2>
+                <p class="text-caption mt-1">Review, approve, and track travel & out-of-pocket expenses submitted by workers.</p>
+            </div>
+            <a href="{{ route('admin.expenses.reports.monthly') }}" class="btn-secondary flex items-center gap-2 text-xs">
+                <x-lucide-calendar class="w-4 h-4" />
+                Monthly Summary Report
+            </a>
+        </div>
+
+        {{-- AJAX Filter Form --}}
+        <form @submit.prevent="fetchRecords(1)" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 items-end">
+            <div>
+                <label class="form-label">Field Worker</label>
+                <select x-model="userId" @change="fetchRecords(1)" class="form-input">
+                    <option value="">All Workers</option>
+                    @foreach($users as $user)
+                        <option value="{{ $user->id }}">
+                            {{ $user->name }} ({{ $user->role_name }})
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Status</label>
+                <select x-model="status" @change="fetchRecords(1)" class="form-input">
+                    <option value="">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Timing</label>
+                <select x-model="timing" @change="fetchRecords(1)" class="form-input">
+                    <option value="">All Timings</option>
+                    <option value="during_shift">During Shift</option>
+                    <option value="after_day_end">After Day End</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Month</label>
+                <input type="month" x-model="month" @change="fetchRecords(1)" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">Search</label>
+                <input type="text" x-model="search" @keydown.enter.prevent="fetchRecords(1)" placeholder="Category or worker..." class="form-input">
+            </div>
+            <div class="flex items-end gap-2">
+                <button type="submit" :disabled="loading" class="btn-primary flex-1 py-2 text-sm font-semibold">
+                    <span x-show="!loading" class="flex items-center gap-1.5">
+                        <x-lucide-filter class="w-4 h-4" />
+                        Filter
+                    </span>
+                    <span x-show="loading" class="flex items-center gap-1.5">
+                        <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Filtering...
+                    </span>
+                </button>
+                <button type="button" @click="resetFilters" class="btn-secondary px-3 py-2 text-sm">
+                    Reset
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {{-- DataTable Wrap --}}
+    <div class="table-wrap relative min-h-[300px]">
+        {{-- Loading Overlay --}}
+        <div x-show="loading" class="absolute inset-0 bg-white/70 backdrop-blur-[1px] flex items-center justify-center z-10" x-transition>
+            <div class="flex items-center gap-2 text-brand-600 font-semibold text-sm">
+                <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Updating expenses...
+            </div>
+        </div>
+
         <table class="data-table">
             <thead>
                 <tr>
@@ -61,87 +192,128 @@
                     <th>Category</th>
                     <th>Amount</th>
                     <th>Timing</th>
-                    <th>Photo</th>
+                    <th>Photo Proof</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                @forelse($expenses as $expense)
-                <tr>
-                    <td>{{ $expense->date->format('d M Y') }}</td>
-                    <td>
-                        <span class="font-medium text-ink-900">{{ $expense->user->name }}</span>
-                    </td>
-                    <td>
-                        @if($expense->is_system_generated)
-                            <span class="badge badge-primary">System Travel</span>
-                        @else
-                            {{ $expense->category->name ?? 'N/A' }}
-                        @endif
-                    </td>
-                    <td class="font-bold">₹{{ number_format($expense->amount, 2) }}</td>
-                    <td>
-                        @if($expense->is_after_day_end)
-                            <span class="badge badge-warning inline-flex items-center gap-1" title="Submitted after day end or backdated">
-                                ⚠️ After Day End
+                <template x-for="expense in records" :key="expense.id">
+                    <tr class="hover:bg-surface-muted/60 transition-colors">
+                        <td class="text-caption font-medium" x-text="expense.date_formatted"></td>
+                        <td>
+                            <span class="font-semibold text-ink-900" x-text="expense.user_name"></span>
+                        </td>
+                        <td>
+                            <template x-if="expense.is_system_generated">
+                                <span class="badge badge-primary">System Travel</span>
+                            </template>
+                            <template x-if="!expense.is_system_generated">
+                                <span class="text-body" x-text="expense.category_name"></span>
+                            </template>
+                        </td>
+                        <td class="font-bold text-ink-900 text-sm" x-text="'₹' + expense.amount_formatted"></td>
+                        <td>
+                            <template x-if="expense.is_after_day_end">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200" title="Submitted after day end or backdated">
+                                    ⚠️ After Day End
+                                </span>
+                            </template>
+                            <template x-if="!expense.is_after_day_end">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200" title="Submitted during active shift">
+                                    ✓ During Shift
+                                </span>
+                            </template>
+                        </td>
+                        <td>
+                            <template x-if="expense.bill_photo_url">
+                                <a :href="expense.bill_photo_url" target="_blank" class="inline-block relative group">
+                                    <img :src="expense.bill_photo_url" alt="Bill Proof" class="w-10 h-10 object-cover rounded-lg border border-surface-border">
+                                    <span class="absolute inset-0 bg-black/40 text-white text-[9px] font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg">View</span>
+                                </a>
+                            </template>
+                            <template x-if="!expense.bill_photo_url && expense.is_system_generated">
+                                <span class="text-xs text-ink-400 italic">Day Receipt</span>
+                            </template>
+                            <template x-if="!expense.bill_photo_url && !expense.is_system_generated">
+                                <span class="text-xs text-ink-400 italic">No photo</span>
+                            </template>
+                        </td>
+                        <td>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                                :class="{
+                                    'bg-amber-100 text-amber-800': expense.status === 'pending',
+                                    'bg-emerald-100 text-emerald-800': expense.status === 'approved',
+                                    'bg-rose-100 text-rose-800': expense.status === 'rejected',
+                                    'bg-surface-muted text-ink-700': !['pending','approved','rejected'].includes(expense.status)
+                                }"
+                                x-text="expense.status.charAt(0).toUpperCase() + expense.status.slice(1)">
                             </span>
-                        @else
-                            <span class="badge badge-success inline-flex items-center gap-1" title="Submitted during active shift">
-                                ✓ During Shift
-                            </span>
-                        @endif
-                    </td>
-                    <td>
-                        @if($expense->bill_photo)
-                            <a href="{{ asset('storage/' . $expense->bill_photo) }}" target="_blank" class="text-brand-600 underline text-sm">View Proof</a>
-                        @elseif($expense->is_system_generated)
-                            <span class="text-ink-500 text-sm italic">Check Day Receipt</span>
-                        @else
-                            <span class="text-ink-400 text-sm">No Photo</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if($expense->status === 'pending')
-                            <span class="badge badge-warning">Pending</span>
-                        @elseif($expense->status === 'approved')
-                            <span class="badge badge-success">Approved</span>
-                        @else
-                            <span class="badge badge-danger">Rejected</span>
-                        @endif
-                    </td>
-                    <td class="text-right">
-                        @if($expense->day_start_id)
-                            <a href="{{ route('admin.expenses.reports.daily', $expense->day_start_id) }}" class="btn-secondary px-2 py-1 text-xs mb-2 block text-center" title="View Full Day Receipt">View Day</a>
-                        @endif
-                        @if($expense->status === 'pending')
-                        <div class="flex gap-2 justify-end">
-                            <form action="{{ route('admin.expenses.updateStatus', $expense->id) }}" method="POST">
-                                @csrf @method('PATCH')
-                                <input type="hidden" name="status" value="approved">
-                                <x-button type="submit" variant="success" class="px-2 py-1 text-xs">Approve</x-button>
-                            </form>
-                            <form action="{{ route('admin.expenses.updateStatus', $expense->id) }}" method="POST">
-                                @csrf @method('PATCH')
-                                <input type="hidden" name="status" value="rejected">
-                                <x-button type="submit" variant="danger" class="px-2 py-1 text-xs">Reject</x-button>
-                            </form>
+                        </td>
+                        <td class="text-right">
+                            <div class="flex items-center justify-end gap-1.5">
+                                <template x-if="expense.day_report_url">
+                                    <a :href="expense.day_report_url" class="btn-secondary text-xs px-2 py-1 inline-flex items-center gap-1" title="View Full Day Receipt">
+                                        <x-lucide-receipt class="w-3.5 h-3.5" />
+                                        Day
+                                    </a>
+                                </template>
+
+                                <template x-if="expense.status === 'pending'">
+                                    <div class="flex items-center gap-1">
+                                        <button type="button" @click="updateRecordStatus(expense, 'approved')" class="btn-primary text-xs px-2 py-1 bg-emerald-600 hover:bg-emerald-700">
+                                            ✓ Approve
+                                        </button>
+                                        <button type="button" @click="updateRecordStatus(expense, 'rejected')" class="btn-danger text-xs px-2 py-1">
+                                            ✕ Reject
+                                        </button>
+                                    </div>
+                                </template>
+
+                                <template x-if="expense.status !== 'pending'">
+                                    <span class="text-[11px] text-ink-400 font-medium italic">Processed</span>
+                                </template>
+                            </div>
+                        </td>
+                    </tr>
+                </template>
+
+                <tr x-show="!loading && records.length === 0">
+                    <td colspan="8" class="py-16 text-center">
+                        <div class="flex flex-col items-center gap-2 text-ink-400">
+                            <x-lucide-inbox class="w-10 h-10" />
+                            <p class="text-sm font-medium">No expense records found.</p>
+                            <p class="text-xs text-ink-400">Claims submitted by field workers will appear here.</p>
                         </div>
-                        @else
-                            <span class="text-xs text-ink-500">Processed</span>
-                        @endif
                     </td>
                 </tr>
-                @empty
-                <tr>
-                    <td colspan="8" class="text-center py-6 text-ink-500">No expenses found.</td>
-                </tr>
-                @endforelse
             </tbody>
         </table>
     </div>
-    <div class="p-4 border-t border-surface-border">
-        {{ $expenses->links() }}
+    
+    {{-- AJAX Pagination --}}
+    <div x-show="pagination.last_page > 1" class="border-t border-surface-border px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="text-xs text-ink-500">
+            Showing <span class="font-semibold text-ink-800" x-text="pagination.from"></span> to <span class="font-semibold text-ink-800" x-text="pagination.to"></span> of <span class="font-semibold text-ink-800" x-text="pagination.total"></span> expenses
+        </div>
+        <div class="flex items-center gap-1.5">
+            <button type="button"
+                @click="fetchRecords(pagination.current_page - 1)"
+                :disabled="pagination.current_page <= 1 || loading"
+                class="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                Previous
+            </button>
+            <span class="text-xs text-ink-600 px-2 font-medium">
+                Page <span x-text="pagination.current_page"></span> of <span x-text="pagination.last_page"></span>
+            </span>
+            <button type="button"
+                @click="fetchRecords(pagination.current_page + 1)"
+                :disabled="pagination.current_page >= pagination.last_page || loading"
+                class="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                Next
+            </button>
+        </div>
     </div>
 </div>
 @endsection
+

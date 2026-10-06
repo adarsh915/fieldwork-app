@@ -1,0 +1,6 @@
+backend/
+.uploads/
+*.zip
+*.rar
+mobile/android/
+mobile/ios/

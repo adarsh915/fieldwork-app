@@ -13,7 +13,7 @@
                 Back to Field Workers
             </a>
             <h1 class="text-3xl font-bold text-slate-900">Edit Field Worker</h1>
-            <p class="text-slate-600 mt-2">{{ $fieldWorker->name }} ({{ $fieldWorker->employee_id }})</p>
+            <p class="text-slate-600 mt-2">{{ $fieldWorker->name }} ({{ $fieldWorker->role_name }})</p>
         </div>
 
         <!-- Form -->

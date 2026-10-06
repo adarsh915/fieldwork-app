@@ -21,8 +21,7 @@ class PartyController extends Controller
 {
     /**
      * GET /api/parties
-     * Returns parties assigned to the authenticated user/team.
-     * Includes pending ones submitted.
+     * Returns parties actively assigned to the authenticated user/team.
      */
     public function index(Request $request): JsonResponse
     {
@@ -30,36 +29,28 @@ class PartyController extends Controller
         $scopedUserIds = DataScope::visibleUserIds('parties');
 
         $query = Customer::query()
+            ->active()
             ->where('approval_status', 'approved');
 
         if ($scopedUserIds !== null) {
-            $query->where(function ($q) use ($scopedUserIds) {
-                $q->whereHas('assignments', function ($sq) use ($scopedUserIds) {
-                    $sq->whereIn('employee_id', $scopedUserIds)->where('is_active', true);
-                })->orWhereIn('user_id', $scopedUserIds)
-                  ->orWhereIn('submitted_by', $scopedUserIds);
+            $query->whereHas('assignments', function ($sq) use ($scopedUserIds) {
+                $sq->whereIn('employee_id', $scopedUserIds)->where('is_active', true);
+            });
+        } else {
+            $query->whereHas('assignments', function ($sq) {
+                $sq->where('is_active', true);
             });
         }
 
-        $assigned = $query->orderBy('name')
-            ->get(['id', 'name', 'mobile', 'address', 'city', 'approval_status']);
+        $parties = $query->orderBy('name')
+            ->get(['id', 'name', 'mobile', 'address', 'city', 'approval_status', 'is_active']);
 
-        $pendingQuery = Customer::where('approval_status', 'pending');
-        if ($scopedUserIds !== null) {
-            $pendingQuery->whereIn('submitted_by', $scopedUserIds);
-        }
-
-        $pending = $pendingQuery->orderBy('name')
-            ->get(['id', 'name', 'mobile', 'address', 'city', 'approval_status']);
-
-        $all = $assigned->merge($pending)->unique('id')->values();
-
-        return response()->json(['success' => true, 'data' => $all]);
+        return response()->json(['success' => true, 'data' => $parties]);
     }
 
     /**
      * POST /api/parties
-     * Field worker submits a new party request.
+     * Field worker creates a new party — auto-approved and directly assigned to the creator.
      */
     public function store(Request $request): JsonResponse
     {
@@ -98,30 +89,39 @@ class PartyController extends Controller
                 'pincode'         => $request->pincode,
                 'email'           => $request->email,
                 'is_active'       => true,
-                'approval_status' => 'pending',   // requires admin approval
+                'approval_status' => 'approved',   // directly approved
                 'submitted_by'    => $user->id,
-                'user_id'         => $user->id,   // tentative assignment
+                'user_id'         => $user->id,
             ]);
 
-            // Pre-assign to the field worker who submitted (active after approval)
-            PartyEmployeeMap::create([
+            // Directly assign to the creator with active status
+            $assignment = PartyEmployeeMap::create([
                 'party_id'    => $party->id,
                 'employee_id' => $user->id,
                 'assigned_by' => $user->id,
-                'is_active'   => false, // becomes true after admin approves
+                'assigned_at' => now(),
+                'is_active'   => true, // directly active
             ]);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Party submitted for approval.',
-                'data'    => $party->only(['id', 'name', 'mobile', 'approval_status']),
+                'message' => 'Party created and assigned successfully.',
+                'data'    => [
+                    'id'              => $party->id,
+                    'name'            => $party->name,
+                    'mobile'          => $party->mobile,
+                    'address'         => $party->address,
+                    'city'            => $party->city,
+                    'approval_status' => $party->approval_status,
+                    'is_active'       => $party->is_active,
+                ],
             ], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Failed to submit party.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to create party: ' . $e->getMessage()], 500);
         }
     }
 }

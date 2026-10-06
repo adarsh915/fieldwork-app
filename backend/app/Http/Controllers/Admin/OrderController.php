@@ -15,7 +15,7 @@ class OrderController extends Controller
     {
         $scopedUserIds = DataScope::visibleUserIds('orders');
 
-        $fwQuery = User::where('is_active', true);
+        $fwQuery = User::with('roles')->where('is_active', true);
         if ($scopedUserIds !== null) {
             $fwQuery->whereIn('id', $scopedUserIds);
         } else {
@@ -23,7 +23,7 @@ class OrderController extends Controller
                 $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']);
             });
         }
-        $fieldWorkers = $fwQuery->get();
+        $fieldWorkers = $fwQuery->orderBy('name')->get();
 
         $baseQuery = Order::query();
 
@@ -74,30 +74,78 @@ class OrderController extends Controller
         ];
 
         // Now apply status filter for the actual list
-        $query = (clone $baseQuery)->with(['party', 'user']);
+        $query = (clone $baseQuery)->with(['party', 'user.roles']);
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
         $orders = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'records' => $orders->map(function ($order) {
+                    return [
+                        'id'                     => $order->id,
+                        'order_no'               => $order->order_no,
+                        'party_name'             => $order->party?->name ?? 'N/A',
+                        'party_code'             => $order->party?->party_code ?? $order->party?->code ?? '',
+                        'user_name'              => $order->user ? $order->user->name_with_role : 'Unknown',
+                        'order_source'           => $order->order_source,
+                        'is_after_day_end'       => (bool) $order->is_after_day_end,
+                        'order_date_formatted'   => $order->order_date ? \Carbon\Carbon::parse($order->order_date)->format('Y-m-d') : \Carbon\Carbon::parse($order->created_at)->format('Y-m-d'),
+                        'total_amount_formatted' => number_format((float) $order->total_amount, 2),
+                        'status'                 => $order->status,
+                        'show_url'               => route('admin.orders.show', $order->id),
+                    ];
+                }),
+                'counts' => $counts,
+                'pagination' => [
+                    'current_page' => $orders->currentPage(),
+                    'last_page'    => $orders->lastPage(),
+                    'per_page'     => $orders->perPage(),
+                    'total'        => $orders->total(),
+                    'from'         => $orders->firstItem() ?? 0,
+                    'to'           => $orders->lastItem() ?? 0,
+                ],
+            ]);
+        }
+
         return view('admin.orders.index', compact('orders', 'fieldWorkers', 'counts'));
     }
 
     public function show(Order $order)
     {
+        $scopedUserIds = DataScope::visibleUserIds('orders');
+        if ($scopedUserIds !== null && !in_array($order->user_id, $scopedUserIds, true)) {
+            abort(403, 'Unauthorized access to this order.');
+        }
+
         $order->load(['party', 'user', 'items.product', 'items.productUnit']);
         return view('admin.orders.show', compact('order'));
     }
 
     public function updateStatus(Request $request, Order $order)
     {
+        $scopedUserIds = DataScope::visibleUserIds('orders');
+        if ($scopedUserIds !== null && !in_array($order->user_id, $scopedUserIds, true)) {
+            abort(403, 'Unauthorized to update status for this order.');
+        }
+
         $request->validate([
             'status' => 'required|in:pending,approved,dispatched,delivered,cancelled'
         ]);
         
         $order->update(['status' => $request->status]);
         
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'status'  => $order->status,
+                'message' => 'Order status updated to ' . ucfirst($order->status) . ' successfully.',
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Order status updated successfully.');
     }
 }

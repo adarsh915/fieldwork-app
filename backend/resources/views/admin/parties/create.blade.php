@@ -121,7 +121,7 @@
                                     @checked(in_array($emp->id, old('employee_ids', [])))
                                     class="rounded border-slate-300 text-slate-950 focus:ring-slate-300"
                                 >
-                                <span>{{ $emp->name }}</span>
+                                <span>{{ $emp->name_with_role }}</span>
                             </label>
                         @empty
                             <p class="text-sm text-slate-500 col-span-2">No employees found.</p>

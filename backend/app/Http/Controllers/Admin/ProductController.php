@@ -32,14 +32,49 @@ class ProductController extends Controller
             });
         }
 
-        if ($status) {
+        if ($status && in_array($status, ['active', 'inactive'])) {
             $query->where('status', $status);
         }
 
-        $products   = $query->paginate(20)->withQueryString();
+        $totalCount    = Product::count();
+        $activeCount   = Product::where('status', 'active')->count();
+        $inactiveCount = Product::where('status', 'inactive')->count();
+
+        $products = $query->paginate(20)->withQueryString();
+        $formattedProducts = $products->map(fn ($p) => $this->formatProduct($p));
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success'    => true,
+                'products'   => $formattedProducts,
+                'stats'      => [
+                    'total'    => $totalCount,
+                    'active'   => $activeCount,
+                    'inactive' => $inactiveCount,
+                ],
+                'pagination' => [
+                    'total'        => $products->total(),
+                    'current_page' => $products->currentPage(),
+                    'last_page'    => $products->lastPage(),
+                    'per_page'     => $products->perPage(),
+                    'from'         => $products->firstItem(),
+                    'to'           => $products->lastItem(),
+                ],
+            ]);
+        }
+
         $categories = [];
 
-        return view('admin.products.index', compact('products', 'categories', 'search', 'status'));
+        return view('admin.products.index', compact(
+            'products',
+            'formattedProducts',
+            'categories',
+            'search',
+            'status',
+            'totalCount',
+            'activeCount',
+            'inactiveCount'
+        ));
     }
 
     /**
@@ -48,18 +83,11 @@ class ProductController extends Controller
     public function create()
     {
         $categories = [];
-
         return view('admin.products.create', compact('categories'));
     }
 
     /**
      * Store a new product with its units.
-     *
-     * Expects:
-     *   name, code?, description?, status
-     *   units[0][unit_name], units[0][price], units[0][is_default]
-     *   units[1][unit_name], units[1][price], ...
-     *   attributes[] (array of attribute IDs)
      */
     public function store(Request $request)
     {
@@ -76,7 +104,9 @@ class ProductController extends Controller
             'attributes.*'          => ['numeric', 'exists:product_attributes,id'],
         ]);
 
-        DB::transaction(function () use ($validated, $request) {
+        $product = null;
+
+        DB::transaction(function () use ($validated, $request, &$product) {
             $product = Product::create([
                 'name'        => $validated['name'],
                 'code'        => $validated['code']        ?? null,
@@ -86,7 +116,6 @@ class ProductController extends Controller
                 'updated_by'  => auth()->id(),
             ]);
 
-            // Determine which index is the default unit
             $defaultIndex = $request->input('default_unit_index', 0);
 
             foreach ($validated['units'] as $i => $unit) {
@@ -94,17 +123,26 @@ class ProductController extends Controller
                     'product_id' => $product->id,
                     'unit_name'  => trim($unit['unit_name']),
                     'price'      => $unit['price'],
-                    'is_default' => ((int) $defaultIndex === (int) $i),
+                    'is_default' => ((int) $defaultIndex === (int) $i || !empty($unit['is_default'])),
                     'created_by' => auth()->id(),
                     'updated_by' => auth()->id(),
                 ]);
             }
 
-            // Sync attributes to product
             if (!empty($validated['attributes'])) {
                 $product->attributes()->sync($validated['attributes']);
             }
         });
+
+        $product->load('units');
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Product "' . $product->name . '" created successfully!',
+                'product' => $this->formatProduct($product),
+            ]);
+        }
 
         return redirect()->route('admin.products.index')
             ->with('status', 'Product "' . $validated['name'] . '" created successfully!');
@@ -115,8 +153,15 @@ class ProductController extends Controller
      */
     public function edit($id)
     {
-        $product    = Product::with('units', 'images', 'attributes.values', 'variants')->findOrFail($id);
+        $product = Product::with('units', 'images', 'attributes.values', 'variants')->findOrFail($id);
         $categories = [];
+
+        if (request()->ajax() || request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'product' => $this->formatProduct($product),
+            ]);
+        }
 
         return view('admin.products.edit', compact('product', 'categories'));
     }
@@ -150,7 +195,6 @@ class ProductController extends Controller
                 'updated_by'  => auth()->id(),
             ]);
 
-            // Delete existing units and re-create (simplest correct approach)
             $product->units()->delete();
 
             $defaultIndex = $request->input('default_unit_index', 0);
@@ -160,19 +204,28 @@ class ProductController extends Controller
                     'product_id' => $product->id,
                     'unit_name'  => trim($unit['unit_name']),
                     'price'      => $unit['price'],
-                    'is_default' => ((int) $defaultIndex === (int) $i),
+                    'is_default' => ((int) $defaultIndex === (int) $i || !empty($unit['is_default'])),
                     'created_by' => auth()->id(),
                     'updated_by' => auth()->id(),
                 ]);
             }
 
-            // Sync attributes to product
             if (!empty($validated['attributes'])) {
                 $product->attributes()->sync($validated['attributes']);
             } else {
                 $product->attributes()->detach();
             }
         });
+
+        $product->load('units');
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Product "' . $product->name . '" updated successfully!',
+                'product' => $this->formatProduct($product),
+            ]);
+        }
 
         return redirect()->route('admin.products.index')
             ->with('status', 'Product "' . $product->name . '" updated successfully!');
@@ -181,11 +234,19 @@ class ProductController extends Controller
     /**
      * Soft-delete a product (units cascade via DB).
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $product = Product::findOrFail($id);
         $name    = $product->name;
         $product->delete();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'id'      => (int) $id,
+                'message' => 'Product "' . $name . '" deleted successfully!',
+            ]);
+        }
 
         return redirect()->route('admin.products.index')
             ->with('status', 'Product "' . $name . '" deleted successfully!');
@@ -194,16 +255,53 @@ class ProductController extends Controller
     /**
      * Toggle product active/inactive status.
      */
-    public function toggleStatus($id)
+    public function toggleStatus(Request $request, $id)
     {
         $product = Product::findOrFail($id);
+        $newStatus = $product->status === Product::STATUS_ACTIVE
+            ? Product::STATUS_INACTIVE
+            : Product::STATUS_ACTIVE;
+
         $product->update([
-            'status'     => $product->status === Product::STATUS_ACTIVE
-                                ? Product::STATUS_INACTIVE
-                                : Product::STATUS_ACTIVE,
+            'status'     => $newStatus,
             'updated_by' => auth()->id(),
         ]);
 
+        $product->load('units');
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'status'  => $newStatus,
+                'product' => $this->formatProduct($product),
+                'message' => 'Product "' . $product->name . '" is now ' . $newStatus . '.',
+            ]);
+        }
+
         return back()->with('status', 'Product status updated successfully!');
+    }
+
+    /**
+     * Helper to format product for response.
+     */
+    private function formatProduct(Product $p): array
+    {
+        return [
+            'id'          => $p->id,
+            'name'        => $p->name,
+            'code'        => $p->code ?? '',
+            'category'    => $p->category ?? '—',
+            'status'      => $p->status,
+            'description' => $p->description ?? '',
+            'units'       => $p->units->map(function ($u) {
+                return [
+                    'id'              => $u->id,
+                    'unit_name'       => $u->unit_name,
+                    'price'           => (float) $u->price,
+                    'price_formatted' => number_format((float) $u->price, 2),
+                    'is_default'      => (bool) $u->is_default,
+                ];
+            })->toArray(),
+        ];
     }
 }

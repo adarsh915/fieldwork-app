@@ -62,12 +62,52 @@ class AttendanceAdjustmentWebController extends Controller
             );
         });
 
+        if ($request->ajax() || $request->wantsJson()) {
+            $dateObj = \Carbon\Carbon::parse($date);
+            $year = $dateObj->year;
+            $month = $dateObj->month;
+            $summary = $this->attendance->monthlySummary($userId, $year, $month);
+            $dayEval = $this->attendance->evaluate($userId, $date);
+            $d = \Carbon\Carbon::parse($date);
+            $ds = DayStart::where('user_id', $userId)->where('date', $date)->first();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Attendance for {$date} successfully corrected.",
+                'day'     => [
+                    'date'           => $date,
+                    'day'            => (int) $d->day,
+                    'day_name'       => $d->format('D'),
+                    'day_of_week'    => (int) $d->dayOfWeek,
+                    'is_today'       => $d->isToday(),
+                    'is_future'      => $d->isFuture(),
+                    'is_sunday'      => $d->isSunday(),
+                    'status'         => $dayEval['status'] ?? 'not_yet',
+                    'label'          => $dayEval['label'] ?? '—',
+                    'hours'          => $dayEval['hours'] ?? null,
+                    'is_auto_closed' => (bool) ($ds?->is_auto_closed ?? false),
+                    'flagged_reason' => $ds?->flagged_reason ?? null,
+                ],
+                'summary' => [
+                    'present'           => $summary['present'] ?? 0,
+                    'half_day_present'  => $summary['half_day_present'] ?? 0,
+                    'short_shift'       => $summary['short_shift'] ?? 0,
+                    'on_leave'          => $summary['on_leave'] ?? 0,
+                    'absent'            => $summary['absent'] ?? 0,
+                    'holiday'           => $summary['holiday'] ?? 0,
+                    'weekly_off'        => $summary['weekly_off'] ?? 0,
+                    'half_day_total'    => ($summary['half_day_present'] ?? 0) + ($summary['short_shift'] ?? 0),
+                    'holiday_off_total' => ($summary['holiday'] ?? 0) + ($summary['weekly_off'] ?? 0),
+                ],
+            ]);
+        }
+
         return back()->with('success', "Attendance for {$date} successfully corrected by admin.");
     }
 
     public function auditLogs(Request $request)
     {
-        $logs = AuditLog::with('causer:id,name,email')
+        $logs = AuditLog::with('causer.roles')
             ->orderByDesc('id')
             ->paginate(25);
 

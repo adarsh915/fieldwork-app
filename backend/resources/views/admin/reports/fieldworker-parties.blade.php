@@ -21,7 +21,7 @@
                     <option value="">All Fieldworkers</option>
                     @foreach ($employeesList as $emp)
                         <option value="{{ $emp->id }}" @selected($employeeId == $emp->id)>
-                            {{ $emp->name }} {{ $emp->employee_id ? '('.$emp->employee_id.')' : '' }}
+                            {{ $emp->name }} ({{ $emp->role_name }})
                         </option>
                     @endforeach
                 </select>
@@ -56,9 +56,8 @@
                                 <tr class="{{ $index === $fieldworker->parties->count() - 1 ? 'border-b-2 border-slate-200' : '' }}">
                                     @if ($index === 0)
                                         <td rowspan="{{ $fieldworker->parties->count() }}" class="align-top border-r border-slate-100 bg-slate-50">
-                                            <div class="font-bold text-slate-900">{{ $fieldworker->name }}</div>
+                                            <div class="font-bold text-slate-900">{{ $fieldworker->name }} ({{ $fieldworker->role_name }})</div>
                                             <div class="text-xs text-slate-500 mt-1">
-                                                ID: {{ $fieldworker->employee_id ?? 'N/A' }}<br>
                                                 Total: {{ $fieldworker->parties->count() }} parties
                                             </div>
                                         </td>

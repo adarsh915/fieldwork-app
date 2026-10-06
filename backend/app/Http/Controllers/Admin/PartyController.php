@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\User;
+use App\Models\Order;
+use App\Models\Visit;
+use App\Models\Transaction;
 use App\Models\PartyEmployeeMap;
 use App\Models\AuditLog;
 use App\Events\PartyAssigned;
@@ -12,6 +15,7 @@ use App\Events\PartyUpdated;
 use App\Http\Requests\Admin\Party\PartyUpdateRequest;
 use App\Http\Requests\Admin\Party\PartyAssignRequest;
 use App\Services\DataScope;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -33,16 +37,17 @@ class PartyController extends Controller
         $visibleIds = DataScope::visibleUserIds('parties');
 
         // Scoped employees for filter dropdown
-        $empQuery = User::where('is_active', true);
+        $empQuery = User::with('roles')->where('is_active', true);
         if ($visibleIds !== null) {
             $empQuery->whereIn('id', $visibleIds);
         }
-        $employees = $empQuery->orderBy('name')->get(['id', 'name', 'employee_id']);
+        $employees = $empQuery->orderBy('name')->get();
 
         // Scoped employees for assignment modals
         $assignableEmployees = DataScope::assignableUsers()
+            ->with('roles')
             ->orderBy('name')
-            ->get(['id', 'name', 'employee_id']);
+            ->get();
 
         $partyTypes = ['Retailer', 'Distributor', 'Wholesaler', 'End Customer'];
         $categories = ['A', 'B', 'C', 'D'];
@@ -63,16 +68,8 @@ class PartyController extends Controller
             }])
             ->select('customers.*');
 
-        // Data scoping: restrict party list to parties assigned to visible users
-        $visibleIds = DataScope::visibleUserIds('parties');
-        if ($visibleIds !== null) {
-            $query->where(function ($q) use ($visibleIds) {
-                $q->whereHas('assignments', function ($sq) use ($visibleIds) {
-                    $sq->whereIn('employee_id', $visibleIds)->where('is_active', true);
-                })->orWhereIn('user_id', $visibleIds)
-                  ->orWhereIn('submitted_by', $visibleIds);
-            });
-        }
+        // Data scoping: strictly restrict party list to parties actively assigned to visible users (hide unassigned parties)
+        DataScope::applyParties($query);
 
         // Filters
         if ($request->filled('search.value') || $request->filled('search')) {
@@ -124,7 +121,7 @@ class PartyController extends Controller
                     'party_code' => $party->party_code ?? '—',
                     'name' => $party->name,
                     'city' => $party->city ?? '—',
-                    'submitted_by_name' => $party->submittedBy ? $party->submittedBy->name : null,
+                    'submitted_by_name' => $party->submittedBy ? $party->submittedBy->name_with_role : null,
                 ];
             })
             ->addColumn('contact', function ($party) {
@@ -142,8 +139,7 @@ class PartyController extends Controller
             ->addColumn('assignment', function ($party) {
                 $active = $party->activeAssignment;
                 return [
-                    'employee_name' => $active ? $active->employee->name : null,
-                    'employee_id' => $active ? $active->employee->employee_id : null,
+                    'employee_name' => $active ? $active->employee->name_with_role : null,
                     'assigned_at' => $active ? $active->assigned_at->format('M d, Y') : null,
                 ];
             })
@@ -158,6 +154,7 @@ class PartyController extends Controller
             })
             ->addColumn('actions', function ($party) {
                 return [
+                    'id' => $party->id,
                     'view' => route('admin.parties.show', $party->id),
                     'edit' => route('admin.parties.edit', $party->id),
                     'history' => route('admin.parties.assignment-history', $party->id),
@@ -178,22 +175,60 @@ class PartyController extends Controller
      */
     public function show($id)
     {
-        $party = Customer::with(['activeAssignment.employee', 'transactions', 'visits.user', 'orders.items.product'])->findOrFail($id);
-        
-        $purchasedProducts = $party->orders->flatMap->items
+        // Load only summary data on initial page paint — tabs load via AJAX
+        $party = Customer::with([
+            'activeAssignment.employee',
+            'orders' => fn($q) => $q->latest()->limit(5),
+        ])->findOrFail($id);
+
+        $purchasedProducts = Order::where('party_id', $id)
+            ->with('items.product')
+            ->latest()
+            ->limit(100)
+            ->get()
+            ->flatMap->items
             ->groupBy('product_id')
             ->map(function ($items) {
                 return (object)[
-                    'product' => $items->first()->product,
+                    'product'        => $items->first()->product,
                     'total_quantity' => $items->sum('quantity'),
-                    'total_spent' => $items->sum('total'),
-                    'times_bought' => $items->count(),
-                    'last_purchased' => $items->sortByDesc(fn($item) => $item->order->created_at ?? $item->created_at)->first()->order->created_at ?? null,
+                    'total_spent'    => $items->sum('total'),
+                    'times_bought'   => $items->count(),
+                    'last_purchased' => $items->sortByDesc(fn($i) => $i->order?->created_at ?? $i->created_at)->first()->order?->created_at,
                 ];
             })
             ->sortByDesc('total_quantity');
 
         return view('admin.parties.show', compact('party', 'purchasedProducts'));
+    }
+
+    /**
+     * AJAX: GET /admin/parties/{id}/tab-data?tab=visits|orders|transactions
+     * Serves paginated tab data for the party profile page.
+     */
+    public function tabData(Request $request, $id): JsonResponse
+    {
+        $party = Customer::findOrFail($id);
+        $this->authorize('view', $party);
+
+        $tab  = $request->input('tab', 'orders');
+        $page = max(1, (int) $request->input('page', 1));
+
+        match ($tab) {
+            'visits' => $data = Visit::where('party_id', $id)
+                ->with('user:id,name,employee_id')
+                ->latest('check_in_time')
+                ->paginate(15),
+            'transactions' => $data = Transaction::where('party_id', $id)
+                ->latest()
+                ->paginate(15),
+            default => $data = Order::where('party_id', $id)
+                ->with('items.product')
+                ->latest('order_date')
+                ->paginate(15),
+        };
+
+        return response()->json($data);
     }
 
     /**
@@ -204,7 +239,8 @@ class PartyController extends Controller
         $search     = $request->input('q');
         $employeeId = $request->input('employee_id');
 
-        $query = Customer::query()->with('user');
+        $query = Customer::query()->with('activeAssignment.employee');
+        DataScope::applyParties($query);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -215,7 +251,9 @@ class PartyController extends Controller
         }
 
         if ($employeeId) {
-            $query->where('user_id', $employeeId);
+            $query->whereHas('assignments', function ($sq) use ($employeeId) {
+                $sq->where('employee_id', $employeeId)->where('is_active', true);
+            });
         }
 
         $headers = [
@@ -243,7 +281,7 @@ class PartyController extends Controller
                         $party->land_area ?? '',
                         $party->latitude ?? '',
                         $party->longitude ?? '',
-                        $party->user->name ?? ''
+                        $party->activeAssignment?->employee?->name_with_role ?? '—'
                     ]);
                 }
             });
@@ -262,7 +300,8 @@ class PartyController extends Controller
         $search     = $request->input('q');
         $employeeId = $request->input('employee_id');
 
-        $query = Customer::query()->with('user');
+        $query = Customer::query()->with('activeAssignment.employee');
+        DataScope::applyParties($query);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -273,7 +312,9 @@ class PartyController extends Controller
         }
 
         if ($employeeId) {
-            $query->where('user_id', $employeeId);
+            $query->whereHas('assignments', function ($sq) use ($employeeId) {
+                $sq->where('employee_id', $employeeId)->where('is_active', true);
+            });
         }
 
         $parties = $query->orderBy('name')->take(500)->get();
@@ -425,13 +466,18 @@ class PartyController extends Controller
         ]);
 
         $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['approval_status'] = 'approved';
+        $validated['submitted_by'] = auth()->id() ?? 1;
 
         $party = Customer::create(array_filter($validated, function ($k) {
             return $k !== 'employee_ids';
         }, ARRAY_FILTER_USE_KEY));
 
-        // Sync employee assignments
+        // Sync employee assignments, fallback to creator if none specified
         $employeeIds = $request->input('employee_ids', []);
+        if (empty($employeeIds) && auth()->id()) {
+            $employeeIds = [auth()->id()];
+        }
         foreach ($employeeIds as $empId) {
             $assignment = PartyEmployeeMap::create([
                 'party_id' => $party->id,
@@ -450,10 +496,10 @@ class PartyController extends Controller
     /**
      * Show edit party form.
      */
-    public function edit($id)
+    public function edit(Request $request, $id)
     {
         $party     = Customer::findOrFail($id);
-        $employees = DataScope::assignableUsers()->orderBy('name')->get(['id', 'name']);
+        $employees = DataScope::assignableUsers()->with('roles')->orderBy('name')->get();
 
         // Get currently assigned employee IDs
         $assignedEmployeeIds = $party->assignments()
@@ -461,7 +507,22 @@ class PartyController extends Controller
             ->pluck('employee_id')
             ->toArray();
 
-        return view('admin.parties.edit', compact('party', 'employees', 'assignedEmployeeIds'));
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success'             => true,
+                'party'               => $party,
+                'assignedEmployeeIds' => $assignedEmployeeIds,
+                'employees'           => $employees->map(fn($e) => [
+                    'id'        => $e->id,
+                    'name'      => $e->name,
+                    'role_name' => $e->role_name,
+                    'name_with_role' => $e->name_with_role,
+                ]),
+                'updateUrl'           => route('admin.parties.update', $party->id),
+            ]);
+        }
+
+        return redirect()->route('admin.parties.index');
     }
 
     /**
@@ -478,7 +539,15 @@ class PartyController extends Controller
             'credit_limit', 'credit_days', 'opening_balance', 'is_active'
         ]);
 
-        $party->update($request->validated());
+        $validated = $request->validated();
+        if (array_key_exists('credit_days', $validated) && is_null($validated['credit_days'])) {
+            $validated['credit_days'] = 0;
+        }
+        if (array_key_exists('credit_limit', $validated) && is_null($validated['credit_limit'])) {
+            $validated['credit_limit'] = 0;
+        }
+
+        $party->update($validated);
 
         // If it was pending, auto-approve it upon saving
         if ($party->approval_status === 'pending') {
@@ -552,17 +621,40 @@ class PartyController extends Controller
     /**
      * Delete a party.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $party = Customer::findOrFail($id);
         $this->authorize('delete', $party);
 
-        $name  = $party->name;
-        $party->delete();
+        $name = $party->name;
 
-        return redirect()->route('admin.parties.index')
-            ->with('status', 'Party "' . $name . '" deleted successfully!');
+        DB::beginTransaction();
+        try {
+            PartyEmployeeMap::where('party_id', $party->id)->delete();
+            $party->delete();
+            DB::commit();
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Party \"{$name}\" deleted successfully.",
+                ]);
+            }
+
+            return redirect()->route('admin.parties.index')
+                ->with('status', "Party \"{$name}\" deleted successfully!");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to delete party: ' . $e->getMessage(),
+                ], 500);
+            }
+            return back()->withErrors(['error' => 'Failed to delete party.']);
+        }
     }
+
 
     /**
      * Bulk assign parties to a field worker.
@@ -723,7 +815,7 @@ class PartyController extends Controller
 
     public function bulkImportForm()
     {
-        $employees = DataScope::assignableUsers()->orderBy('name')->get(['id', 'name', 'email']);
+        $employees = DataScope::assignableUsers()->with('roles')->orderBy('name')->get();
         return view('admin.parties.bulk-import', compact('employees'));
     }
 
@@ -926,3 +1018,5 @@ class PartyController extends Controller
         }
     }
 }
+
+

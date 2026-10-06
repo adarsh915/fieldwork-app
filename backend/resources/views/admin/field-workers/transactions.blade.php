@@ -13,8 +13,7 @@
                     <x-lucide-arrow-left class="w-6 h-6 text-slate-700" />
                 </a>
                 <div class="flex-1">
-                    <h1 class="text-3xl font-bold text-slate-900">{{ $fieldWorker->name }} - Transactions</h1>
-                    <p class="text-slate-600">{{ $fieldWorker->employee_id }}</p>
+                    <h1 class="text-3xl font-bold text-slate-900">{{ $fieldWorker->name }} ({{ $fieldWorker->role_name }}) - Transactions</h1>
                 </div>
             </div>
 

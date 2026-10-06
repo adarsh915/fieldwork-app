@@ -15,6 +15,7 @@ async function buildHeaders(extra?: HeadersInit): Promise<HeadersInit> {
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
+    "bypass-tunnel-reminder": "true",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(extra ?? {}),
   };

@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 import { applyLeave, getLeaveTypes, LeaveType } from "../api/leave";
 import { HttpError } from "../api/http";
@@ -147,8 +146,7 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
     <View style={styles.container}>
       <ScreenHeader title="Apply Leave" onBack={() => navigation.goBack()} bgColor="#7367F0" />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-
+      <KeyboardAwareScreen contentStyle={styles.scroll} backgroundColor="#0f172a">
         {/* ── Leave Type ── */}
         <Text style={styles.sectionLabel}>Leave Type</Text>
         <View style={styles.chipRow}>
@@ -269,7 +267,8 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
           )}
         </TouchableOpacity>
 
-      </ScrollView>
+        <View style={{ height: 20 }} />
+      </KeyboardAwareScreen>
     </View>
   );
 }
@@ -278,7 +277,7 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container:        { flex: 1, backgroundColor: "#0f172a" },
-  scroll:           { padding: 20, paddingBottom: 40 },
+  scroll:           { padding: 20, paddingBottom: 120 },
   sectionLabel:     { color: "#94a3b8", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginTop: 20 },
   chipRow:          { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip:             { backgroundColor: "#1e293b", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "#334155", alignItems: "center" },

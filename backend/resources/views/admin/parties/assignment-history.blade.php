@@ -81,8 +81,7 @@
                                         {{ strtoupper(substr($current->employee->name, 0, 1)) }}
                                     </div>
                                     <div>
-                                        <p class="font-semibold text-slate-900">{{ $current->employee->name }}</p>
-                                        <p class="text-sm text-slate-600">{{ $current->employee->employee_id }}</p>
+                                        <p class="font-semibold text-slate-900">{{ $current->employee->name }} ({{ $current->employee->role_name }})</p>
                                     </div>
                                 </div>
                             </div>
@@ -107,7 +106,7 @@
                         <!-- Assigned By -->
                         <div class="mt-6 pt-6 border-t border-slate-200">
                             <p class="text-sm text-slate-600 mb-2">Assigned By</p>
-                            <p class="font-semibold text-slate-900">{{ $current->assignedBy ? $current->assignedBy->name : 'System' }}</p>
+                            <p class="font-semibold text-slate-900">{{ $current->assignedBy ? $current->assignedBy->name . ' (' . $current->assignedBy->role_name . ')' : 'System' }}</p>
                         </div>
                     </div>
                 </div>
@@ -145,8 +144,7 @@
                                                 </span>
                                             </div>
                                             <div>
-                                                <p class="font-semibold text-slate-900">{{ $assignment->employee->name }}</p>
-                                                <p class="text-sm text-slate-600">{{ $assignment->employee->employee_id }}</p>
+                                                <p class="font-semibold text-slate-900">{{ $assignment->employee->name }} ({{ $assignment->employee->role_name }})</p>
                                             </div>
                                             @if($assignment->is_active)
                                                 <span class="inline-flex items-center gap-1 ml-auto px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-semibold">
@@ -199,7 +197,7 @@
                                 <div class="ml-13 pt-4 border-t border-slate-200">
                                     <p class="text-xs text-slate-600 mb-1">ASSIGNED BY</p>
                                     <p class="font-semibold text-slate-900">
-                                        {{ $assignment->assignedBy ? $assignment->assignedBy->name : 'System' }}
+                                        {{ $assignment->assignedBy ? $assignment->assignedBy->name . ' (' . $assignment->assignedBy->role_name . ')' : 'System' }}
                                     </p>
                                 </div>
                             </div>
@@ -240,10 +238,6 @@
             <a href="{{ route('admin.parties.index') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition">
                 <x-lucide-arrow-left class="w-4 h-4" />
                 Back to Parties
-            </a>
-            <a href="{{ route('admin.parties.edit', $party->id) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                <x-lucide-pencil class="w-4 h-4" />
-                Edit Party
             </a>
             <a href="{{ route('admin.parties.show', $party->id) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                 <x-lucide-eye class="w-4 h-4" />
