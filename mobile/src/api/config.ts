@@ -24,8 +24,13 @@ import { Platform } from "react-native";
  *  - Web Browser   → http://127.0.0.1:8000
  *  - Mobile Device → EXPO_PUBLIC_API_URL or LAN IP (http://192.168.1.14:8000)
  */
+// --- LOCAL WI-FI (Same Wi-Fi network: Laptop + Phone Expo Go) ---
+// export const API_BASE_URL = "http://192.168.1.82:8000";
+
+// --- PRODUCTION SERVER (Live APK / Cloud Backend) ---
 export const API_BASE_URL =
     (process.env.EXPO_PUBLIC_API_URL ?? "https://amplfiled.codespine.in").replace(/\/+$/, "");
 
 /** Laravel API prefix */
 export const API_PREFIX = "/api";
+

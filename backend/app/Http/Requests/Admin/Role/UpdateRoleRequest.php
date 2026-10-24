@@ -15,7 +15,23 @@ class UpdateRoleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return auth()->check() && auth()->user()->hasRole('Super Admin');
+        $user = auth()->user();
+        if (!auth()->check()) {
+            return false;
+        }
+
+        if ($user->hasRole('Super Admin')) {
+            return true;
+        }
+
+        $roleId = $this->route('id');
+        $role = \Spatie\Permission\Models\Role::find($roleId);
+        if ($role && in_array($role->name, ['Super Admin', 'Admin'])) {
+            return false;
+        }
+
+        return $user->hasPermissionTo('roles.edit')
+            || $user->hasPermissionTo('roles.manage');
     }
 
     /**

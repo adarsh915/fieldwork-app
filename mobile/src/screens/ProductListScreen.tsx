@@ -67,11 +67,6 @@ export default function ProductListScreen() {
       <ScreenHeader
         title="Product List"
         onBack={() => navigation.goBack()}
-        rightElement={
-          <TouchableOpacity style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
-            <MaterialIcons name="notifications-none" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        }
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>

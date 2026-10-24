@@ -41,6 +41,8 @@ class PartyUpdateRequest extends FormRequest
             ],
             'email'           => ['nullable', 'email', 'max:255'],
             'address'         => ['nullable', 'string', 'max:1000'],
+            'district_id'     => ['nullable', 'exists:districts,id'],
+            'area_id'         => ['nullable', 'exists:areas,id'],
             'city'            => ['nullable', 'string', 'max:100'],
             'state'           => ['nullable', 'string', 'max:100'],
             'pincode'         => ['nullable', 'string', 'max:10'],

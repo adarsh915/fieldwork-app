@@ -17,6 +17,9 @@ export type DayStartData = {
   tour_purpose: { id: number; name: string } | null;
   tour_type: { id: number; name: string } | null;
   vehicle_type: { id: number; name: string } | null;
+  district?: { id: number; name: string } | null;
+  area?: { id: number; name: string } | null;
+  area_name_custom?: string | null;
   end_time: string | null;
 };
 
@@ -48,8 +51,13 @@ export async function submitDayStart(payload: {
   vehicle_no?: string;
   opening_km?: string;
   opening_km_image_uri?: string | null; // local file URI from camera
+  district_id?: number;
+  area_id?: number;
+  area_ids?: number[];
+  area_name_custom?: string;
   party_ids?: number[];
   visit_place?: string;
+  remarks?: string;
 }): Promise<DayStartResponse> {
   const token = await getAuthToken();
   const url = `${API_BASE_URL}${API_PREFIX}/day/start`;
@@ -59,9 +67,16 @@ export async function submitDayStart(payload: {
   form.append("tour_type_id", String(payload.tour_type_id));
   form.append("vehicle_type_id", String(payload.vehicle_type_id));
 
+  if (payload.district_id) form.append("district_id", String(payload.district_id));
+  if (payload.area_id) form.append("area_id", String(payload.area_id));
+  if (payload.area_ids?.length) {
+    payload.area_ids.forEach((id) => form.append("area_ids[]", String(id)));
+  }
+  if (payload.area_name_custom) form.append("area_name_custom", payload.area_name_custom);
   if (payload.vehicle_no) form.append("vehicle_no", payload.vehicle_no);
   if (payload.opening_km) form.append("opening_km", payload.opening_km);
   if (payload.visit_place) form.append("visit_place", payload.visit_place);
+  if (payload.remarks) form.append("remarks", payload.remarks);
 
   if (payload.party_ids?.length) {
     payload.party_ids.forEach((id) => form.append("party_ids[]", String(id)));

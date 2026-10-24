@@ -34,6 +34,10 @@ export type AuthUser = {
   is_active: boolean;
   roles: string[];
   permissions: string[];
+  profile_image_url?: string | null;
+  role_name?: string | null;
+  address?: string | null;
+  hire_date?: string | null;
 };
 
 type AuthState = {
@@ -62,8 +66,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     (async () => {
+      const minTimer = new Promise((resolve) => setTimeout(resolve, 1200));
       try {
-        const token = await getAuthToken();
+        const [token] = await Promise.all([getAuthToken(), minTimer]);
         if (token) {
           const data = await fetchMe(); // GET /api/auth/me
           setUser(data as AuthUser);

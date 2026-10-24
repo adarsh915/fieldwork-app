@@ -10,8 +10,11 @@ class PartyPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('customers.view')
-            || $user->hasRole(['Super Admin', 'Admin', 'admin', 'super_admin']);
+        return $user->hasRole(['Super Admin', 'Admin', 'admin', 'super_admin'])
+            || $user->hasAnyPermission([
+                'customers.view', 'customers.manage',
+                'parties.view', 'parties.view-team', 'parties.view-all', 'parties.view-own'
+            ]);
     }
 
     public function view(User $user, Customer $party): bool

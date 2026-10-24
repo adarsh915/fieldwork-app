@@ -1,11 +1,14 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
+  FlatList,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,8 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import ScreenHeader from "../components/ScreenHeader";
-import { getMasterParties, type Party } from "../api/master";
-import AppBottomBar from "../components/AppBottomBar";
+import { getMasterPartiesPaginated, type Party } from "../api/master";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "DealerList">;
@@ -26,207 +28,328 @@ const ACTIONS: {
   label: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }[] = [
-    { label: "Phone Order", icon: "phone-plus" },
-    { label: "Ledger", icon: "clipboard-text-outline" },
-    { label: "Visit", icon: "map-marker-outline" },
-    { label: "Order", icon: "cart-outline" },
-    { label: "Payment", icon: "currency-inr" },
-    { label: "Find Location", icon: "crosshairs-gps" },
-    { label: "Party History", icon: "history" },
-    { label: "Contact Dealer", icon: "account-box-outline" },
-    { label: "Add Reminder", icon: "alarm" },
-    { label: "History", icon: "file-document-outline" },
-    { label: "Bill", icon: "receipt" },
-  ];
+  { label: "Phone Order", icon: "phone-plus" },
+  { label: "Visit", icon: "map-marker-outline" },
+  { label: "Order", icon: "cart-outline" },
+  { label: "Payment", icon: "currency-inr" },
+  { label: "Party History", icon: "history" },
+  { label: "Ledger", icon: "clipboard-text-outline" },
+  { label: "Find Location", icon: "crosshairs-gps" },
+  { label: "Contact Dealer", icon: "account-box-outline" },
+  { label: "Add Reminder", icon: "alarm" },
+  { label: "Bill", icon: "receipt" },
+];
 
 export default function DealerListScreen() {
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
+  const queryRef = useRef(query);
+  queryRef.current = query;
+
   const [menuDealer, setMenuDealer] = useState<Party | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const [parties, setParties] = useState<Party[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalDealers, setTotalDealers] = useState(0);
 
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searching, setSearching] = useState(false);
+
+  // Track latest request to avoid race conditions when typing quickly
+  const requestIdRef = useRef(0);
+  const isInitialMount = useRef(true);
+
+  const loadParties = useCallback(async (pageToLoad: number, searchQuery: string, isRefresh = false) => {
+    const currentRequestId = ++requestIdRef.current;
+
+    if (pageToLoad === 1) {
+      if (!isRefresh) {
+        if (searchQuery.trim().length > 0) {
+          setSearching(true);
+        } else {
+          setLoading(true);
+        }
+      }
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const res = await getMasterPartiesPaginated({
+        page: pageToLoad,
+        per_page: 20,
+        search: searchQuery.trim(),
+      });
+
+      if (currentRequestId !== requestIdRef.current) return;
+
+      if (res.success) {
+        if (pageToLoad === 1) {
+          setParties(res.data);
+        } else {
+          setParties((prev) => {
+            const existing = new Set(prev.map((p) => p.id));
+            const fresh = res.data.filter((p) => !existing.has(p.id));
+            return [...prev, ...fresh];
+          });
+        }
+        setPage(res.current_page);
+        setHasMore(res.has_more);
+        setTotalDealers(res.total);
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (pageToLoad === 1 && !isRefresh) {
+        Alert.alert("Error", "Failed to load parties.");
+      }
+    } finally {
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+        setRefreshing(false);
+        setSearching(false);
+      }
+    }
+  }, []);
+
+  // Initial load & debounced search when user types in search box
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      loadParties(1, "");
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      loadParties(1, query);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [query, loadParties]);
+
+  // Refresh page 1 when screen is refocused (e.g. returning after adding a party)
   useFocusEffect(
     useCallback(() => {
-      let isActive = true;
-      setLoading(true);
-      getMasterParties()
-        .then((res) => {
-          if (isActive && res.success) {
-            setParties(res.data);
-          }
-        })
-        .catch((err) => {
-          console.error(err);
-          Alert.alert("Error", "Failed to load parties.");
-        })
-        .finally(() => {
-          if (isActive) setLoading(false);
-        });
-
-      return () => {
-        isActive = false;
-      };
-    }, []),
+      if (isInitialMount.current) return;
+      loadParties(1, queryRef.current, true);
+    }, [loadParties])
   );
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return parties;
-    return parties.filter(
-      (d) =>
-        d.name.toLowerCase().includes(q) ||
-        (d.mobile && d.mobile.toLowerCase().includes(q)),
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadParties(1, query, true);
+  };
+
+  const handleClearQuery = () => {
+    setQuery("");
+    loadParties(1, "", false);
+  };
+
+  const handleLoadMore = () => {
+    if (!loading && !loadingMore && !searching && hasMore) {
+      loadParties(page + 1, query);
+    }
+  };
+
+  const renderDealerCard = useCallback(({ item: dealer }: { item: Party }) => (
+    <View style={styles.dealerCard}>
+      <View style={styles.dealerAccent} />
+      <View style={styles.dealerBody}>
+        <View style={styles.dealerHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dealerTitle}>{dealer.name}</Text>
+            {dealer.approval_status === "pending" && (
+              <View style={styles.pendingBadge}>
+                <MaterialCommunityIcons name="clock-outline" size={10} color="#D97706" />
+                <Text style={styles.pendingBadgeText}>Pending Approval</Text>
+              </View>
+            )}
+          </View>
+          {dealer.approval_status !== "pending" && (
+            <TouchableOpacity
+              style={styles.menuBtn}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={(e) => {
+                const pageY = e.nativeEvent?.pageY || 120;
+                const pageX = e.nativeEvent?.pageX || 300;
+                setMenuPosition({ x: pageX, y: pageY });
+                setMenuDealer(dealer);
+              }}
+            >
+              <MaterialCommunityIcons
+                name="dots-vertical"
+                size={18}
+                color="#7367F0"
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {dealer.mobile ? (
+          <View style={styles.dealerRow}>
+            <MaterialCommunityIcons
+              name="phone"
+              size={16}
+              color="#111827"
+            />
+            <Text style={styles.dealerText}>{dealer.mobile}</Text>
+          </View>
+        ) : null}
+
+        <Text style={styles.dealerTextBold}>
+          {dealer.address || "No address"}
+        </Text>
+
+        <View style={styles.dealerFooterRow}>
+          <Text style={styles.balance}>
+            <Text style={{ color: "#ef4444" }}>Bal :</Text>{" "}
+            <Text style={{ color: "#16a34a" }}>0Db</Text>
+          </Text>
+          {dealer.mobile ? (
+            <MaterialCommunityIcons
+              name="whatsapp"
+              size={18}
+              color="#16a34a"
+            />
+          ) : null}
+          <Text style={styles.clText}>CL:0</Text>
+        </View>
+      </View>
+    </View>
+  ), []);
+
+  const renderHeader = useCallback(
+    () => (
+      <View style={styles.totalsCard}>
+        <View style={styles.totalCol}>
+          <Text style={[styles.totalValue, { color: "#f59e0b" }]}>
+            {totalDealers}
+          </Text>
+          <Text style={[styles.totalLabel, { color: "#f59e0b" }]}>
+            Total Dealers
+          </Text>
+        </View>
+        <View style={styles.totalDivider} />
+        <View style={styles.totalCol}>
+          <Text style={[styles.totalValue, { color: "#7367F0" }]}>0</Text>
+          <Text style={[styles.totalLabel, { color: "#7367F0" }]}>
+            Total Credit
+          </Text>
+        </View>
+        <View style={styles.totalDivider} />
+        <View style={styles.totalCol}>
+          <Text style={[styles.totalValue, { color: "#ef4444" }]}>0</Text>
+          <Text style={[styles.totalLabel, { color: "#ef4444" }]}>
+            Total Debt
+          </Text>
+        </View>
+        <View style={styles.totalProgress}>
+          <View
+            style={[styles.progressSeg, { backgroundColor: "#f59e0b" }]}
+          />
+          <View
+            style={[styles.progressSeg, { backgroundColor: "#7367F0" }]}
+          />
+          <View
+            style={[styles.progressSeg, { backgroundColor: "#ef4444" }]}
+          />
+        </View>
+      </View>
+    ),
+    [totalDealers]
+  );
+
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#7367F0" />
+        <Text style={styles.footerLoaderText}>Loading more dealers...</Text>
+      </View>
     );
-  }, [parties, query]);
+  };
+
+  const renderEmpty = () => {
+    if (loading) {
+      return (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color="#7367F0" />
+          <Text style={styles.loadingText}>Loading dealers...</Text>
+        </View>
+      );
+    }
+    return (
+      <Text style={styles.emptyText}>
+        {query.trim()
+          ? `No dealers found matching "${query.trim()}".`
+          : "No parties found."}
+      </Text>
+    );
+  };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#EDEDED" }}>
+    <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
       <ScreenHeader
         title="Dealer List"
         onBack={() => navigation.goBack()}
-        rightElement={
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <TouchableOpacity style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
-              <MaterialIcons name="notifications-none" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TouchableOpacity style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
-              <MaterialIcons name="access-time" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        }
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.topSearchWrapper}>
         <View style={styles.searchWrap}>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search"
+            placeholder="Search dealers by name, mobile..."
             placeholderTextColor="#8E8E8E"
             value={query}
             onChangeText={setQuery}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
-          <MaterialIcons name="search" size={22} color="#7367F0" />
+          {searching ? (
+            <ActivityIndicator size="small" color="#7367F0" />
+          ) : query ? (
+            <TouchableOpacity
+              onPress={handleClearQuery}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialIcons name="close" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          ) : (
+            <MaterialIcons name="search" size={22} color="#7367F0" />
+          )}
         </View>
+      </View>
 
-        <View style={styles.totalsCard}>
-          <View style={styles.totalCol}>
-            <Text style={[styles.totalValue, { color: "#f59e0b" }]}>
-              {filtered.length}
-            </Text>
-            <Text style={[styles.totalLabel, { color: "#f59e0b" }]}>
-              Total Dealers
-            </Text>
-          </View>
-          <View style={styles.totalDivider} />
-          <View style={styles.totalCol}>
-            <Text style={[styles.totalValue, { color: "#7367F0" }]}>0</Text>
-            <Text style={[styles.totalLabel, { color: "#7367F0" }]}>
-              Total Credit
-            </Text>
-          </View>
-          <View style={styles.totalDivider} />
-          <View style={styles.totalCol}>
-            <Text style={[styles.totalValue, { color: "#ef4444" }]}>0</Text>
-            <Text style={[styles.totalLabel, { color: "#ef4444" }]}>
-              Total Debt
-            </Text>
-          </View>
-          <View style={styles.totalProgress}>
-            <View
-              style={[styles.progressSeg, { backgroundColor: "#f59e0b" }]}
-            />
-            <View
-              style={[styles.progressSeg, { backgroundColor: "#7367F0" }]}
-            />
-            <View
-              style={[styles.progressSeg, { backgroundColor: "#ef4444" }]}
-            />
-          </View>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator
-            size="large"
-            color="#7367F0"
-            style={{ marginTop: 40 }}
+      <FlatList
+        data={parties}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={renderDealerCard}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        ListFooterComponent={renderFooter}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={["#7367F0"]}
+            tintColor="#7367F0"
           />
-        ) : filtered.length === 0 ? (
-          <Text
-            style={{
-              textAlign: "center",
-              marginTop: 40,
-              color: "#8e8e8e",
-              fontWeight: "bold",
-            }}
-          >
-            No parties found.
-          </Text>
-        ) : (
-          filtered.map((dealer) => (
-            <View key={dealer.id} style={styles.dealerCard}>
-              <View style={styles.dealerAccent} />
-              <View style={styles.dealerBody}>
-                <View style={styles.dealerHeaderRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.dealerTitle}>{dealer.name}</Text>
-                    {dealer.approval_status === "pending" && (
-                      <View style={styles.pendingBadge}>
-                        <MaterialCommunityIcons name="clock-outline" size={10} color="#D97706" />
-                        <Text style={styles.pendingBadgeText}>Pending Approval</Text>
-                      </View>
-                    )}
-                  </View>
-                  {dealer.approval_status !== "pending" && (
-                    <TouchableOpacity
-                      style={styles.menuBtn}
-                      activeOpacity={0.85}
-                      onPress={() => setMenuDealer(dealer)}
-                    >
-                      <MaterialCommunityIcons
-                        name="dots-vertical"
-                        size={18}
-                        color="#7367F0"
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {dealer.mobile ? (
-                  <View style={styles.dealerRow}>
-                    <MaterialCommunityIcons
-                      name="phone"
-                      size={16}
-                      color="#111827"
-                    />
-                    <Text style={styles.dealerText}>{dealer.mobile}</Text>
-                  </View>
-                ) : null}
-
-                <Text style={styles.dealerTextBold}>
-                  {dealer.address || "No address"}
-                </Text>
-
-                <View style={styles.dealerFooterRow}>
-                  <Text style={styles.balance}>
-                    <Text style={{ color: "#ef4444" }}>Bal :</Text>{" "}
-                    <Text style={{ color: "#16a34a" }}>0Db</Text>
-                  </Text>
-                  {dealer.mobile ? (
-                    <MaterialCommunityIcons
-                      name="whatsapp"
-                      size={18}
-                      color="#16a34a"
-                    />
-                  ) : null}
-                  <Text style={styles.clText}>CL:0</Text>
-                </View>
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+        }
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+      />
 
       <TouchableOpacity
         style={styles.fab}
@@ -236,16 +359,10 @@ export default function DealerListScreen() {
         <MaterialIcons name="add" size={28} color="#FFFFFF" />
       </TouchableOpacity>
 
-      <AppBottomBar
-        activeKey="Home"
-        onTabPress={(key) => {
-          if (key === "Home") navigation.replace("Dashboard");
-        }}
-      />
-
       <DealerMenuModal
         visible={!!menuDealer}
         dealer={menuDealer}
+        position={menuPosition}
         onDismiss={() => setMenuDealer(null)}
         onAction={(action, dealer) => {
           if (action === "Phone Order") {
@@ -275,6 +392,13 @@ export default function DealerListScreen() {
               partyId: dealer.id,
               partyName: dealer.name,
             });
+          } else if (action === "Party History" || action === "History") {
+            navigation.navigate("Visit", {
+              partyId: dealer.id,
+              partyName: dealer.name,
+              partyMobile: dealer.mobile,
+              partyAddress: dealer.address,
+            });
           } else {
             Alert.alert(
               "Coming Soon",
@@ -290,36 +414,63 @@ export default function DealerListScreen() {
 function DealerMenuModal({
   visible,
   dealer,
+  position,
   onDismiss,
   onAction,
 }: {
   visible: boolean;
   dealer: Party | null;
+  position: { x: number; y: number };
   onDismiss: () => void;
   onAction: (action: string, dealer: Party) => void;
 }) {
+  const windowHeight = Dimensions.get("window").height;
+  const MENU_HEIGHT = 280;
+  // If the 3-dots button is low on the screen, open upwards
+  const isNearBottom = position.y > windowHeight - MENU_HEIGHT - 60;
+  const topPos = isNearBottom
+    ? Math.max(50, position.y - MENU_HEIGHT + 10)
+    : Math.max(50, Math.min(position.y + 6, windowHeight - MENU_HEIGHT - 20));
+
   return (
-    <Modal visible={visible} animationType="fade" transparent>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onDismiss}>
       <TouchableOpacity
         style={styles.menuOverlay}
         activeOpacity={1}
         onPress={onDismiss}
       >
-        <View style={styles.menuCard}>
-          {ACTIONS.map((a) => (
-            <TouchableOpacity
-              key={a.label}
-              style={styles.menuRow}
-              activeOpacity={0.85}
-              onPress={() => {
-                onDismiss();
-                if (dealer) onAction(a.label, dealer);
-              }}
-            >
-              <MaterialCommunityIcons name={a.icon} size={22} color="#7367F0" />
-              <Text style={styles.menuText}>{a.label}</Text>
-            </TouchableOpacity>
-          ))}
+        <View
+          style={[
+            styles.menuCard,
+            {
+              top: topPos,
+              right: 16,
+            },
+          ]}
+        >
+          <ScrollView
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            style={{ maxHeight: MENU_HEIGHT }}
+          >
+            {ACTIONS.map((a, idx) => (
+              <TouchableOpacity
+                key={a.label}
+                style={[
+                  styles.menuRow,
+                  idx < ACTIONS.length - 1 && styles.menuRowBorder,
+                ]}
+                activeOpacity={0.7}
+                onPress={() => {
+                  onDismiss();
+                  if (dealer) onAction(a.label, dealer);
+                }}
+              >
+                <MaterialCommunityIcons name={a.icon} size={16} color="#7367F0" />
+                <Text style={styles.menuText} numberOfLines={1}>{a.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       </TouchableOpacity>
     </Modal>
@@ -329,7 +480,7 @@ function DealerMenuModal({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#EDEDED",
+    backgroundColor: "#F4F4F8",
   },
   header: {
     backgroundColor: "#7367F0",
@@ -356,8 +507,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  topSearchWrapper: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    backgroundColor: "#F4F4F8",
+  },
   scrollContent: {
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingTop: 4,
     paddingBottom: 130,
   },
   searchWrap: {
@@ -366,17 +523,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#7367F0",
     paddingHorizontal: 14,
-    height: 52,
+    height: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 4,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: "800",
+    fontSize: 15,
+    fontWeight: "700",
     color: "#7367F0",
+    paddingVertical: 8,
   },
   totalsCard: {
     backgroundColor: "#FFFFFF",
@@ -461,6 +619,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#F5F3FF",
   },
   dealerRow: {
     flexDirection: "row",
@@ -498,7 +657,7 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: 18,
-    bottom: 100,
+    bottom: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -512,31 +671,37 @@ const styles = StyleSheet.create({
   },
   menuOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.05)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.15)",
   },
   menuCard: {
-    width: 240,
+    position: "absolute",
+    width: 170,
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    paddingVertical: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    elevation: 8,
   },
   menuRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  menuRowBorder: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#F1F5F9",
   },
   menuText: {
-    fontWeight: "800",
-    fontSize: 14,
-    color: "#111827",
+    fontWeight: "700",
+    fontSize: 12.5,
+    color: "#1F2937",
   },
   pendingBadge: {
     flexDirection: "row",
@@ -553,5 +718,34 @@ const styles = StyleSheet.create({
     color: "#D97706",
     fontSize: 9,
     fontWeight: "700",
+  },
+  centerLoading: {
+    paddingTop: 50,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  footerLoader: {
+    paddingVertical: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  footerLoaderText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#7367F0",
+  },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 40,
+    color: "#8E8E8E",
+    fontWeight: "bold",
+    fontSize: 14,
   },
 });

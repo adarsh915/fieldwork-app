@@ -6,6 +6,8 @@
 
 @section('content')
 <div class="panel" x-data="{
+    lightboxOpen: false,
+    lightboxImage: '',
     dateFrom: '{{ request('date_from') }}',
     dateTo: '{{ request('date_to') }}',
     employeeId: '{{ request('employee_id') }}',
@@ -22,7 +24,7 @@
         'status'         => $visit->status,
         'purpose'        => $visit->purpose ?? '',
         'notes'          => $visit->notes ?? '',
-        'check_in_photo' => $visit->check_in_photo ? asset($visit->check_in_photo) : null,
+        'check_in_photo' => $visit->check_in_photo_url,
     ])) }},
     pagination: {
         current_page: {{ $visits->currentPage() }},
@@ -71,6 +73,14 @@
         this.fetchRecords(1);
     }
 }">
+    <!-- Lightbox Modal -->
+    <div x-show="lightboxOpen" style="display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background-color: rgba(15, 23, 42, 0.9); backdrop-filter: blur(4px);" x-transition>
+        <button type="button" @click="lightboxOpen = false" style="position: absolute; top: 2rem; right: 2rem; color: white; background: none; border: none; cursor: pointer; z-index: 10000;">
+            <svg style="width: 32px; height: 32px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <img :src="lightboxImage" style="max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); margin: auto; display: block;" @click.away="lightboxOpen = false">
+    </div>
+
     {{-- Header --}}
     <div class="panel-header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -189,10 +199,10 @@
                         </td>
                         <td class="text-right">
                             <template x-if="visit.check_in_photo">
-                                <a :href="visit.check_in_photo" target="_blank" class="inline-block relative group">
+                                <button type="button" @click="lightboxImage = visit.check_in_photo; lightboxOpen = true;" class="inline-block relative group cursor-pointer focus:outline-none" title="View Check-In Photo">
                                     <img :src="visit.check_in_photo" alt="Check In" class="w-10 h-10 object-cover rounded-lg border border-surface-border">
                                     <span class="absolute inset-0 bg-black/40 text-white text-[9px] font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg">View</span>
-                                </a>
+                                </button>
                             </template>
                             <template x-if="!visit.check_in_photo">
                                 <span class="text-xs text-ink-400 italic">—</span>

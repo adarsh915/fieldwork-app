@@ -99,7 +99,7 @@
                                         <x-lucide-pencil class="w-4 h-4" />
                                         Edit
                                     </a>
-                                    <form method="POST" action="{{ route('admin.product-attributes.destroy', $attr->id) }}" onsubmit="return confirm('Delete this attribute?')" class="contents">
+                                    <form method="POST" action="{{ route('admin.product-attributes.destroy', $attr->id) }}" class="delete-attr-form contents">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
@@ -137,3 +137,38 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('submit', async function (e) {
+        const form = e.target.closest('.delete-attr-form');
+        if (!form) return;
+        e.preventDefault();
+        if (!confirm('Are you sure you want to delete this attribute and all its values?')) return;
+
+        const row = form.closest('tr');
+        try {
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: new FormData(form)
+            });
+            const data = await res.json();
+            if (res.ok && (data.success || res.status === 200)) {
+                if (window.toast) window.toast(data.message || 'Attribute deleted', 'success');
+                if (row) row.remove();
+            } else {
+                if (window.toast) window.toast(data.message || 'Failed to delete attribute', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            if (window.toast) window.toast('Network error.', 'error');
+        }
+    });
+});
+</script>
+@endpush

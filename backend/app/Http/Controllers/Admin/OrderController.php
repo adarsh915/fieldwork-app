@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Yajra\DataTables\Facades\DataTables;
 
 class OrderController extends Controller
 {
@@ -26,44 +27,15 @@ class OrderController extends Controller
         $fieldWorkers = $fwQuery->orderBy('name')->get();
 
         $baseQuery = Order::query();
-
         if ($scopedUserIds !== null) {
             $baseQuery->whereIn('user_id', $scopedUserIds);
         }
 
-        // Apply base filters (user_id, search)
-        if ($request->filled('user_id')) {
-            if ($scopedUserIds === null || in_array($request->user_id, $scopedUserIds)) {
-                $baseQuery->where('user_id', $request->user_id);
-            } else {
-                $baseQuery->whereRaw('1=0');
-            }
-        }
-        if ($request->filled('search')) {
-            $baseQuery->where(function($q) use ($request) {
-                $q->where('order_no', 'like', '%' . $request->search . '%')
-                  ->orWhereHas('party', function($q2) use ($request) {
-                      $q2->where('name', 'like', '%' . $request->search . '%');
-                  });
-            });
-        }
-        if ($request->filled('order_source')) {
-            $baseQuery->where('order_source', $request->order_source);
-        }
-        if ($request->filled('timing')) {
-            if ($request->timing === 'during_shift') {
-                $baseQuery->where('is_after_day_end', false);
-            } elseif ($request->timing === 'after_day_end') {
-                $baseQuery->where('is_after_day_end', true);
-            }
-        }
-
-        // Status counts for cards (respecting user and search, ignoring status)
         $statusCounts = (clone $baseQuery)->select('status', DB::raw('count(*) as count'))
             ->groupBy('status')
             ->pluck('count', 'status')
             ->toArray();
-            
+
         $counts = [
             'all' => array_sum($statusCounts),
             'pending' => $statusCounts['pending'] ?? 0,
@@ -73,45 +45,123 @@ class OrderController extends Controller
             'cancelled' => $statusCounts['cancelled'] ?? 0,
         ];
 
-        // Now apply status filter for the actual list
-        $query = (clone $baseQuery)->with(['party', 'user.roles']);
+        return view('admin.orders.index', compact('fieldWorkers', 'counts'));
+    }
+
+    public function data(Request $request)
+    {
+        $scopedUserIds = DataScope::visibleUserIds('orders');
+
+        $baseQuery = Order::query();
+
+        if ($scopedUserIds !== null) {
+            $baseQuery->whereIn('user_id', $scopedUserIds);
+        }
+
+        if ($request->filled('user_id')) {
+            if ($scopedUserIds === null || in_array($request->user_id, $scopedUserIds)) {
+                $baseQuery->where('user_id', $request->user_id);
+            } else {
+                $baseQuery->whereRaw('1=0');
+            }
+        }
+
+        $search = $request->input('search.value');
+        if (empty($search) && is_string($request->input('search'))) {
+            $search = $request->input('search');
+        }
+        if (!empty($search) && is_string($search)) {
+            $baseQuery->where(function ($q) use ($search) {
+                $q->where('order_no', 'like', "%{$search}%")
+                  ->orWhereHas('party', function ($q2) use ($search) {
+                      $q2->where('name', 'like', "%{$search}%")
+                         ->orWhere('party_code', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('user', function ($uq) use ($search) {
+                      $uq->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($request->filled('order_source')) {
+            $baseQuery->where('order_source', $request->order_source);
+        }
+
+        if ($request->filled('timing')) {
+            if ($request->timing === 'during_shift') {
+                $baseQuery->where('is_after_day_end', false);
+            } elseif ($request->timing === 'after_day_end') {
+                $baseQuery->where('is_after_day_end', true);
+            }
+        }
+
+        // Status counts respecting current filters (excluding status filter)
+        $statusCounts = (clone $baseQuery)->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $counts = [
+            'all' => array_sum($statusCounts),
+            'pending' => $statusCounts['pending'] ?? 0,
+            'approved' => $statusCounts['approved'] ?? 0,
+            'dispatched' => $statusCounts['dispatched'] ?? 0,
+            'delivered' => $statusCounts['delivered'] ?? 0,
+            'cancelled' => $statusCounts['cancelled'] ?? 0,
+        ];
+
+        // Apply status filter for table rows
+        $query = (clone $baseQuery)->with(['party', 'user.roles'])->select('orders.*');
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        $orders = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
-
-        if ($request->ajax() || $request->wantsJson()) {
-            return response()->json([
-                'success' => true,
-                'records' => $orders->map(function ($order) {
-                    return [
-                        'id'                     => $order->id,
-                        'order_no'               => $order->order_no,
-                        'party_name'             => $order->party?->name ?? 'N/A',
-                        'party_code'             => $order->party?->party_code ?? $order->party?->code ?? '',
-                        'user_name'              => $order->user ? $order->user->name_with_role : 'Unknown',
-                        'order_source'           => $order->order_source,
-                        'is_after_day_end'       => (bool) $order->is_after_day_end,
-                        'order_date_formatted'   => $order->order_date ? \Carbon\Carbon::parse($order->order_date)->format('Y-m-d') : \Carbon\Carbon::parse($order->created_at)->format('Y-m-d'),
-                        'total_amount_formatted' => number_format((float) $order->total_amount, 2),
-                        'status'                 => $order->status,
-                        'show_url'               => route('admin.orders.show', $order->id),
-                    ];
-                }),
-                'counts' => $counts,
-                'pagination' => [
-                    'current_page' => $orders->currentPage(),
-                    'last_page'    => $orders->lastPage(),
-                    'per_page'     => $orders->perPage(),
-                    'total'        => $orders->total(),
-                    'from'         => $orders->firstItem() ?? 0,
-                    'to'           => $orders->lastItem() ?? 0,
-                ],
-            ]);
-        }
-
-        return view('admin.orders.index', compact('orders', 'fieldWorkers', 'counts'));
+        return DataTables::of($query)
+            ->addColumn('order_no', function ($order) {
+                return $order->order_no;
+            })
+            ->addColumn('party', function ($order) {
+                return [
+                    'name' => $order->party?->name ?? 'N/A',
+                    'code' => $order->party?->party_code ?? $order->party?->code ?? '',
+                    'city' => $order->party?->city ?? '',
+                ];
+            })
+            ->addColumn('user', function ($order) {
+                return [
+                    'name' => $order->user ? $order->user->name_with_role : ($order->user?->name ?? 'Unknown'),
+                    'role' => $order->user?->role_name ?? ($order->user?->roles->first()?->name ?? 'Field Worker'),
+                ];
+            })
+            ->addColumn('source_timing', function ($order) {
+                return [
+                    'source' => $order->order_source,
+                    'is_after_day_end' => (bool) $order->is_after_day_end,
+                ];
+            })
+            ->addColumn('date', function ($order) {
+                return [
+                    'formatted' => $order->order_date ? \Carbon\Carbon::parse($order->order_date)->format('d M Y') : \Carbon\Carbon::parse($order->created_at)->format('d M Y'),
+                ];
+            })
+            ->addColumn('amount', function ($order) {
+                return number_format((float) $order->total_amount, 2);
+            })
+            ->addColumn('status', function ($order) {
+                return $order->status;
+            })
+            ->addColumn('actions', function ($order) {
+                return [
+                    'id' => $order->id,
+                    'order_no' => $order->order_no,
+                    'status' => $order->status,
+                    'show_url' => route('admin.orders.show', $order->id),
+                    'update_status_url' => route('admin.orders.update-status', $order->id),
+                ];
+            })
+            ->with('counts', $counts)
+            ->rawColumns(['actions'])
+            ->make(true);
     }
 
     public function show(Order $order)

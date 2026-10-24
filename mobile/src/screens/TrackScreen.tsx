@@ -2,9 +2,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-import AppBottomBar from "../components/AppBottomBar";
+import ScreenHeader from "../components/ScreenHeader";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Track">;
@@ -13,10 +12,11 @@ export default function TrackScreen() {
   const navigation = useNavigation<Nav>();
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Track</Text>
-      </View>
+    <View style={styles.safe}>
+      <ScreenHeader
+        title="Track"
+        onBack={() => navigation.goBack()}
+      />
 
       <View style={styles.body}>
         <MaterialIcons name="location-searching" size={52} color="#7367F0" />
@@ -24,14 +24,7 @@ export default function TrackScreen() {
           Track screen (UI will be added from your design)
         </Text>
       </View>
-
-      <AppBottomBar
-        activeKey="Home"
-        onTabPress={(key) => {
-          if (key === "Home") navigation.replace("Dashboard");
-        }}
-      />
-    </SafeAreaView>
+    </View>
   );
 }
 

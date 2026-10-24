@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\DayStart;
 use App\Models\Visit;
+use App\Services\ActivityNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -59,16 +60,67 @@ class VisitController extends Controller
             ->where('status', 'pending')
             ->first();
 
-        // Also check if there's ANY active visit that is not this party
+        // Check if there's ANY active visit that is not this party
         $otherActiveVisit = Visit::where('day_start_id', $dayStart->id)
             ->where('status', 'pending')
             ->where('party_id', '!=', $partyId)
             ->first();
+
+        // Recent completed visits with notes for this party
+        $recentVisitsQuery = Visit::where('party_id', $partyId)
+            ->where('status', 'completed')
+            ->whereNotNull('notes')
+            ->where('notes', '!=', '');
+
+        $totalConsultations = (clone $recentVisitsQuery)->count();
+
+        $recentVisits = $recentVisitsQuery
+            ->with('user:id,name')
+            ->orderByDesc('check_out_time')
+            ->limit(5)
+            ->get(['id', 'user_id', 'party_id', 'check_in_time', 'check_out_time', 'notes', 'purpose']);
                 
-         return response()->json([
+        return response()->json([
             'success' => true,
             'active_visit' => $activeVisit,
             'has_other_active_visit' => (bool)$otherActiveVisit,
+            'recent_visits' => $recentVisits,
+            'total_consultations' => $totalConsultations,
+        ]);
+    }
+
+    /**
+     * Get paginated visit / consultation history for a party.
+     */
+    public function partyHistory(Request $request, $partyId)
+    {
+        $perPage = max(1, min(100, (int) $request->input('per_page', 10)));
+        
+        $query = Visit::where('party_id', $partyId)
+            ->where('status', 'completed')
+            ->whereNotNull('notes')
+            ->where('notes', '!=', '')
+            ->with('user:id,name')
+            ->orderByDesc('check_out_time');
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('notes', 'LIKE', "%{$search}%")
+                  ->orWhere('purpose', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $paginated = $query->paginate($perPage, ['id', 'user_id', 'party_id', 'check_in_time', 'check_out_time', 'notes', 'purpose']);
+
+        return response()->json([
+            'success'      => true,
+            'data'         => $paginated->items(),
+            'current_page' => $paginated->currentPage(),
+            'last_page'    => $paginated->lastPage(),
+            'per_page'     => $paginated->perPage(),
+            'total'        => $paginated->total(),
+            'has_more'     => $paginated->hasMorePages(),
         ]);
     }
 
@@ -81,9 +133,15 @@ class VisitController extends Controller
             'party_id' => 'required|exists:customers,id',
             'lat' => 'nullable|numeric',
             'lng' => 'nullable|numeric',
+            'purpose' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'remarks' => 'nullable|string',
         ]);
 
         $user = $request->user();
+        if (!$user->can('visits.create') && !$user->hasRole(['Super Admin', 'Admin'])) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to check in for visits.'], 403);
+        }
         
         $dayStart = DayStart::where('user_id', $user->id)
             ->whereDate('date', Carbon::today())
@@ -134,12 +192,16 @@ class VisitController extends Controller
             'user_id' => $user->id,
             'day_start_id' => $dayStart->id,
             'party_id' => $request->party_id,
+            'purpose' => $request->purpose,
+            'notes' => $request->notes ?? $request->remarks,
             'check_in_time' => Carbon::now(),
             'check_in_lat' => $request->lat,
             'check_in_lng' => $request->lng,
             'check_in_photo' => $imagePath,
             'status' => 'pending',
         ]);
+
+        ActivityNotificationService::notifyVisitCheckIn($visit);
 
         return response()->json([
             'success' => true,
@@ -157,6 +219,7 @@ class VisitController extends Controller
             'lat' => 'nullable|numeric',
             'lng' => 'nullable|numeric',
             'remarks' => 'nullable|string',
+            'notes' => 'nullable|string',
         ]);
 
         $user = $request->user();
@@ -167,17 +230,51 @@ class VisitController extends Controller
             return response()->json(['success' => false, 'message' => 'Visit is already completed.'], 400);
         }
 
+        $notes = $request->filled('notes')
+            ? $request->notes
+            : ($request->filled('remarks') ? $request->remarks : $visit->notes);
+
         $visit->update([
             'check_out_time' => Carbon::now(),
             'check_out_lat' => $request->lat,
             'check_out_lng' => $request->lng,
-            'notes' => $request->remarks,
+            'notes' => $notes,
             'status' => 'completed',
         ]);
+
+        ActivityNotificationService::notifyVisitCheckOut($visit);
 
         return response()->json([
             'success' => true,
             'message' => 'Checked out successfully.',
+            'data' => $visit,
+        ]);
+    }
+
+    /**
+     * Update consultation notes for an active or completed visit.
+     */
+    public function updateNotes(Request $request, $id)
+    {
+        $request->validate([
+            'notes' => 'nullable|string',
+            'remarks' => 'nullable|string',
+        ]);
+
+        $user = $request->user();
+        $visit = Visit::where('id', $id)->where('user_id', $user->id)->firstOrFail();
+
+        $oldNotes = $visit->notes;
+
+        $visit->update([
+            'notes' => $notes,
+        ]);
+
+        ActivityNotificationService::notifyVisitNotesUpdated($visit, $oldNotes, $user);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Consultation notes updated successfully.',
             'data' => $visit,
         ]);
     }

@@ -17,7 +17,7 @@
         </div>
 
         <!-- Form -->
-        <form method="POST" action="{{ route('admin.field-workers.update', $fieldWorker->id) }}" class="bg-white rounded-lg shadow-md p-8 border border-slate-200">
+        <form method="POST" action="{{ route('admin.field-workers.update', $fieldWorker->id) }}" id="editFieldWorkerForm" class="bg-white rounded-lg shadow-md p-8 border border-slate-200">
             @csrf
             @method('PUT')
 
@@ -113,3 +113,50 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('editFieldWorkerForm');
+    if (!form) return;
+
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const origText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="inline-block animate-spin mr-2">↻</span> Saving...';
+
+        try {
+            const formData = new FormData(form);
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (window.toast) window.toast(data.message || 'Field worker updated successfully.', 'success');
+                setTimeout(() => {
+                    window.location.href = '{{ route('admin.field-workers.index') }}';
+                }, 600);
+            } else {
+                let msg = data.message || 'Validation error';
+                if (data.errors) msg = Object.values(data.errors).flat().join('<br>');
+                if (window.toast) window.toast(msg, 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = origText;
+            }
+        } catch (err) {
+            console.error(err);
+            if (window.toast) window.toast('Network error. Please try again.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origText;
+        }
+    });
+});
+</script>
+@endpush

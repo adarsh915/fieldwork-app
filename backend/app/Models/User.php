@@ -8,10 +8,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use App\Traits\Auditable;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles, Auditable;
 
     /**
      * The attributes that are mass assignable.
@@ -31,6 +32,7 @@ class User extends Authenticatable
         'position',
         'salary',
         'is_active',
+        'profile_image',
         'reporting_to',
         'fcm_token',
     ];
@@ -89,6 +91,35 @@ class User extends Authenticatable
         return $this->hasMany(DayStart::class);
     }
 
+    public function trips()
+    {
+        return $this->hasMany(Trip::class);
+    }
+
+    public function fuelRateOverrides()
+    {
+        return $this->hasMany(FuelAllowanceRate::class, 'scope_id')->where('scope_type', 'user');
+    }
+
+    public function territories()
+    {
+        return $this->hasMany(EmployeeTerritory::class, 'employee_id');
+    }
+
+    public function assignedDistricts()
+    {
+        return $this->belongsToMany(District::class, 'employee_territories', 'employee_id', 'district_id')
+                    ->whereNull('employee_territories.area_id')
+                    ->distinct();
+    }
+
+    public function assignedAreas()
+    {
+        return $this->belongsToMany(Area::class, 'employee_territories', 'employee_id', 'area_id')
+                    ->whereNotNull('employee_territories.area_id')
+                    ->distinct();
+    }
+
     public function parties()
     {
         return $this->belongsToMany(Customer::class, 'party_employee_map', 'employee_id', 'party_id')
@@ -109,7 +140,24 @@ class User extends Authenticatable
     protected $appends = [
         'role_name',
         'name_with_role',
+        'profile_image_url',
     ];
+
+    /**
+     * Get the direct public URL for the employee's profile photo.
+     */
+    public function getProfileImageUrlAttribute(): ?string
+    {
+        if (!$this->profile_image) {
+            return null;
+        }
+
+        if (filter_var($this->profile_image, FILTER_VALIDATE_URL)) {
+            return $this->profile_image;
+        }
+
+        return asset('storage/' . $this->profile_image);
+    }
 
     /**
      * Get the display role name for the user (e.g. "VP", "Manager", "Field Worker", "Admin").

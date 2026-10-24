@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 class LeaveBalance extends Model
 {
+    use Auditable;
+
     protected $fillable = [
         'user_id',
         'leave_type_id',

@@ -41,16 +41,19 @@ class ExpenseReportController extends Controller
         }, 'expenses.category'])->get();
 
         $summary = $users->map(function($user) {
-            $totalTravel = $user->expenses->where('is_system_generated', true)->sum('amount');
+            $totalTravel = $user->expenses->where('is_system_generated', true)->whereNotIn('status', ['rejected', 'manager_rejected'])->sum('amount');
             $totalManualApproved = $user->expenses->where('is_system_generated', false)->where('status', 'approved')->sum('amount');
+            $totalManualVerified = $user->expenses->where('is_system_generated', false)->where('status', 'temp_approved')->sum('amount');
             $totalManualPending = $user->expenses->where('is_system_generated', false)->where('status', 'pending')->sum('amount');
             
             return [
-                'user' => $user,
-                'total_travel' => $totalTravel,
+                'user'                  => $user,
+                'total_travel'          => $totalTravel,
                 'total_manual_approved' => $totalManualApproved,
-                'total_manual_pending' => $totalManualPending,
-                'grand_total' => $totalTravel + $totalManualApproved
+                'total_manual_verified' => $totalManualVerified,
+                'total_manual_pending'  => $totalManualPending,
+                'total_pending_all'     => $totalManualVerified + $totalManualPending,
+                'grand_total'           => $totalTravel + $totalManualApproved, // Only final approved + auto travel are payable
             ];
         });
 
@@ -61,10 +64,11 @@ class ExpenseReportController extends Controller
     {
         $dayStart = DayStart::with([
             'expenses' => function($q) {
-                $q->where(function($query) {
-                    $query->where('status', 'approved')
-                          ->orWhere('is_system_generated', true);
-                });
+                $q->where('status', 'approved')
+                  ->orWhere(function($sq) {
+                      $sq->where('is_system_generated', true)
+                         ->whereNotIn('status', ['rejected', 'manager_rejected']);
+                  });
             },
             'expenses.category',
             'expenses.items',
@@ -105,7 +109,10 @@ class ExpenseReportController extends Controller
             ->whereYear('date', $month->year)
             ->where(function($query) {
                 $query->where('status', 'approved')
-                      ->orWhere('is_system_generated', true);
+                      ->orWhere(function($sq) {
+                          $sq->where('is_system_generated', true)
+                             ->whereNotIn('status', ['rejected', 'manager_rejected']);
+                      });
             })
             ->orderBy('date', 'asc')
             ->get();

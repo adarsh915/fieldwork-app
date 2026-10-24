@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 import {
@@ -36,6 +37,7 @@ type PaymentMode = "cash" | "upi" | "bank_transfer" | "cheque";
 export default function PaymentCollectionScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteType>();
+  const insets = useSafeAreaInsets();
   const { partyId, partyName, visitId } = route.params;
 
   const [loading, setLoading] = useState(true);
@@ -221,7 +223,10 @@ export default function PaymentCollectionScreen() {
       />
 
       <KeyboardAwareScreen
-        contentStyle={styles.scrollContent}
+        contentStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 20) + 40 },
+        ]}
         backgroundColor="#F3F4F6"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#7367F0"]} />}
       >

@@ -28,8 +28,44 @@ export const submitOrder = async (payload: OrderPayload): Promise<any> => {
   return data;
 };
 
-export const getOrders = async (partyId?: number): Promise<any> => {
-  const url = partyId ? `/orders?party_id=${partyId}` : "/orders";
+export interface GetOrdersParams {
+  partyId?: number | string;
+  page?: number;
+  per_page?: number;
+  search?: string;
+}
+
+export const getOrders = async (
+  partyIdOrParams?: number | string | GetOrdersParams,
+  params?: { page?: number; per_page?: number; search?: string }
+): Promise<any> => {
+  let partyId: number | string | undefined;
+  let page: number | undefined;
+  let per_page: number | undefined;
+  let search: string | undefined;
+
+  if (typeof partyIdOrParams === "object" && partyIdOrParams !== null) {
+    partyId = partyIdOrParams.partyId;
+    page = partyIdOrParams.page;
+    per_page = partyIdOrParams.per_page;
+    search = partyIdOrParams.search;
+  } else {
+    partyId = partyIdOrParams;
+    if (params) {
+      page = params.page;
+      per_page = params.per_page;
+      search = params.search;
+    }
+  }
+
+  const queryParams = new URLSearchParams();
+  if (partyId !== undefined) queryParams.append("party_id", String(partyId));
+  if (page !== undefined) queryParams.append("page", String(page));
+  if (per_page !== undefined) queryParams.append("per_page", String(per_page));
+  if (search) queryParams.append("search", search);
+
+  const qs = queryParams.toString();
+  const url = qs ? `/orders?${qs}` : "/orders";
   return await requestJson(url, { method: "GET" });
 };
 

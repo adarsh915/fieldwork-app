@@ -34,7 +34,7 @@
             <p class="mt-1 text-sm text-slate-500">Fill in the details to create a new party and optionally assign it to employees.</p>
         </div>
 
-        <form method="POST" action="{{ route('admin.parties.store') }}" class="p-6 space-y-8">
+        <form method="POST" action="{{ route('admin.parties.store') }}" id="createPartyForm" class="p-6 space-y-8">
             @csrf
 
             {{-- Party Details --}}
@@ -83,6 +83,36 @@
                         @error('is_active')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
+                    </div>
+
+                    <div x-data="{
+                        districts: {{ Js::from($districts ?? []) }},
+                        selectedDistrictId: '{{ old('district_id') }}',
+                        selectedAreaId: '{{ old('area_id') }}',
+                        get areas() {
+                            const d = this.districts.find(item => String(item.id) === String(this.selectedDistrictId));
+                            return d ? (d.areas || []) : [];
+                        }
+                    }" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="form-label">District / City</label>
+                            <select name="district_id" x-model="selectedDistrictId" class="form-input">
+                                <option value="">Select District</option>
+                                <template x-for="d in districts" :key="d.id">
+                                    <option :value="d.id" x-text="d.name"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Area / Town / Beat</label>
+                            <select name="area_id" x-model="selectedAreaId" class="form-input" :disabled="!selectedDistrictId">
+                                <option value="">Select Area</option>
+                                <template x-for="a in areas" :key="a.id">
+                                    <option :value="a.id" x-text="a.name + (a.pincode ? ' (' + a.pincode + ')' : '')"></option>
+                                </template>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="md:col-span-2">
@@ -147,14 +177,55 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const search = document.getElementById('emp-search-create');
-    if (!search) return;
-    search.addEventListener('input', function () {
-        const term = this.value.toLowerCase();
-        document.querySelectorAll('#emp-list-create .emp-item').forEach(function (item) {
-            const name = item.getAttribute('data-name') || '';
-            item.classList.toggle('hidden', term !== '' && !name.includes(term));
+    if (search) {
+        search.addEventListener('input', function () {
+            const term = this.value.toLowerCase();
+            document.querySelectorAll('#emp-list-create .emp-item').forEach(function (item) {
+                const name = item.getAttribute('data-name') || '';
+                item.classList.toggle('hidden', term !== '' && !name.includes(term));
+            });
         });
-    });
+    }
+
+    const form = document.getElementById('createPartyForm');
+    if (form) {
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const origText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="inline-block animate-spin mr-2">↻</span> Saving...';
+
+            try {
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: new FormData(form)
+                });
+                const data = await res.json();
+                if (res.ok && (data.success || res.status === 200)) {
+                    if (window.toast) window.toast(data.message || 'Party created successfully.', 'success');
+                    setTimeout(() => {
+                        window.location.href = data.redirect_url || '{{ route('admin.parties.index') }}';
+                    }, 600);
+                } else {
+                    let msg = data.message || 'Validation error';
+                    if (data.errors) msg = Object.values(data.errors).flat().join('<br>');
+                    if (window.toast) window.toast(msg, 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = origText;
+                }
+            } catch (err) {
+                console.error(err);
+                if (window.toast) window.toast('Network error. Please try again.', 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = origText;
+            }
+        });
+    }
 });
 </script>
 @endpush

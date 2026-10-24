@@ -12,9 +12,11 @@ class UserPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('employees.view')
-            || $user->hasPermissionTo('users.view')
-            || $user->hasRole(['Super Admin', 'Admin', 'admin', 'super_admin']);
+        return $user->hasRole(['Super Admin', 'Admin', 'admin', 'super_admin'])
+            || $user->hasAnyPermission([
+                'employees.view', 'employees.manage',
+                'employees.view-team', 'employees.view-all', 'employees.view-own'
+            ]);
     }
 
     /**
@@ -44,7 +46,7 @@ class UserPolicy
     public function create(User $user): bool
     {
         return $user->hasPermissionTo('employees.create')
-            || $user->hasPermissionTo('users.manage')
+            || $user->hasPermissionTo('employees.manage')
             || $user->hasRole(['Super Admin', 'Admin', 'admin', 'super_admin']);
     }
 
@@ -54,7 +56,7 @@ class UserPolicy
     public function update(User $user, User $model): bool
     {
         if (!$user->hasPermissionTo('employees.edit')
-            && !$user->hasPermissionTo('users.manage')
+            && !$user->hasPermissionTo('employees.manage')
             && !$user->hasRole(['Super Admin', 'Admin', 'admin', 'super_admin'])) {
             return false;
         }
@@ -77,7 +79,7 @@ class UserPolicy
         }
 
         if (!$user->hasPermissionTo('employees.delete')
-            && !$user->hasPermissionTo('users.manage')
+            && !$user->hasPermissionTo('employees.manage')
             && !$user->hasRole(['Super Admin', 'Admin', 'admin', 'super_admin'])) {
             return false;
         }

@@ -65,7 +65,16 @@ class ProductAttributeController extends Controller
         $validated['created_by'] = auth()->id();
         $validated['is_active'] = $request->has('is_active');
 
-        ProductAttribute::create($validated);
+        $attribute = ProductAttribute::create($validated);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Attribute \"{$validated['name']}\" created successfully!",
+                'attribute' => $attribute,
+                'redirect_url' => route('admin.product-attributes.index'),
+            ]);
+        }
 
         return redirect()->route('admin.product-attributes.index')
             ->with('status', "Attribute \"{$validated['name']}\" created successfully!");
@@ -100,6 +109,14 @@ class ProductAttributeController extends Controller
 
         $attribute->update($validated);
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Attribute \"{$attribute->name}\" updated successfully!",
+                'attribute' => $attribute,
+            ]);
+        }
+
         return redirect()->route('admin.product-attributes.index')
             ->with('status', "Attribute \"{$attribute->name}\" updated successfully!");
     }
@@ -107,11 +124,19 @@ class ProductAttributeController extends Controller
     /**
      * Delete an attribute
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $attribute = ProductAttribute::findOrFail($id);
         $name = $attribute->name;
         $attribute->delete();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Attribute \"{$name}\" deleted successfully!",
+                'redirect_url' => route('admin.product-attributes.index'),
+            ]);
+        }
 
         return redirect()->route('admin.product-attributes.index')
             ->with('status', "Attribute \"{$name}\" deleted successfully!");
@@ -132,7 +157,15 @@ class ProductAttributeController extends Controller
         $validated['product_attribute_id'] = $attributeId;
         $validated['created_by'] = auth()->id();
 
-        ProductAttributeValue::create($validated);
+        $val = ProductAttributeValue::create($validated);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Value \"{$validated['value']}\" added successfully!",
+                'value' => $val,
+            ]);
+        }
 
         return redirect()->route('admin.product-attributes.edit', $attributeId)
             ->with('status', "Value \"{$validated['value']}\" added successfully!");
@@ -141,12 +174,19 @@ class ProductAttributeController extends Controller
     /**
      * Delete an attribute value
      */
-    public function deleteValue($valueId)
+    public function deleteValue(Request $request, $valueId)
     {
         $value = ProductAttributeValue::findOrFail($valueId);
         $attributeId = $value->product_attribute_id;
         $valueName = $value->value;
         $value->delete();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Value \"{$valueName}\" deleted successfully!",
+            ]);
+        }
 
         return redirect()->route('admin.product-attributes.edit', $attributeId)
             ->with('status', "Value \"{$valueName}\" deleted successfully!");

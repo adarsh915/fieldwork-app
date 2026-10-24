@@ -9,10 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import { useAuth } from "../auth/AuthContext";
 
 export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
   const { login } = useAuth();
   const passwordRef = useRef<TextInput>(null);
 
@@ -41,11 +43,13 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>AMPL SOLUTION</Text>
-      </View>
+      <SafeAreaView style={{ backgroundColor: PURPLE }} edges={["top", "left", "right"]}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>AMPL SOLUTION</Text>
+        </View>
+      </SafeAreaView>
 
-      <KeyboardAwareScreen contentStyle={[styles.scrollContent, { paddingBottom: 60 }]}>
+      <KeyboardAwareScreen contentStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 20) + 40 }]}>
         <View style={styles.card}>
           <View style={styles.heroWrap}>
             <MaterialIcons name="terrain" size={48} color="#7367F0" />

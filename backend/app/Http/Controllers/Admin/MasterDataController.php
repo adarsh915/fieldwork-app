@@ -68,6 +68,17 @@ class MasterDataController extends Controller
         $modelClass = $config['model'];
         $record = $modelClass::create($validated);
 
+        // Automatically sync global rate with fuel rates system
+        if ($type === 'vehicle-types' && isset($validated['rate_per_km'])) {
+            app(\App\Services\FuelRateResolverService::class)->setRate([
+                'vehicle_type_id' => $record->id,
+                'scope_type'      => 'global',
+                'rate_per_km'     => (float) $validated['rate_per_km'],
+                'effective_from'  => now()->toDateString(),
+                'notes'           => 'Synced from Master Data',
+            ]);
+        }
+
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
                 'success' => true,
@@ -88,6 +99,17 @@ class MasterDataController extends Controller
         $validated = $this->validateRecord($request, $config, $record->id);
 
         $record->update($validated);
+
+        // Automatically sync global rate with fuel rates system
+        if ($type === 'vehicle-types' && isset($validated['rate_per_km'])) {
+            app(\App\Services\FuelRateResolverService::class)->setRate([
+                'vehicle_type_id' => $record->id,
+                'scope_type'      => 'global',
+                'rate_per_km'     => (float) $validated['rate_per_km'],
+                'effective_from'  => now()->toDateString(),
+                'notes'           => 'Synced from Master Data',
+            ]);
+        }
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([

@@ -259,9 +259,15 @@
             },
             body: JSON.stringify(Object.fromEntries(formData)),
         });
-        if (response.ok) {
-            alert('Field worker updated successfully');
-            location.reload();
+        const data = await response.json();
+        if (response.ok && data.success) {
+            if (window.toast) window.toast(data.message || 'Field worker updated successfully', 'success');
+            closeModal();
+            setTimeout(() => location.reload(), 500);
+        } else {
+            let msg = data.message || 'Failed to update field worker';
+            if (data.errors) msg = Object.values(data.errors).flat().join('<br>');
+            if (window.toast) window.toast(msg, 'error');
         }
     });
 </script>

@@ -297,6 +297,7 @@
             saving: false,
             errors: {},
             empSearch: '',
+            districts: {{ Js::from($districts ?? []) }},
             form: {
                 id: null,
                 name: '',
@@ -308,11 +309,24 @@
                 credit_limit: '',
                 credit_days: '',
                 is_active: true,
+                district_id: '',
+                area_id: '',
                 city: '',
                 state: '',
                 pincode: '',
                 address: '',
                 employee_ids: []
+            },
+            get availableAreas() {
+                if (!this.form.district_id) return [];
+                const d = this.districts.find(item => item.id == this.form.district_id);
+                return d ? d.areas : [];
+            },
+            onDistrictChange() {
+                const areas = this.availableAreas;
+                if (!areas.some(a => a.id == this.form.area_id)) {
+                    this.form.area_id = '';
+                }
             },
             assignableEmployees: {{ Js::from($assignableEmployees->map(fn($e) => ['id' => $e->id, 'name' => $e->name, 'role_name' => $e->role_name, 'name_with_role' => $e->name_with_role])) }},
             init() {
@@ -350,6 +364,8 @@
                                 credit_limit: p.credit_limit || '',
                                 credit_days: p.credit_days || '',
                                 is_active: !!p.is_active,
+                                district_id: p.district_id || '',
+                                area_id: p.area_id || '',
                                 city: p.city || '',
                                 state: p.state || '',
                                 pincode: p.pincode || '',
@@ -383,6 +399,8 @@
                 try {
                     const payload = {
                         ...this.form,
+                        district_id: this.form.district_id ? parseInt(this.form.district_id) : null,
+                        area_id: this.form.area_id ? parseInt(this.form.area_id) : null,
                         credit_days: this.form.credit_days !== '' && this.form.credit_days !== null ? parseInt(this.form.credit_days) : 0,
                         credit_limit: this.form.credit_limit !== '' && this.form.credit_limit !== null ? parseFloat(this.form.credit_limit) : 0
                     };
@@ -515,6 +533,33 @@
                                 <input type="checkbox" x-model="form.is_active" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                                 <span class="text-sm font-medium text-ink-800">Active Status</span>
                             </label>
+                        </div>
+
+                        {{-- District & Area / Beat --}}
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">District</label>
+                            <select x-model="form.district_id" @change="onDistrictChange()" class="form-input w-full">
+                                <option value="">Select District</option>
+                                <template x-for="d in districts" :key="d.id">
+                                    <option :value="d.id" x-text="d.name" :selected="form.district_id == d.id"></option>
+                                </template>
+                            </select>
+                            <template x-if="errors.district_id">
+                                <p class="text-xs text-danger-text mt-1" x-text="errors.district_id[0]"></p>
+                            </template>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-ink-700 mb-1">Area / Beat</label>
+                            <select x-model="form.area_id" :disabled="!form.district_id" class="form-input w-full">
+                                <option value="">Select Area / Beat</option>
+                                <template x-for="a in availableAreas" :key="a.id">
+                                    <option :value="a.id" x-text="a.name" :selected="form.area_id == a.id"></option>
+                                </template>
+                            </select>
+                            <template x-if="errors.area_id">
+                                <p class="text-xs text-danger-text mt-1" x-text="errors.area_id[0]"></p>
+                            </template>
                         </div>
 
                         {{-- City & State --}}

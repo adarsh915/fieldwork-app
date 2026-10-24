@@ -69,16 +69,16 @@
                 {{-- Fieldwork --}}
                 <p x-show="!sidebarCollapsed" class="sidebar-section-label uppercase tracking-wider">Fieldwork</p>
                 <div class="px-2 space-y-0.5">
-                    @can('customers.view')
+                    @canany(['customers.view', 'customers.manage', 'parties.view', 'parties.view-team', 'parties.view-all', 'parties.view-own'])
                     <a href="{{ route('admin.parties.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.parties.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Parties' : ''">
                         <x-lucide-users class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Parties</span>
                     </a>
-                    @endcan
+                    @endcanany
 
-                    @canany(['day-start.view-team', 'day-start.view-all', 'day-start.view-own', 'day-start.view'])
+                    @canany(['day-start.view-team', 'day-start.view-all', 'day-start.view-own', 'day-start.view', 'day-start.manage', 'day-start.approve'])
                     <a href="{{ route('admin.day-starts.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.day-starts.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Day Start' : ''">
@@ -87,59 +87,68 @@
                     </a>
                     @endcanany
 
-                    @can('orders.view')
+                    @canany(['orders.view', 'orders.view-team', 'orders.view-all', 'orders.view-own', 'orders.manage'])
                     <a href="{{ route('admin.orders.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.orders.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Orders' : ''">
                         <x-lucide-shopping-cart class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Orders</span>
                     </a>
-                    @endcan
+                    @endcanany
 
-                    @can('payments.view')
+                    @canany(['payments.view', 'payments.view-team', 'payments.view-all', 'payments.view-own', 'payments.manage'])
                     <a href="{{ route('admin.payments.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.payments.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Payments' : ''">
                         <x-lucide-banknote class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Payments</span>
                     </a>
-                    @endcan
+                    @endcanany
 
-                    @can('visits.view')
+                    @canany(['visits.view', 'visits.view-team', 'visits.view-all', 'visits.view-own', 'visits.manage'])
                     <a href="{{ route('admin.visits.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.visits.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Visits' : ''">
                         <x-lucide-map-pin class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Visits</span>
                     </a>
-                    @endcan
+                    @endcanany
 
-                    @can('reports.view')
+                    @canany(['reports.view', 'reports.view-team', 'reports.view-all', 'reports.view-own', 'reports.manage'])
                     <a href="{{ route('admin.reports.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.reports.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Reports' : ''">
                         <x-lucide-bar-chart-2 class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Reports</span>
                     </a>
-                    @endcan
+                    @endcanany
 
-                    @can('expenses.view')
+                    @canany(['expenses.view', 'expenses.view-team', 'expenses.view-all', 'expenses.view-own', 'expenses.approve', 'expenses.final_approve', 'expenses.manage'])
                     <a href="{{ route('admin.expenses.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.expenses.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Expenses' : ''">
                         <x-lucide-receipt class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Expense Bill</span>
                     </a>
-                    @endcan
+                    @endcanany
 
-                    @can('leave.view')
+                    @canany(['fuel-rates.view', 'fuel-rates.manage'])
+                    <a href="{{ route('admin.fuel-rates.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.fuel-rates.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Fuel Rates' : ''">
+                        <x-lucide-fuel class="w-5 h-5 shrink-0 text-amber-500" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Fuel Rates (Per KM)</span>
+                    </a>
+                    @endcanany
+
+                    @canany(['leaves.view', 'leaves.view-team', 'leaves.view-all', 'leaves.view-own', 'leaves.approve', 'leaves.manage'])
                     <a href="{{ route('admin.leave.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.leave.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Leave' : ''">
                         <x-lucide-calendar class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Leave</span>
                     </a>
-                    @endcan
+                    @endcanany
 
                     @can('meetings.view')
                     <a href="{{ route('admin.meetings.index') }}"
@@ -168,14 +177,14 @@
                     </a>
                     @endcan
 
-                    @can('dealers.view')
+                    @canany(['dealers.view', 'dealers.manage'])
                     <a href="{{ route('admin.dealers.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.dealers.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Dealers' : ''">
                         <x-lucide-store class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Dealer List</span>
                     </a>
-                    @endcan
+                    @endcanany
 
                     @can('activities.view')
                     <a href="{{ route('admin.activities.index') }}"
@@ -190,62 +199,50 @@
                 {{-- Management --}}
                 <p x-show="!sidebarCollapsed" class="sidebar-section-label uppercase tracking-wider">Management</p>
                 <div class="px-2 space-y-0.5">
-                    @can('employees.view')
+                    @canany(['employees.view', 'employees.view-team', 'employees.view-all', 'employees.view-own', 'employees.manage'])
                     <a href="{{ route('admin.employees.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.employees.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Employees' : ''">
                         <x-lucide-id-card class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Employees</span>
                     </a>
-                    @endcan
+                    @endcanany
 
-                    @can('users.view')
-                    <a href="{{ route('admin.users.index') }}"
-                       class="sidebar-link {{ request()->routeIs('admin.users.*') ? 'sidebar-link-active' : '' }}"
-                       :title="sidebarCollapsed ? 'Users' : ''">
-                        <x-lucide-user-cog class="w-5 h-5 shrink-0" />
-                        <span x-show="!sidebarCollapsed" class="truncate">Users</span>
-                    </a>
-                    @endcan
-
-                    @role('Super Admin')
+                    @if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasAnyPermission(['roles.view', 'roles.manage']))
                     <a href="{{ route('admin.roles.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.roles.*') || request()->routeIs('admin.permissions.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Roles & Permissions' : ''">
                         <x-lucide-shield-check class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Roles & Permissions</span>
                     </a>
-                    @endrole
+                    @endif
 
+                    <a href="{{ route('admin.notifications.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.notifications.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'All Notifications' : ''">
+                        <x-lucide-bell class="w-5 h-5 shrink-0 text-blue-500" />
+                        <span x-show="!sidebarCollapsed" class="truncate">All Notifications</span>
+                    </a>
+
+                    @canany(['settings.manage', 'master-data.manage'])
                     <a href="{{ route('admin.push-notifications.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.push-notifications.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Push Notifications' : ''">
                         <x-lucide-bell-ring class="w-5 h-5 shrink-0 text-indigo-500" />
                         <span x-show="!sidebarCollapsed" class="truncate">Push Notifications</span>
                     </a>
+                    @endcanany
 
-                    @can('master-data.manage')
-                    <a href="{{ route('admin.master-data.index', 'tour-purposes') }}"
-                       class="sidebar-link {{ request()->routeIs('admin.master-data.*') ? 'sidebar-link-active' : '' }}"
-                       :title="sidebarCollapsed ? 'Master Data' : ''">
-                        <x-lucide-database class="w-5 h-5 shrink-0" />
-                        <span x-show="!sidebarCollapsed" class="truncate">Master Data</span>
-                    </a>
-
-                    <a href="{{ route('admin.holidays.index') }}"
-                       class="sidebar-link {{ request()->routeIs('admin.holidays.*') ? 'sidebar-link-active' : '' }}"
-                       :title="sidebarCollapsed ? 'Holidays' : ''">
-                        <x-lucide-calendar-days class="w-5 h-5 shrink-0" />
-                        <span x-show="!sidebarCollapsed" class="truncate">Holidays</span>
-                    </a>
-
+                    @canany(['attendance.view', 'attendance.view-team', 'attendance.view-all', 'attendance.view-own', 'attendance.manage'])
                     <a href="{{ route('admin.attendance.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.attendance.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Attendance' : ''">
                         <x-lucide-calendar-check class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Attendance Calendar</span>
                     </a>
+                    @endcanany
 
+                    @can('leaves.manage')
                     <a href="{{ route('admin.leave-types.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.leave-types.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Leave Rules' : ''">
@@ -259,14 +256,41 @@
                         <x-lucide-wallet class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Leave Balances</span>
                     </a>
+                    @endcan
 
+                    @can('master-data.manage')
+                    <a href="{{ route('admin.master-data.index', 'tour-purposes') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.master-data.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Master Data' : ''">
+                        <x-lucide-database class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Master Data</span>
+                    </a>
+
+                    <a href="{{ route('admin.locations.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.locations.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Districts & Areas' : ''">
+                        <x-lucide-map-pin class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Districts & Areas</span>
+                    </a>
+
+                    <a href="{{ route('admin.holidays.index') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.holidays.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Holidays' : ''">
+                        <x-lucide-calendar-days class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Holidays</span>
+                    </a>
+                    @endcan
+
+                    @can('settings.manage')
                     <a href="{{ route('admin.settings.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.settings.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'System Settings' : ''">
                         <x-lucide-sliders class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">System Settings</span>
                     </a>
+                    @endcan
 
+                    @can('audit-logs.view')
                     <a href="{{ route('admin.audit-logs.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.audit-logs.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Audit Logs' : ''">
@@ -275,28 +299,32 @@
                     </a>
                     @endcan
 
-                    @can('customers.view')
+                    @canany(['customers.view', 'customers.manage', 'parties.view', 'parties.view-team', 'parties.view-all', 'parties.view-own'])
                     <a href="{{ route('admin.customers.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.customers.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Customers' : ''">
                         <x-lucide-users-round class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Customers</span>
                     </a>
+                    @endcanany
 
+                    @can('products.view')
                     <a href="{{ route('admin.products.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.products.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Products' : ''">
                         <x-lucide-package class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Products</span>
                     </a>
+                    @endcan
 
+                    @canany(['products.manage', 'master-data.manage'])
                     <a href="{{ route('admin.product-attributes.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.product-attributes.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Attributes' : ''">
                         <x-lucide-tag class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Attributes</span>
                     </a>
-                    @endcan
+                    @endcanany
 
                     @can('transactions.view')
                     <a href="{{ route('admin.transactions.index') }}"

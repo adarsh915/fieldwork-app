@@ -184,8 +184,29 @@
             </div>
         </div>
 
+        {{-- DataTable Quick Search & Page Length Toolbar --}}
+        <div class="p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div class="relative flex-1 min-w-[200px] max-w-sm">
+                <input type="text" id="matrix-search-input" placeholder="Search employee, role, performance..." 
+                       class="form-input text-xs py-2 pl-9 pr-3 w-full rounded-lg border-slate-200 bg-white shadow-2xs focus:border-brand-500" />
+                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-600">
+                <span class="font-medium">Show</span>
+                <select id="matrix-page-len" class="form-input text-xs py-1.5 px-2.5 w-auto rounded-lg border-slate-200 bg-white">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="-1">All</option>
+                </select>
+                <span>records</span>
+            </div>
+        </div>
+
         <div class="table-wrap overflow-x-auto" id="matrix-table-wrap">
-            <table class="data-table w-full text-left border-collapse">
+            <table id="report-matrix-table" class="data-table w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 border-y border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th class="py-3 px-4">Employee</th>
@@ -209,7 +230,7 @@
                             </td>
 
                             {{-- Days Started & KM --}}
-                            <td class="py-3.5 px-3 text-center">
+                            <td class="py-3.5 px-3 text-center" data-order="{{ $row['total_km'] }}">
                                 <div class="font-bold text-slate-900">{{ $row['days_started'] }} <span class="text-[10px] text-slate-400 font-normal">days</span></div>
                                 <div class="text-[11px] text-emerald-700 font-medium mt-0.5">{{ number_format($row['total_km'], 1) }} KM</div>
                                 @if($row['auto_closed_count'] > 0)
@@ -220,13 +241,13 @@
                             </td>
 
                             {{-- Physical Visits --}}
-                            <td class="py-3.5 px-3 text-center">
+                            <td class="py-3.5 px-3 text-center" data-order="{{ $row['total_visits'] }}">
                                 <div class="font-bold text-slate-900">{{ $row['total_visits'] }}</div>
                                 <div class="text-[10px] text-slate-400 mt-0.5">({{ $row['avg_visits_per_day'] }} / day)</div>
                             </td>
 
                             {{-- Orders Breakup (Visit vs Phone Shift vs Phone Night) --}}
-                            <td class="py-3.5 px-3 text-center">
+                            <td class="py-3.5 px-3 text-center" data-order="{{ $row['total_orders'] }}">
                                 <div class="font-bold text-slate-900 text-sm">{{ $row['total_orders'] }}</div>
                                 <div class="flex items-center justify-center gap-1 mt-1">
                                     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="In-person visit orders">
@@ -244,7 +265,7 @@
                             </td>
 
                             {{-- Total Sales --}}
-                            <td class="py-3.5 px-4 text-right">
+                            <td class="py-3.5 px-4 text-right" data-order="{{ $row['total_order_amount'] }}">
                                 <div class="font-black text-slate-900 text-sm">₹{{ number_format($row['total_order_amount'], 2) }}</div>
                                 @if($row['total_phone_orders'] > 0)
                                     <div class="text-[10px] text-slate-400 mt-0.5">Phone: ₹{{ number_format($row['phone_orders_amount'], 2) }}</div>
@@ -252,13 +273,13 @@
                             </td>
 
                             {{-- Collections --}}
-                            <td class="py-3.5 px-4 text-right">
+                            <td class="py-3.5 px-4 text-right" data-order="{{ $row['total_collections'] }}">
                                 <div class="font-bold text-emerald-700">₹{{ number_format($row['total_collections'], 2) }}</div>
                                 <div class="text-[10px] text-slate-400 mt-0.5">Conf: ₹{{ number_format($row['confirmed_collections'], 2) }}</div>
                             </td>
 
                             {{-- Leaves --}}
-                            <td class="py-3.5 px-3 text-center">
+                            <td class="py-3.5 px-3 text-center" data-order="{{ $row['leave_days'] }}">
                                 @if($row['leave_days'] > 0)
                                     <span class="badge badge-warning font-bold text-xs">{{ $row['leave_days'] }} d</span>
                                 @else
@@ -267,7 +288,7 @@
                             </td>
 
                             {{-- Expenses --}}
-                            <td class="py-3.5 px-4 text-right">
+                            <td class="py-3.5 px-4 text-right" data-order="{{ $row['claimed_expenses'] }}">
                                 <div class="font-bold text-slate-900">₹{{ number_format($row['claimed_expenses'], 2) }}</div>
                                 <div class="text-[10px] text-slate-400 mt-0.5">Apprv: ₹{{ number_format($row['approved_expenses'], 2) }}</div>
                             </td>
@@ -311,9 +332,10 @@
 
 @push('scripts')
 <script>
-(function () {
+document.addEventListener('DOMContentLoaded', function () {
     const matrixJsonUrl = '{{ route('admin.reports.matrix-json') }}';
-    let currentPreset  = '{{ $dateRange['preset'] }}';
+    let currentPreset   = '{{ $dateRange['preset'] }}';
+    let reportDataTable = null;
 
     function formatNumber(num, decimals = 2) {
         return Number(num || 0).toLocaleString('en-IN', {
@@ -322,7 +344,10 @@
         });
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
+    function getDT() {
+        return window.DataTable || (typeof DataTable !== 'undefined' ? DataTable : null);
+    }
+
     function getParams() {
         const params = new URLSearchParams();
         if (currentPreset === 'custom') {
@@ -344,6 +369,66 @@
         if (!tableWrap) return;
         tableWrap.style.opacity = on ? '0.4' : '1';
         tableWrap.style.pointerEvents = on ? 'none' : '';
+    }
+
+    function initDataTable() {
+        const tableEl = document.getElementById('report-matrix-table');
+        if (!tableEl) return;
+
+        if (reportDataTable) {
+            try {
+                reportDataTable.destroy();
+            } catch (e) {}
+            reportDataTable = null;
+        }
+
+        const DT = getDT();
+        if (!DT) return;
+
+        const hasEmptyRow = tableEl.querySelector('tbody tr td[colspan]') !== null;
+        const rowCount = tableEl.querySelectorAll('tbody tr').length;
+        if (!hasEmptyRow && rowCount > 0) {
+            const pageLenSelect = document.getElementById('matrix-page-len');
+            const initialLen = pageLenSelect ? parseInt(pageLenSelect.value) : 20;
+
+            reportDataTable = new DT('#report-matrix-table', {
+                pageLength: initialLen > 0 ? initialLen : 20,
+                lengthMenu: [[10, 20, 50, -1], [10, 20, 50, 'All']],
+                order: [[4, 'desc']], // Sort by Sales Value descending
+                columnDefs: [
+                    { targets: [8], orderable: false, searchable: false }
+                ],
+                dom: 'rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100"<"text-caption text-ink-500 font-medium"i><""p>>',
+                language: {
+                    info: "Showing _START_ to _END_ of _TOTAL_ employees",
+                    infoEmpty: "Showing 0 employees",
+                    emptyTable: "No performance records found for this period."
+                }
+            });
+
+            // Re-apply current search input if already typed
+            const searchInput = document.getElementById('matrix-search-input');
+            if (searchInput && searchInput.value) {
+                reportDataTable.search(searchInput.value).draw();
+            }
+        }
+    }
+
+    function ensureDataTableInit() {
+        if (getDT()) {
+            initDataTable();
+        } else {
+            let tries = 0;
+            const timer = setInterval(() => {
+                tries++;
+                if (getDT()) {
+                    clearInterval(timer);
+                    initDataTable();
+                } else if (tries > 50) {
+                    clearInterval(timer);
+                }
+            }, 50);
+        }
     }
 
     function fetchMatrix() {
@@ -395,6 +480,13 @@
         const tfoot  = document.getElementById('matrix-tfoot');
         if (!tbody) return;
 
+        if (reportDataTable) {
+            try {
+                reportDataTable.destroy();
+            } catch (e) {}
+            reportDataTable = null;
+        }
+
         if (!rows || rows.length === 0) {
             tbody.innerHTML = `<tr>
                 <td colspan="9" class="text-center py-12 text-slate-400">
@@ -432,16 +524,16 @@
                 <td class="py-3.5 px-4">
                     <div class="font-bold text-slate-900 text-sm">${r.name} (${r.role ?? 'Field Worker'})</div>
                 </td>
-                <td class="py-3.5 px-3 text-center">
+                <td class="py-3.5 px-3 text-center" data-order="${r.total_km ?? 0}">
                     <div class="font-bold text-slate-900">${r.days_started ?? 0} <span class="text-[10px] text-slate-400 font-normal">days</span></div>
                     <div class="text-[11px] text-emerald-700 font-medium mt-0.5">${formatNumber(r.total_km, 1)} KM</div>
                     ${autoClosedHtml}
                 </td>
-                <td class="py-3.5 px-3 text-center">
+                <td class="py-3.5 px-3 text-center" data-order="${r.total_visits ?? 0}">
                     <div class="font-bold text-slate-900">${r.total_visits ?? 0}</div>
                     <div class="text-[10px] text-slate-400 mt-0.5">(${formatNumber(r.avg_visits_per_day, 1)} / day)</div>
                 </td>
-                <td class="py-3.5 px-3 text-center">
+                <td class="py-3.5 px-3 text-center" data-order="${r.total_orders ?? 0}">
                     <div class="font-bold text-slate-900 text-sm">${r.total_orders ?? 0}</div>
                     <div class="flex items-center justify-center gap-1 mt-1">
                         <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="In-person visit orders">📍 ${r.visit_orders_count ?? 0}</span>
@@ -449,18 +541,18 @@
                         ${phoneNightHtml}
                     </div>
                 </td>
-                <td class="py-3.5 px-4 text-right">
+                <td class="py-3.5 px-4 text-right" data-order="${r.total_order_amount ?? 0}">
                     <div class="font-black text-slate-900 text-sm">₹${formatNumber(r.total_order_amount)}</div>
                     ${phoneAmountHtml}
                 </td>
-                <td class="py-3.5 px-4 text-right">
+                <td class="py-3.5 px-4 text-right" data-order="${r.total_collections ?? 0}">
                     <div class="font-bold text-emerald-700">₹${formatNumber(r.total_collections)}</div>
                     <div class="text-[10px] text-slate-400 mt-0.5">Conf: ₹${formatNumber(r.confirmed_collections)}</div>
                 </td>
-                <td class="py-3.5 px-3 text-center">
+                <td class="py-3.5 px-3 text-center" data-order="${r.leave_days ?? 0}">
                     ${leaveHtml}
                 </td>
-                <td class="py-3.5 px-4 text-right">
+                <td class="py-3.5 px-4 text-right" data-order="${r.claimed_expenses ?? 0}">
                     <div class="font-bold text-slate-900">₹${formatNumber(r.claimed_expenses)}</div>
                     <div class="text-[10px] text-slate-400 mt-0.5">Apprv: ₹${formatNumber(r.approved_expenses)}</div>
                 </td>
@@ -488,9 +580,24 @@
                 <td class="py-3.5 px-4"></td>
             </tr>`;
         }
+
+        initDataTable();
     }
 
-    // ── Event Bindings ─────────────────────────────────────────────────────────
+    // ── Live Search & Page Length Bindings ──────────────────────────────────────
+    document.getElementById('matrix-search-input')?.addEventListener('input', function () {
+        if (reportDataTable) {
+            reportDataTable.search(this.value).draw();
+        }
+    });
+
+    document.getElementById('matrix-page-len')?.addEventListener('change', function () {
+        if (reportDataTable) {
+            reportDataTable.page.len(parseInt(this.value)).draw();
+        }
+    });
+
+    // ── Filter Presets Bindings ────────────────────────────────────────────────
     document.querySelectorAll('.preset-pill').forEach(btn => {
         btn.addEventListener('click', function () {
             currentPreset = this.dataset.preset;
@@ -513,9 +620,14 @@
         currentPreset = 'this_month';
         const userSelect = document.getElementById('filter-user');
         if (userSelect) userSelect.value = '';
+        const searchInput = document.getElementById('matrix-search-input');
+        if (searchInput) searchInput.value = '';
         fetchMatrix();
     });
-})();
+
+    // Initialize DataTable safely on load
+    ensureDataTableInit();
+});
 </script>
 @endpush
 @endsection

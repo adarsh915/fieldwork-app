@@ -184,9 +184,49 @@ document.addEventListener('DOMContentLoaded', function () {
         quill.root.innerHTML = descriptionText;
     }
 
-    // Save editor content to textarea before form submit
-    document.getElementById('productForm').addEventListener('submit', function() {
+    // Save editor content and submit via AJAX
+    const form = document.getElementById('productForm');
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
         document.getElementById('description-input').value = quill.root.innerHTML;
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="inline-block animate-spin mr-2">↻</span> Saving...';
+
+        try {
+            const formData = new FormData(form);
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+
+            const data = await res.json();
+            if (res.ok && (data.success || res.status === 200)) {
+                if (window.toast) window.toast(data.message || 'Product created successfully', 'success');
+                setTimeout(() => {
+                    window.location.href = data.redirect_url || '{{ route('admin.products.index') }}';
+                }, 700);
+            } else {
+                let msg = data.message || 'Validation error';
+                if (data.errors) {
+                    msg = Object.values(data.errors).flat().join('<br>');
+                }
+                if (window.toast) window.toast(msg, 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        } catch (err) {
+            console.error(err);
+            if (window.toast) window.toast('Network error. Please try again.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
     });
 });
 

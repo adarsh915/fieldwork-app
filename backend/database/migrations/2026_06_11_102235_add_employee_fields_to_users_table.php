@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('position', 100)->nullable()->after('department');
             $table->decimal('salary', 10, 2)->nullable()->after('position');
             $table->boolean('is_active')->default(true)->after('salary');
+            $table->string('profile_image')->nullable()->after('is_active');
         });
     }
 
@@ -40,6 +41,7 @@ return new class extends Migration
                 'position',
                 'salary',
                 'is_active',
+                'profile_image',
             ]);
         });
     }

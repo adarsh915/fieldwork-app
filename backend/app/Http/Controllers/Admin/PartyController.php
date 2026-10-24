@@ -51,8 +51,12 @@ class PartyController extends Controller
 
         $partyTypes = ['Retailer', 'Distributor', 'Wholesaler', 'End Customer'];
         $categories = ['A', 'B', 'C', 'D'];
+        $districts = \App\Models\District::with(['areas' => fn($q) => $q->where('is_active', true)->orderBy('name')])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
 
-        return view('admin.parties.index', compact('employees', 'assignableEmployees', 'partyTypes', 'categories'));
+        return view('admin.parties.index', compact('employees', 'assignableEmployees', 'partyTypes', 'categories', 'districts'));
     }
 
     /**
@@ -72,8 +76,11 @@ class PartyController extends Controller
         DataScope::applyParties($query);
 
         // Filters
-        if ($request->filled('search.value') || $request->filled('search')) {
-            $search = $request->input('search.value') ?? $request->input('search');
+        $search = $request->input('search.value');
+        if (empty($search) && is_string($request->input('search'))) {
+            $search = $request->input('search');
+        }
+        if (!empty($search) && is_string($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('party_code', 'like', "%{$search}%")
@@ -443,7 +450,11 @@ class PartyController extends Controller
     public function create()
     {
         $employees = DataScope::assignableUsers()->orderBy('name')->get(['id', 'name']);
-        return view('admin.parties.create', compact('employees'));
+        $districts = \App\Models\District::with(['areas' => fn($q) => $q->where('is_active', true)->orderBy('name')])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        return view('admin.parties.create', compact('employees', 'districts'));
     }
 
     /**
@@ -456,6 +467,8 @@ class PartyController extends Controller
             'mobile'       => ['nullable', 'string', 'max:20'],
             'email'        => ['nullable', 'email', 'max:255'],
             'address'      => ['nullable', 'string', 'max:1000'],
+            'district_id'  => ['nullable', 'exists:districts,id'],
+            'area_id'      => ['nullable', 'exists:areas,id'],
             'user_id'      => ['nullable', 'integer', 'exists:users,id'],
             'land_area'    => ['nullable', 'string', 'max:100'],
             'latitude'     => ['nullable', 'numeric', 'between:-90,90'],
@@ -487,6 +500,15 @@ class PartyController extends Controller
                 'is_active' => true,
             ]);
             event(new PartyAssigned($party, $assignment, auth()->user()));
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Party "' . $party->name . '" created successfully!',
+                'party' => $party,
+                'redirect_url' => route('admin.parties.index'),
+            ]);
         }
 
         return redirect()->route('admin.parties.index')

@@ -34,6 +34,8 @@ class DatabaseSeeder extends Seeder
             TourMasterDataSeeder::class,
             EmployeeSeeder::class,
             ProductSeeder::class,
+            PaymentSettingsSeeder::class,
+            FuelAllowanceRateSeeder::class,
             PartyDetailSeeder::class,
         ]);
 

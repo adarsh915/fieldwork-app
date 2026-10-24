@@ -12,7 +12,7 @@
     </a>
 </div>
 
-<form method="POST" action="{{ route('admin.product-attributes.store') }}" class="max-w-2xl">
+<form method="POST" action="{{ route('admin.product-attributes.store') }}" id="attributeForm" class="max-w-2xl">
     @csrf
 
     <div class="space-y-6">
@@ -66,3 +66,50 @@
 </form>
 
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('attributeForm');
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const origText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="inline-block animate-spin mr-2">↻</span> Saving...';
+
+        try {
+            const formData = new FormData(form);
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok && (data.success || res.status === 200)) {
+                if (window.toast) window.toast(data.message || 'Attribute created successfully', 'success');
+                setTimeout(() => {
+                    window.location.href = data.redirect_url || '{{ route('admin.product-attributes.index') }}';
+                }, 600);
+            } else {
+                let msg = data.message || 'Validation error';
+                if (data.errors) {
+                    msg = Object.values(data.errors).flat().join('<br>');
+                }
+                if (window.toast) window.toast(msg, 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = origText;
+            }
+        } catch (err) {
+            console.error(err);
+            if (window.toast) window.toast('Network error. Please try again.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origText;
+        }
+    });
+});
+</script>
+@endpush

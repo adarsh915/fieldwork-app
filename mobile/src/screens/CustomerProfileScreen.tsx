@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getPartyDetails, type PartyProfile } from "../api/party";
+import ScreenHeader from "../components/ScreenHeader";
 import type { AppStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "CustomerProfile">;
@@ -45,37 +46,25 @@ export default function CustomerProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Customer Profile</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.safe}>
+        <ScreenHeader
+          title="Customer Profile"
+          onBack={() => navigation.goBack()}
+        />
         <ActivityIndicator size="large" color="#7367F0" style={{ marginTop: 40 }} />
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!profile) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Customer Profile</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.safe}>
+        <ScreenHeader
+          title="Customer Profile"
+          onBack={() => navigation.goBack()}
+        />
         <Text style={{ textAlign: 'center', marginTop: 40, color: '#666' }}>Profile not found.</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -92,18 +81,11 @@ export default function CustomerProfileScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerIconBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back-ios-new" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Customer Profile</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <View style={styles.safe}>
+      <ScreenHeader
+        title="Customer Profile"
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Main Info Card */}
@@ -144,7 +126,7 @@ export default function CustomerProfileScreen() {
           {renderField("Opening Balance", `₹${profile.opening_balance || 0}`, "bank")}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

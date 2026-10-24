@@ -16,7 +16,9 @@ class DealerPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('dealers.view');
+        return $user->hasPermissionTo('dealers.view')
+            || $user->hasPermissionTo('dealers.manage')
+            || $user->hasRole('Super Admin');
     }
 
     /**
@@ -25,7 +27,7 @@ class DealerPolicy
      */
     public function view(User $user, Dealer $dealer): bool
     {
-        if (!$user->hasPermissionTo('dealers.view')) {
+        if (!$user->hasPermissionTo('dealers.view') && !$user->hasPermissionTo('dealers.manage') && !$user->hasRole('Super Admin')) {
             return false;
         }
 

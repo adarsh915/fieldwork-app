@@ -26,6 +26,10 @@ export type ApiUser = {
   is_active: boolean;
   roles: string[];
   permissions: string[];
+  profile_image_url?: string | null;
+  role_name?: string | null;
+  address?: string | null;
+  hire_date?: string | null;
 };
 
 export type LoginResponse = {

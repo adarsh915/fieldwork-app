@@ -49,8 +49,45 @@ export interface ApplyLeavePayload {
 export const getLeaveTypes = (): Promise<{ success: boolean; data: LeaveType[] }> =>
   requestJson("/leave-types");
 
-export const getMyLeaves = (): Promise<{ success: boolean; data: Leave[] }> =>
-  requestJson("/leaves");
+export interface GetLeavesParams {
+  page?: number;
+  per_page?: number;
+  status?: string;
+  search?: string;
+  leave_type_id?: number | string;
+}
+
+export interface GetLeavesResponse {
+  success: boolean;
+  data: Leave[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+  has_more?: boolean;
+  counts?: {
+    all: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    cancelled: number;
+  };
+}
+
+export const getMyLeaves = (
+  params?: GetLeavesParams
+): Promise<GetLeavesResponse> => {
+  const queryParams = new URLSearchParams();
+  if (params?.page !== undefined) queryParams.append("page", String(params.page));
+  if (params?.per_page !== undefined) queryParams.append("per_page", String(params.per_page));
+  if (params?.status) queryParams.append("status", params.status);
+  if (params?.search) queryParams.append("search", params.search);
+  if (params?.leave_type_id !== undefined) queryParams.append("leave_type_id", String(params.leave_type_id));
+
+  const qs = queryParams.toString();
+  const url = qs ? `/leaves?${qs}` : "/leaves";
+  return requestJson<GetLeavesResponse>(url);
+};
 
 export const getLeaveBalance = (): Promise<{ success: boolean; data: LeaveBalance[] }> =>
   requestJson("/leaves/balance");

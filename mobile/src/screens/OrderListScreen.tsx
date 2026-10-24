@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +20,19 @@ import type { AppStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "OrderList">;
 type RouteType = RouteProp<AppStackParamList, "OrderList">;
+
+const PURPLE = "#7367F0";
+
+const ORDER_FILTERS: {
+  key: string;
+  label: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+}[] = [
+  { key: "all", label: "All", icon: "receipt-long" },
+  { key: "pending", label: "Pending", icon: "hourglass-empty" },
+  { key: "completed", label: "Completed", icon: "check-circle" },
+  { key: "cancelled", label: "Cancelled", icon: "cancel" },
+];
 
 export default function OrderListScreen() {
   const navigation = useNavigation<Nav>();
@@ -58,6 +72,21 @@ export default function OrderListScreen() {
     fetchOrders(true);
   };
 
+  const counts = useMemo(() => {
+    return {
+      all: orders.length,
+      pending: orders.filter((o) => (o.status || "pending").toLowerCase() === "pending").length,
+      completed: orders.filter((o) => {
+        const s = (o.status || "").toLowerCase();
+        return s === "completed" || s === "approved";
+      }).length,
+      cancelled: orders.filter((o) => {
+        const s = (o.status || "").toLowerCase();
+        return s === "cancelled" || s === "rejected";
+      }).length,
+    };
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const matchesSearch =
@@ -66,9 +95,14 @@ export default function OrderListScreen() {
         (order.party?.name && order.party.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (partyName && partyName.toLowerCase().includes(searchQuery.toLowerCase()));
 
+      const s = (order.status || "pending").toLowerCase();
       const matchesStatus =
         statusFilter === "all" ||
-        (order.status || "pending").toLowerCase() === statusFilter.toLowerCase();
+        (statusFilter === "completed"
+          ? s === "completed" || s === "approved"
+          : statusFilter === "cancelled"
+          ? s === "cancelled" || s === "rejected"
+          : s === statusFilter.toLowerCase());
 
       return matchesSearch && matchesStatus;
     });
@@ -213,28 +247,55 @@ export default function OrderListScreen() {
           )}
         </View>
 
-        {/* Status Filters */}
-        <View style={styles.filterRow}>
-          {["all", "pending", "completed", "cancelled"].map((st) => (
-            <TouchableOpacity
-              key={st}
-              style={[
-                styles.filterChip,
-                statusFilter === st && styles.filterChipActive,
-              ]}
-              onPress={() => setStatusFilter(st)}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  statusFilter === st && styles.filterChipTextActive,
-                ]}
+        {/* ── Status Filter Capsule Slider (matching ReportScreen / ExpenseList design) ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterPillsWrap}
+          style={styles.filterSlider}
+        >
+          {ORDER_FILTERS.map((item) => {
+            const active = statusFilter === item.key;
+            const count = counts[item.key as keyof typeof counts] ?? 0;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setStatusFilter(item.key)}
+                activeOpacity={0.8}
               >
-                {st.charAt(0).toUpperCase() + st.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <MaterialIcons
+                  name={item.icon}
+                  size={16}
+                  color={active ? "#FFFFFF" : "#64748B"}
+                />
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    active && styles.filterChipTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+                <View
+                  style={[
+                    styles.chipCountBadge,
+                    active && styles.chipCountBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipCountText,
+                      active && styles.chipCountTextActive,
+                    ]}
+                  >
+                    {count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         {/* Stats banner */}
         <View style={styles.statsCard}>
@@ -294,7 +355,7 @@ export default function OrderListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F4F4F8",
   },
   topSection: {
     paddingHorizontal: 14,
@@ -318,29 +379,65 @@ const styles = StyleSheet.create({
     color: "#1F2937",
     fontWeight: "600",
   },
-  filterRow: {
-    flexDirection: "row",
-    gap: 8,
+  filterSlider: {
     marginBottom: 10,
   },
+  filterPillsWrap: {
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2,
+  },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: "#FFFFFF",
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   filterChipActive: {
-    backgroundColor: "#7367F0",
-    borderColor: "#7367F0",
+    backgroundColor: PURPLE,
+    borderColor: PURPLE,
+    shadowColor: PURPLE,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
   filterChipText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#6B7280",
+    color: "#475569",
   },
   filterChipTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  chipCountBadge: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipCountBadgeActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  chipCountText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748B",
+  },
+  chipCountTextActive: {
     color: "#FFFFFF",
   },
   statsCard: {

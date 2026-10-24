@@ -27,16 +27,61 @@ export interface ExpenseBill {
   amount: string | number;
   date: string;
   bill_photo: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  bill_photo_url?: string | null;
+  status: 'pending' | 'temp_approved' | 'approved' | 'manager_rejected' | 'rejected';
   is_system_generated: boolean;
   is_after_day_end?: boolean;
   category?: ExpenseCategory;
   items?: ExpenseItem[];
+  rejection_reason?: string | null;
+  rejected_by?: { id: number; name: string } | null;
+  rejected_at?: string | null;
+  temp_approved_by?: { id: number; name: string } | null;
+  temp_approved_at?: string | null;
+  temp_approved_note?: string | null;
+  approved_by?: { id: number; name: string } | null;
+  approved_at?: string | null;
+  final_note?: string | null;
   created_at: string;
 }
 
-export const getExpenses = async (): Promise<{ success: boolean; data: ExpenseBill[] }> => {
-  return await requestJson<{ success: boolean; data: ExpenseBill[] }>('/expenses');
+export interface GetExpensesParams {
+  page?: number;
+  per_page?: number;
+  status?: string;
+  search?: string;
+  category_id?: number | string;
+}
+
+export interface GetExpensesResponse {
+  success: boolean;
+  data: ExpenseBill[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+  has_more?: boolean;
+  counts?: {
+    all: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
+}
+
+export const getExpenses = async (
+  params?: GetExpensesParams
+): Promise<GetExpensesResponse> => {
+  const queryParams = new URLSearchParams();
+  if (params?.page !== undefined) queryParams.append("page", String(params.page));
+  if (params?.per_page !== undefined) queryParams.append("per_page", String(params.per_page));
+  if (params?.status) queryParams.append("status", params.status);
+  if (params?.search) queryParams.append("search", params.search);
+  if (params?.category_id !== undefined) queryParams.append("category_id", String(params.category_id));
+
+  const qs = queryParams.toString();
+  const url = qs ? `/expenses?${qs}` : "/expenses";
+  return await requestJson<GetExpensesResponse>(url);
 };
 
 export interface MonthlyExpenseSummary {
@@ -124,6 +169,54 @@ export const submitExpense = async (
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || "Failed to submit expense.");
+  }
+  
+  return await res.json();
+};
+
+export const updateExpense = async (
+  id: number,
+  categoryId: number,
+  amount: string,
+  photoUri?: string | null,
+  items?: ExpenseItemInput[],
+  date?: string
+): Promise<any> => {
+  const token = await getAuthToken();
+  const form = new FormData();
+  form.append("category_id", categoryId.toString());
+  form.append("amount", amount);
+  if (date) {
+    form.append("date", date);
+  }
+  if (items && items.length > 0) {
+    form.append("items_json", JSON.stringify(items));
+  }
+  
+  if (photoUri && !photoUri.startsWith("http")) {
+    const filename = photoUri.split("/").pop() ?? "expense_photo.jpg";
+    const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
+    const mime = ext === "png" ? "image/png" : "image/jpeg";
+    
+    form.append("bill_photo", {
+      uri: photoUri,
+      name: filename,
+      type: mime,
+    } as any);
+  }
+
+  const res = await fetch(`${API_BASE_URL}${API_PREFIX}/expenses/${id}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || "Failed to update expense.");
   }
   
   return await res.json();

@@ -55,6 +55,41 @@
                 <h3 class="text-sm font-bold text-ink-900 border-b border-surface-border pb-2 mb-4 flex items-center gap-2">
                     <x-lucide-user class="w-4 h-4 text-primary-600" /> Personal Information
                 </h3>
+
+                {{-- Profile Photo Upload & Preview --}}
+                <div class="mb-6 flex items-center gap-5 p-4 rounded-xl bg-surface-ground/50 border border-surface-border">
+                    <div class="relative group shrink-0">
+                        <template x-if="photoPreview">
+                            <img :src="photoPreview" alt="Profile Preview"
+                                 class="w-20 h-20 rounded-full object-cover shadow-sm border-2 border-primary-500">
+                        </template>
+                        <template x-if="!photoPreview">
+                            <div class="w-20 h-20 rounded-full bg-surface-card border-2 border-dashed border-ink-300 flex flex-col items-center justify-center text-ink-400 group-hover:border-primary-500 group-hover:text-primary-600 transition-colors">
+                                <x-lucide-camera class="w-6 h-6" />
+                                <span class="text-[10px] mt-1 font-medium">Photo</span>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex-1">
+                        <label class="form-label text-xs block mb-1">Profile Photo</label>
+                        <div class="flex items-center gap-2">
+                            <label class="btn btn-secondary text-xs cursor-pointer inline-flex items-center gap-1.5 py-1.5 px-3">
+                                <x-lucide-upload class="w-3.5 h-3.5" />
+                                <span x-text="photoPreview ? 'Change Photo' : 'Upload Photo'"></span>
+                                <input type="file" accept="image/*" class="hidden" @change="handlePhotoChange($event)">
+                            </label>
+                            <button type="button" x-show="photoPreview" @click="removePhotoSelection()"
+                                    class="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1">
+                                Remove Photo
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-ink-400 mt-1">Recommended: PNG, JPG, or WEBP up to 5MB.</p>
+                        <template x-if="errors.profile_image">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.profile_image[0]"></p>
+                        </template>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {{-- Full Name --}}
                     <div>
@@ -246,12 +281,19 @@
                 
                 <div class="mb-4">
                     <label class="form-label text-xs">Assign Role <span class="text-rose-500">*</span></label>
+                    @if(auth()->user()->can('employees.assign-roles') || auth()->user()->hasRole('Super Admin'))
                     <select x-model="form.role" class="form-input text-xs w-full max-w-md">
                         <option value="">Select Role</option>
                         @foreach ($roles as $role)
                             <option value="{{ $role->name }}">{{ ucfirst($role->name) }}</option>
                         @endforeach
                     </select>
+                    @else
+                    <div class="px-3 py-2 bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 max-w-md border border-slate-200 flex items-center justify-between">
+                        <span>{{ $employee->roles->pluck('name')->first() ?? 'No Role' }}</span>
+                        <span class="text-[10px] text-slate-400 font-normal">Role locked (requires permission)</span>
+                    </div>
+                    @endif
                     <template x-if="errors.role || errors.roles">
                         <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="(errors.role || errors.roles)[0]"></p>
                     </template>
@@ -269,13 +311,67 @@
                 </div>
             </div>
 
+            {{-- Assigned Territories (Districts & Areas) --}}
+            <div>
+                <h3 class="text-sm font-bold text-ink-900 border-b border-surface-border pb-2 mb-2 flex items-center gap-2">
+                    <x-lucide-map-pin class="w-4 h-4 text-primary-600" /> Assigned Territories (Districts & Areas)
+                </h3>
+                <p class="mb-3 text-xs text-ink-500">
+                    Assign whole districts or specific beats/areas to this employee. The mobile app user will automatically see and have access to all parties located in these territories.
+                </p>
+
+                <div class="mb-3 relative max-w-sm">
+                    <input type="text"
+                           x-model="territorySearch"
+                           class="form-input text-xs pl-8 w-full"
+                           placeholder="Filter districts or areas...">
+                    <x-lucide-search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
+                </div>
+
+                <div class="max-h-80 overflow-y-auto rounded-xl border border-surface-border p-3 bg-surface-subtle/40 space-y-3">
+                    @forelse ($districts as $district)
+                        <div x-show="!territorySearch || '{{ strtolower(addslashes($district->name)) }}'.includes(territorySearch.toLowerCase()) || {{ Js::from($district->areas->pluck('name')->map(fn($n) => strtolower($n))) }}.some(a => a.includes(territorySearch.toLowerCase()))"
+                             class="p-3 bg-white border border-surface-border rounded-lg shadow-2xs">
+                            <div class="flex items-center justify-between pb-2 border-b border-surface-border/60">
+                                <label class="flex items-center gap-2 text-xs font-bold text-ink-900 cursor-pointer">
+                                    <input type="checkbox"
+                                           :checked="isDistrictSelected({{ $district->id }})"
+                                           @change="toggleDistrict({{ $district->id }})"
+                                           class="rounded border-surface-border text-primary-600 focus:ring-primary-500">
+                                    <span>{{ $district->name }} <span class="text-[10px] font-normal text-ink-500">(Entire District)</span></span>
+                                </label>
+                                <span class="text-[10px] text-ink-400 font-medium">{{ $district->areas->count() }} Areas</span>
+                            </div>
+
+                            @if($district->areas->isNotEmpty())
+                                <div class="mt-2.5 pt-1 pl-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                    @foreach($district->areas as $area)
+                                        <label x-show="!territorySearch || '{{ strtolower(addslashes($area->name)) }}'.includes(territorySearch.toLowerCase()) || '{{ strtolower(addslashes($district->name)) }}'.includes(territorySearch.toLowerCase())"
+                                               class="flex items-center gap-1.5 p-1.5 rounded border border-surface-border/50 text-[11px] font-medium text-ink-700 hover:bg-surface-subtle cursor-pointer"
+                                               :class="isAreaSelected({{ $area->id }}) ? 'border-primary-500 bg-primary-50/20 text-primary-700' : ''">
+                                            <input type="checkbox"
+                                                   :checked="isAreaSelected({{ $area->id }})"
+                                                   @change="toggleArea({{ $area->id }})"
+                                                   class="rounded border-surface-border text-primary-600 focus:ring-primary-500">
+                                            <span class="truncate">{{ $area->name }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                    @empty
+                        <p class="text-xs text-ink-400 py-2">No districts found in system.</p>
+                    @endforelse
+                </div>
+            </div>
+
             {{-- Assigned Parties --}}
             <div>
                 <h3 class="text-sm font-bold text-ink-900 border-b border-surface-border pb-2 mb-2 flex items-center gap-2">
-                    <x-lucide-building class="w-4 h-4 text-primary-600" /> Assigned Parties (Customers)
+                    <x-lucide-building class="w-4 h-4 text-primary-600" /> Assigned Parties (Direct Mapping)
                 </h3>
                 <p class="mb-3 text-xs text-ink-500">
-                    Select which parties this employee can choose when submitting a Day Start tour plan.
+                    Directly assign specific individual parties to this employee regardless of territory.
                 </p>
 
                 <div class="mb-3 relative max-w-sm">
@@ -360,15 +456,61 @@ function editEmployeeForm(config) {
             is_active: @js((bool)$employee->is_active),
             role: @js($employee->roles->pluck('name')->first() ?? ''),
             roles: @js($employee->roles->pluck('name')->toArray()),
-            parties: @js(array_map('strval', $assignedPartyIds))
+            parties: @js(array_map('strval', $assignedPartyIds)),
+            territory_districts: @js(array_map('intval', $assignedDistrictIds ?? [])),
+            territory_areas: @js(array_map('intval', $assignedAreaIds ?? []))
         },
+        photoFile: null,
+        photoPreview: @js($employee->profile_image_url ?? null),
+        removePhoto: false,
         partySearch: '',
+        territorySearch: '',
         showPassword: false,
         submitting: false,
         deleting: false,
         errors: {},
         bannerMessage: '',
         bannerType: 'success',
+
+        toggleDistrict(districtId) {
+            const id = parseInt(districtId);
+            const idx = this.form.territory_districts.indexOf(id);
+            if (idx > -1) {
+                this.form.territory_districts.splice(idx, 1);
+            } else {
+                this.form.territory_districts.push(id);
+            }
+        },
+        isDistrictSelected(districtId) {
+            return this.form.territory_districts.includes(parseInt(districtId));
+        },
+        toggleArea(areaId) {
+            const id = parseInt(areaId);
+            const idx = this.form.territory_areas.indexOf(id);
+            if (idx > -1) {
+                this.form.territory_areas.splice(idx, 1);
+            } else {
+                this.form.territory_areas.push(id);
+            }
+        },
+        isAreaSelected(areaId) {
+            return this.form.territory_areas.includes(parseInt(areaId));
+        },
+
+        handlePhotoChange(e) {
+            const file = e.target.files[0];
+            if (file) {
+                this.photoFile = file;
+                this.photoPreview = URL.createObjectURL(file);
+                this.removePhoto = false;
+            }
+        },
+
+        removePhotoSelection() {
+            this.photoFile = null;
+            this.photoPreview = null;
+            this.removePhoto = true;
+        },
 
         showBanner(msg, type = 'success') {
             this.bannerMessage = msg;
@@ -387,21 +529,51 @@ function editEmployeeForm(config) {
             this.bannerMessage = '';
 
             try {
-                const payload = {
-                    ...this.form,
-                    roles: this.form.role ? [this.form.role] : [],
-                    parties: this.form.parties.map(id => parseInt(id, 10))
-                };
+                const formData = new FormData();
+                formData.append('_method', 'PUT');
+
+                formData.append('has_territory_sync', '1');
+
+                for (const [key, val] of Object.entries(this.form)) {
+                    if (key === 'roles' && Array.isArray(val)) {
+                        val.forEach(r => formData.append('roles[]', r));
+                    } else if (key === 'parties' && Array.isArray(val)) {
+                        val.forEach(p => formData.append('parties[]', p));
+                    } else if (key === 'territory_districts' && Array.isArray(val)) {
+                        val.forEach(d => formData.append('territory_districts[]', d));
+                    } else if (key === 'territory_areas' && Array.isArray(val)) {
+                        val.forEach(a => formData.append('territory_areas[]', a));
+                    } else if (key === 'password') {
+                        if (val && String(val).trim().length > 0) {
+                            formData.append('password', val);
+                        }
+                    } else if (key === 'is_active') {
+                        formData.append('is_active', val ? '1' : '0');
+                    } else if (val !== null && val !== undefined && val !== '') {
+                        formData.append(key, val);
+                    }
+                }
+
+                if (this.form.role && (!Array.isArray(this.form.roles) || !this.form.roles.length)) {
+                    formData.append('roles[]', this.form.role);
+                }
+
+                if (this.photoFile) {
+                    formData.append('profile_image', this.photoFile);
+                }
+
+                if (this.removePhoto) {
+                    formData.append('remove_profile_image', '1');
+                }
 
                 const response = await fetch(config.updateUrl, {
-                    method: 'PUT',
+                    method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
                         'X-CSRF-TOKEN': config.csrfToken
                     },
-                    body: JSON.stringify(payload)
+                    body: formData
                 });
 
                 const data = await response.json();
@@ -410,7 +582,8 @@ function editEmployeeForm(config) {
                     this.showBanner(data.message || 'Employee updated successfully! Redirecting...', 'success');
                 } else if (response.status === 422) {
                     this.errors = data.errors || {};
-                    this.showBanner(data.message || 'Please fix the validation errors below.', 'error');
+                    const firstMsg = Object.values(this.errors).flat()[0];
+                    this.showBanner(firstMsg || data.message || 'Please fix the validation errors below.', 'error');
                 } else {
                     this.showBanner(data.message || 'An error occurred while updating the employee.', 'error');
                 }

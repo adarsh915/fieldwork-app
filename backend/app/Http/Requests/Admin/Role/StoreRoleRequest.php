@@ -15,7 +15,12 @@ class StoreRoleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return auth()->check() && auth()->user()->hasRole('Super Admin');
+        $user = auth()->user();
+        return auth()->check() && (
+            $user->hasRole('Super Admin')
+            || $user->hasPermissionTo('roles.create')
+            || $user->hasPermissionTo('roles.manage')
+        );
     }
 
     /**

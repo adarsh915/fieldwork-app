@@ -13,8 +13,9 @@ import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 import { applyLeave, getLeaveTypes, LeaveType } from "../api/leave";
 import { HttpError } from "../api/http";
-import { type NativeStackScreenProps } from "@react-navigation/native-stack";
-import { type AppStackParamList } from "../navigation/RootNavigator";
+import { useAlert } from "../context/AlertModalContext";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { AppStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<AppStackParamList, "LeaveApplication">;
 
@@ -34,6 +35,7 @@ const toDisplayDate = (d: Date) =>
   d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 export default function LeaveApplicationScreen({ navigation }: Props) {
+  const { showSuccess, showError, showWarning } = useAlert();
   const [leaveTypes, setLeaveTypes]   = useState<LeaveType[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(true);
 
@@ -107,15 +109,17 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
         reason:        reason.trim() || undefined,
       });
 
-      Alert.alert("Success", "Leave application submitted successfully.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      showSuccess(
+        "Application Submitted!",
+        "Your leave application has been submitted successfully for approval.",
+        () => navigation.goBack()
+      );
     } catch (e) {
       const err = e as HttpError;
       const msg = err.message || "Failed to submit leave.";
 
       // Show alert dialog with server error message
-      Alert.alert("Leave Application Error", msg);
+      showError("Leave Application Error", msg);
 
       // Also map field errors if present
       const serverErrors = (err.details as any)?.errors;
@@ -146,7 +150,7 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
     <View style={styles.container}>
       <ScreenHeader title="Apply Leave" onBack={() => navigation.goBack()} bgColor="#7367F0" />
 
-      <KeyboardAwareScreen contentStyle={styles.scroll} backgroundColor="#0f172a">
+      <KeyboardAwareScreen contentStyle={styles.scroll} backgroundColor="#F4F4F8">
         {/* ── Leave Type ── */}
         <Text style={styles.sectionLabel}>Leave Type</Text>
         <View style={styles.chipRow}>
@@ -193,14 +197,14 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
         <Text style={styles.sectionLabel}>From Date</Text>
         <View style={styles.dateControl}>
           <TouchableOpacity style={styles.dateBtn} onPress={() => handleFromDateChange(-1)}>
-            <MaterialCommunityIcons name="chevron-left" size={24} color="#94a3b8" />
+            <MaterialCommunityIcons name="chevron-left" size={24} color="#7367F0" />
           </TouchableOpacity>
           <View style={styles.dateDisplay}>
             <MaterialCommunityIcons name="calendar" size={16} color="#7367F0" />
             <Text style={styles.dateText}>{toDisplayDate(fromDate)}</Text>
           </View>
           <TouchableOpacity style={styles.dateBtn} onPress={() => handleFromDateChange(1)}>
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#94a3b8" />
+            <MaterialCommunityIcons name="chevron-right" size={24} color="#7367F0" />
           </TouchableOpacity>
         </View>
 
@@ -210,14 +214,14 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
             <Text style={styles.sectionLabel}>To Date</Text>
             <View style={styles.dateControl}>
               <TouchableOpacity style={styles.dateBtn} onPress={() => handleToDateChange(-1)}>
-                <MaterialCommunityIcons name="chevron-left" size={24} color="#94a3b8" />
+                <MaterialCommunityIcons name="chevron-left" size={24} color="#7367F0" />
               </TouchableOpacity>
               <View style={styles.dateDisplay}>
                 <MaterialCommunityIcons name="calendar" size={16} color="#7367F0" />
                 <Text style={styles.dateText}>{toDisplayDate(toDate)}</Text>
               </View>
               <TouchableOpacity style={styles.dateBtn} onPress={() => handleToDateChange(1)}>
-                <MaterialCommunityIcons name="chevron-right" size={24} color="#94a3b8" />
+                <MaterialCommunityIcons name="chevron-right" size={24} color="#7367F0" />
               </TouchableOpacity>
             </View>
           </>
@@ -227,7 +231,7 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
 
         {/* Days count preview */}
         <View style={styles.daysPreview}>
-          <MaterialCommunityIcons name="information-outline" size={15} color="#64748b" />
+          <MaterialCommunityIcons name="information-outline" size={15} color="#7367F0" />
           <Text style={styles.daysPreviewText}>
             {duration !== "full"
               ? "0.5 day"
@@ -242,7 +246,7 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
           value={reason}
           onChangeText={setReason}
           placeholder="Describe the reason for leave..."
-          placeholderTextColor="#475569"
+          placeholderTextColor="#9CA3AF"
           multiline
           numberOfLines={4}
           maxLength={500}
@@ -276,26 +280,26 @@ export default function LeaveApplicationScreen({ navigation }: Props) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container:        { flex: 1, backgroundColor: "#0f172a" },
+  container:        { flex: 1, backgroundColor: "#F4F4F8" },
   scroll:           { padding: 20, paddingBottom: 120 },
-  sectionLabel:     { color: "#94a3b8", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginTop: 20 },
+  sectionLabel:     { color: "#6B7280", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginTop: 20 },
   chipRow:          { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip:             { backgroundColor: "#1e293b", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "#334155", alignItems: "center" },
-  chipActive:       { backgroundColor: "#7367F020", borderColor: "#7367F0" },
-  chipText:         { color: "#94a3b8", fontWeight: "700", fontSize: 14 },
-  chipTextActive:   { color: "#7367F0" },
-  chipSub:          { color: "#64748b", fontSize: 10, marginTop: 2 },
-  chipSubActive:    { color: "#7367F080" },
-  dateControl:      { flexDirection: "row", alignItems: "center", backgroundColor: "#1e293b", borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "#334155" },
-  dateBtn:          { padding: 14 },
+  chip:             { backgroundColor: "#FFFFFF", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "#E5E7EB", alignItems: "center" },
+  chipActive:       { backgroundColor: "#EDE9FE", borderColor: "#7367F0" },
+  chipText:         { color: "#374151", fontWeight: "700", fontSize: 14 },
+  chipTextActive:   { color: "#7367F0", fontWeight: "800" },
+  chipSub:          { color: "#6B7280", fontSize: 10, marginTop: 2 },
+  chipSubActive:    { color: "#7367F0" },
+  dateControl:      { flexDirection: "row", alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "#E5E7EB", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+  dateBtn:          { padding: 14, backgroundColor: "#EDE9FE" },
   dateDisplay:      { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  dateText:         { color: "#f1f5f9", fontSize: 15, fontWeight: "600" },
+  dateText:         { color: "#111827", fontSize: 15, fontWeight: "600" },
   daysPreview:      { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  daysPreviewText:  { color: "#64748b", fontSize: 13 },
-  textArea:         { backgroundColor: "#1e293b", borderRadius: 12, padding: 14, color: "#f1f5f9", fontSize: 14, borderWidth: 1, borderColor: "#334155", minHeight: 100 },
-  charCount:        { color: "#475569", fontSize: 11, textAlign: "right", marginTop: 4 },
-  submitBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#7367F0", borderRadius: 14, paddingVertical: 16, marginTop: 28 },
+  daysPreviewText:  { color: "#7367F0", fontSize: 13, fontWeight: "600" },
+  textArea:         { backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, color: "#111827", fontSize: 14, borderWidth: 1, borderColor: "#E5E7EB", minHeight: 100 },
+  charCount:        { color: "#9CA3AF", fontSize: 11, textAlign: "right", marginTop: 4 },
+  submitBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#7367F0", borderRadius: 14, paddingVertical: 16, marginTop: 28, shadowColor: "#7367F0", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   submitBtnDisabled:{ opacity: 0.6 },
   submitText:       { color: "#fff", fontWeight: "700", fontSize: 16 },
-  fieldError:       { color: "#f87171", fontSize: 12, marginTop: 6 },
+  fieldError:       { color: "#EF4444", fontSize: 12, marginTop: 6 },
 });

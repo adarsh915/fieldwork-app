@@ -1,30 +1,46 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
-
 import { submitParty } from "../api/party";
+import { getMasterLocations } from "../api/master";
+import type { District, Area } from "../api/master";
+import { useAlert } from "../context/AlertModalContext";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "AddParty">;
 
-const PARTY_TYPES = ["Retailer", "Distributor", "Wholesaler", "Dealer"];
+const PARTY_TYPES: Array<{
+  key: string;
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}> = [
+  { key: "Retailer", label: "Retailer", icon: "storefront-outline" },
+  { key: "Distributor", label: "Distributor", icon: "truck-delivery-outline" },
+  { key: "Wholesaler", label: "Wholesaler", icon: "warehouse" },
+  { key: "Dealer", label: "Dealer", icon: "briefcase-outline" },
+];
 
 export default function AddPartyScreen() {
   const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
+  const { showSuccess, showError, showWarning } = useAlert();
 
-  // Input refs for smooth chained navigation
+  // Input refs for smooth chained keyboard navigation
   const mobileRef = useRef<TextInput>(null);
   const ownerNameRef = useRef<TextInput>(null);
   const addressRef = useRef<TextInput>(null);
@@ -34,12 +50,16 @@ export default function AddPartyScreen() {
   const emailRef = useRef<TextInput>(null);
   const gstRef = useRef<TextInput>(null);
 
-  // Required
+  // Locations State
+  const [districts, setDistricts] = useState<District[]>([]);
+  const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
+  const [selectedArea, setSelectedArea] = useState<Area | null>(null);
+  const [locationPicker, setLocationPicker] = useState<"district" | "area" | null>(null);
+
+  // Form State
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
   const [partyType, setPartyType] = useState("Retailer");
-
-  // Optional
   const [ownerName, setOwnerName] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -48,20 +68,47 @@ export default function AddPartyScreen() {
   const [email, setEmail] = useState("");
   const [gstNumber, setGstNumber] = useState("");
 
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getMasterLocations();
+        if (res.success && res.data) {
+          setDistricts(res.data);
+          if (res.data.length > 0) {
+            setSelectedDistrict(res.data[0]);
+            setState(res.data[0].state || "Gujarat");
+          }
+        }
+      } catch (err) {
+        // silent fail fallback to manual text
+      }
+    })();
+  }, []);
+
   async function handleSubmit() {
-    if (!name.trim()) { Alert.alert("Required", "Party name is required."); return; }
-    if (!mobile.trim()) { Alert.alert("Required", "Mobile number is required."); return; }
-    if (mobile.trim().length < 10) { Alert.alert("Invalid", "Enter a valid 10-digit mobile number."); return; }
+    if (!name.trim()) {
+      showWarning("Required Field", "Please enter the Party / Shop Name.");
+      return;
+    }
+    if (!mobile.trim()) {
+      showWarning("Required Field", "Please enter the Mobile Number.");
+      return;
+    }
+    if (mobile.trim().length < 10) {
+      showWarning("Invalid Mobile", "Please enter a valid 10-digit mobile number.");
+      return;
+    }
     if (pincode.trim() && pincode.trim().length !== 6) {
-      Alert.alert("Invalid Pincode", "Pincode must be exactly 6 digits.");
+      showWarning("Invalid Pincode", "Pincode must be exactly 6 digits.");
       return;
     }
     if (gstNumber.trim()) {
       const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
       if (!gstRegex.test(gstNumber.trim().toUpperCase())) {
-        Alert.alert("Invalid GST", "Please enter a valid 15-character GST number (e.g. 22AAAAA0000A1Z5).");
+        showWarning("Invalid GSTIN", "Please enter a valid 15-character GST number (e.g. 24AAAAA0000A1Z5).");
         return;
       }
     }
@@ -73,206 +120,401 @@ export default function AddPartyScreen() {
         mobile: mobile.trim(),
         party_type: partyType,
         owner_name: ownerName.trim() || undefined,
+        district_id: selectedDistrict?.id,
+        area_id: selectedArea?.id,
         address: address.trim() || undefined,
-        city: city.trim() || undefined,
-        state: state.trim() || undefined,
+        city: selectedArea?.name || selectedDistrict?.name || city.trim() || undefined,
+        state: selectedDistrict?.state || state.trim() || undefined,
         pincode: pincode.trim() || undefined,
         email: email.trim() || undefined,
         gst_number: gstNumber.trim() || undefined,
       });
 
       if (res.success) {
-        Alert.alert(
-          "Submitted! ✅",
-          "Party submitted for admin approval. It will appear in your list once approved.",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
+        showSuccess(
+          "Party Registered! 🎉",
+          res.message || "New party created and assigned to your territory successfully.",
+          () => navigation.goBack()
         );
       } else {
-        Alert.alert("Error", res.message || "Failed to submit party.");
+        showError("Registration Failed", res.message || "Failed to submit party. Please verify details.");
       }
-    } catch {
-      Alert.alert("Error", "Network error. Please try again.");
+    } catch (err: any) {
+      showError("Network Error", err.message || "Could not connect to server. Please try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F4F4F8" }}>
-      <ScreenHeader title="Add New Party" onBack={() => navigation.goBack()} />
+    <View style={styles.container}>
+      <ScreenHeader title="Add New Party" onBack={() => navigation.goBack()} bgColor="#7367F0" />
 
-      <KeyboardAwareScreen contentStyle={{ padding: 16, paddingBottom: 60 }}>
-        {/* Notice */}
-        <View style={styles.notice}>
-          <MaterialCommunityIcons name="information-outline" size={16} color="#7367F0" />
-          <Text style={styles.noticeText}>
-            Party will be visible after admin approval.
-          </Text>
+      <KeyboardAwareScreen contentStyle={styles.scrollContent}>
+        {/* Top Info Banner */}
+        <View style={styles.infoBanner}>
+          <View style={styles.infoIconWrap}>
+            <MaterialCommunityIcons name="store-plus-outline" size={22} color="#7367F0" />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoTitle}>New Party Registration</Text>
+            <Text style={styles.infoText}>
+              Add new shop or dealer to assign to your route and manage visits, orders, and payments.
+            </Text>
+          </View>
         </View>
 
-        {/* ── Required Fields ─────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>BASIC INFO <Text style={styles.required}>*</Text></Text>
+        {/* ── Card 1: Basic Information ───────────────────────── */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.headerIconWrap, { backgroundColor: "#EDE9FE" }]}>
+              <MaterialCommunityIcons name="storefront-outline" size={20} color="#7367F0" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.cardTitle}>Basic Information</Text>
+              <Text style={styles.cardSubtitle}>Shop name, mobile & business type</Text>
+            </View>
+          </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Party / Shop Name <Text style={styles.required}>*</Text></Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Sharma General Store"
-            placeholderTextColor="#9ca3af"
-            value={name}
-            onChangeText={setName}
-            returnKeyType="next"
-            onSubmitEditing={() => mobileRef.current?.focus()}
-          />
+          {/* Party Name */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Party / Shop Name <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={[styles.inputWrap, focusedField === "name" && styles.inputWrapFocused]}>
+              <MaterialCommunityIcons
+                name="store-outline"
+                size={18}
+                color={focusedField === "name" ? "#7367F0" : "#9CA3AF"}
+              />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder="e.g. Sharma General Store"
+                placeholderTextColor="#9CA3AF"
+                value={name}
+                onChangeText={setName}
+                onFocus={() => setFocusedField("name")}
+                onBlur={() => setFocusedField(null)}
+                returnKeyType="next"
+                onSubmitEditing={() => mobileRef.current?.focus()}
+              />
+            </View>
+          </View>
+
+          {/* Mobile Number */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Mobile Number <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={[styles.inputWrap, focusedField === "mobile" && styles.inputWrapFocused]}>
+              <MaterialCommunityIcons
+                name="phone-outline"
+                size={18}
+                color={focusedField === "mobile" ? "#7367F0" : "#9CA3AF"}
+              />
+              <TextInput
+                ref={mobileRef}
+                style={styles.inputWithIcon}
+                placeholder="10-digit mobile number"
+                placeholderTextColor="#9CA3AF"
+                value={mobile}
+                onChangeText={(v) => setMobile(v.replace(/[^0-9]/g, ""))}
+                keyboardType="phone-pad"
+                maxLength={10}
+                onFocus={() => setFocusedField("mobile")}
+                onBlur={() => setFocusedField(null)}
+                returnKeyType="next"
+                onSubmitEditing={() => ownerNameRef.current?.focus()}
+              />
+            </View>
+          </View>
+
+          {/* Party Type Chips */}
+          <View style={[styles.field, { marginBottom: 4 }]}>
+            <Text style={styles.label}>Party Type</Text>
+            <View style={styles.typeGrid}>
+              {PARTY_TYPES.map((t) => {
+                const isActive = partyType === t.key;
+                return (
+                  <TouchableOpacity
+                    key={t.key}
+                    style={[styles.typeChip, isActive && styles.typeChipActive]}
+                    onPress={() => setPartyType(t.key)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons
+                      name={t.icon}
+                      size={18}
+                      color={isActive ? "#7367F0" : "#6B7280"}
+                    />
+                    <Text style={[styles.typeChipText, isActive && styles.typeChipTextActive]}>
+                      {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Mobile Number <Text style={styles.required}>*</Text></Text>
-          <TextInput
-            ref={mobileRef}
-            style={styles.input}
-            placeholder="10-digit mobile"
-            placeholderTextColor="#9ca3af"
-            value={mobile}
-            onChangeText={setMobile}
-            keyboardType="phone-pad"
-            maxLength={10}
-            returnKeyType="next"
-            onSubmitEditing={() => ownerNameRef.current?.focus()}
-          />
-        </View>
+        {/* ── Card 2: Contact & Address ───────────────────────── */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.headerIconWrap, { backgroundColor: "#FEF3C7" }]}>
+              <MaterialCommunityIcons name="map-marker-radius-outline" size={20} color="#D97706" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.cardTitle}>Contact & Location</Text>
+              <Text style={styles.cardSubtitle}>Proprietor name & physical address</Text>
+            </View>
+          </View>
 
-        {/* Party Type Picker */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Party Type</Text>
-          <View style={styles.typeRow}>
-            {PARTY_TYPES.map((t) => (
+          {/* Owner Name */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Owner / Contact Person</Text>
+            <View style={[styles.inputWrap, focusedField === "owner" && styles.inputWrapFocused]}>
+              <MaterialCommunityIcons
+                name="account-outline"
+                size={18}
+                color={focusedField === "owner" ? "#7367F0" : "#9CA3AF"}
+              />
+              <TextInput
+                ref={ownerNameRef}
+                style={styles.inputWithIcon}
+                placeholder="e.g. Ramesh Sharma"
+                placeholderTextColor="#9CA3AF"
+                value={ownerName}
+                onChangeText={setOwnerName}
+                onFocus={() => setFocusedField("owner")}
+                onBlur={() => setFocusedField(null)}
+                returnKeyType="next"
+                onSubmitEditing={() => addressRef.current?.focus()}
+              />
+            </View>
+          </View>
+
+          {/* District & Area Selectors (2-tier territory) */}
+          <View style={styles.row}>
+            {/* District */}
+            <View style={[styles.field, { flex: 1, marginRight: 6 }]}>
+              <Text style={styles.label}>
+                District / City <Text style={styles.required}>*</Text>
+              </Text>
               <TouchableOpacity
-                key={t}
-                style={[styles.typeChip, partyType === t && styles.typeChipActive]}
-                onPress={() => setPartyType(t)}
+                style={styles.selectWrap}
+                activeOpacity={0.8}
+                onPress={() => setLocationPicker("district")}
               >
-                <Text style={[styles.typeChipText, partyType === t && styles.typeChipTextActive]}>
-                  {t}
+                <MaterialCommunityIcons name="city-variant-outline" size={18} color="#7367F0" />
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.selectValueText,
+                    !selectedDistrict && styles.selectPlaceholderText,
+                  ]}
+                >
+                  {selectedDistrict?.name ?? "Select District"}
                 </Text>
+                <MaterialCommunityIcons name="chevron-down" size={18} color="#9CA3AF" />
               </TouchableOpacity>
-            ))}
+            </View>
+
+            {/* Area */}
+            <View style={[styles.field, { flex: 1, marginLeft: 6 }]}>
+              <Text style={styles.label}>Area / Beat</Text>
+              <TouchableOpacity
+                style={styles.selectWrap}
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (selectedDistrict) {
+                    setLocationPicker("area");
+                  } else {
+                    showWarning("Select District", "Please select a district first.");
+                  }
+                }}
+              >
+                <MaterialCommunityIcons name="map-marker-radius-outline" size={18} color="#7367F0" />
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.selectValueText,
+                    !selectedArea && styles.selectPlaceholderText,
+                  ]}
+                >
+                  {selectedArea?.name ?? (selectedDistrict ? "Select Area" : "Select District")}
+                </Text>
+                <MaterialCommunityIcons name="chevron-down" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Address */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Shop Address</Text>
+            <View style={[styles.textareaWrap, focusedField === "address" && styles.inputWrapFocused]}>
+              <MaterialCommunityIcons
+                name="map-marker-outline"
+                size={18}
+                color={focusedField === "address" ? "#7367F0" : "#9CA3AF"}
+                style={{ marginTop: 2 }}
+              />
+              <TextInput
+                ref={addressRef}
+                style={styles.textareaWithIcon}
+                placeholder="Shop number, street, landmark, market area..."
+                placeholderTextColor="#9CA3AF"
+                value={address}
+                onChangeText={setAddress}
+                multiline
+                numberOfLines={3}
+                onFocus={() => setFocusedField("address")}
+                onBlur={() => setFocusedField(null)}
+              />
+            </View>
+          </View>
+
+          {/* City & State (Row) */}
+          <View style={styles.row}>
+            <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>City</Text>
+              <View style={[styles.inputWrap, focusedField === "city" && styles.inputWrapFocused]}>
+                <MaterialCommunityIcons
+                  name="city-variant-outline"
+                  size={18}
+                  color={focusedField === "city" ? "#7367F0" : "#9CA3AF"}
+                />
+                <TextInput
+                  ref={cityRef}
+                  style={styles.inputWithIcon}
+                  placeholder="City"
+                  placeholderTextColor="#9CA3AF"
+                  value={city}
+                  onChangeText={setCity}
+                  onFocus={() => setFocusedField("city")}
+                  onBlur={() => setFocusedField(null)}
+                  returnKeyType="next"
+                  onSubmitEditing={() => stateRef.current?.focus()}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>State</Text>
+              <View style={[styles.inputWrap, focusedField === "state" && styles.inputWrapFocused]}>
+                <MaterialCommunityIcons
+                  name="map-outline"
+                  size={18}
+                  color={focusedField === "state" ? "#7367F0" : "#9CA3AF"}
+                />
+                <TextInput
+                  ref={stateRef}
+                  style={styles.inputWithIcon}
+                  placeholder="State"
+                  placeholderTextColor="#9CA3AF"
+                  value={state}
+                  onChangeText={setState}
+                  onFocus={() => setFocusedField("state")}
+                  onBlur={() => setFocusedField(null)}
+                  returnKeyType="next"
+                  onSubmitEditing={() => pincodeRef.current?.focus()}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* Pincode */}
+          <View style={[styles.field, { marginBottom: 4 }]}>
+            <Text style={styles.label}>Pincode</Text>
+            <View style={[styles.inputWrap, focusedField === "pincode" && styles.inputWrapFocused]}>
+              <MaterialCommunityIcons
+                name="mailbox-outline"
+                size={18}
+                color={focusedField === "pincode" ? "#7367F0" : "#9CA3AF"}
+              />
+              <TextInput
+                ref={pincodeRef}
+                style={styles.inputWithIcon}
+                placeholder="6-digit pincode"
+                placeholderTextColor="#9CA3AF"
+                value={pincode}
+                onChangeText={(v) => setPincode(v.replace(/[^0-9]/g, ""))}
+                keyboardType="number-pad"
+                maxLength={6}
+                onFocus={() => setFocusedField("pincode")}
+                onBlur={() => setFocusedField(null)}
+                returnKeyType="next"
+                onSubmitEditing={() => emailRef.current?.focus()}
+              />
+            </View>
           </View>
         </View>
 
-        {/* ── Optional Fields ─────────────────────────────────────── */}
-        <Text style={[styles.sectionLabel, { marginTop: 16 }]}>CONTACT & ADDRESS</Text>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Owner Name</Text>
-          <TextInput
-            ref={ownerNameRef}
-            style={styles.input}
-            placeholder="Owner / Contact person"
-            placeholderTextColor="#9ca3af"
-            value={ownerName}
-            onChangeText={setOwnerName}
-            returnKeyType="next"
-            onSubmitEditing={() => addressRef.current?.focus()}
-          />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Address</Text>
-          <TextInput
-            ref={addressRef}
-            style={[styles.input, styles.textarea]}
-            placeholder="Shop address"
-            placeholderTextColor="#9ca3af"
-            value={address}
-            onChangeText={setAddress}
-            multiline
-            numberOfLines={3}
-          />
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
-            <Text style={styles.label}>City</Text>
-            <TextInput
-              ref={cityRef}
-              style={styles.input}
-              placeholder="City"
-              placeholderTextColor="#9ca3af"
-              value={city}
-              onChangeText={setCity}
-              returnKeyType="next"
-              onSubmitEditing={() => stateRef.current?.focus()}
-            />
+        {/* ── Card 3: Business & Tax Details ──────────────────── */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.headerIconWrap, { backgroundColor: "#EEF2FF" }]}>
+              <MaterialCommunityIcons name="file-document-outline" size={20} color="#7367F0" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.cardTitle}>Business & Tax Details</Text>
+              <Text style={styles.cardSubtitle}>Optional email & GSTIN identification</Text>
+            </View>
           </View>
-          <View style={[styles.field, { flex: 1 }]}>
-            <Text style={styles.label}>State</Text>
-            <TextInput
-              ref={stateRef}
-              style={styles.input}
-              placeholder="State"
-              placeholderTextColor="#9ca3af"
-              value={state}
-              onChangeText={setState}
-              returnKeyType="next"
-              onSubmitEditing={() => pincodeRef.current?.focus()}
-            />
+
+          {/* Email */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Email Address</Text>
+            <View style={[styles.inputWrap, focusedField === "email" && styles.inputWrapFocused]}>
+              <MaterialCommunityIcons
+                name="email-outline"
+                size={18}
+                color={focusedField === "email" ? "#7367F0" : "#9CA3AF"}
+              />
+              <TextInput
+                ref={emailRef}
+                style={styles.inputWithIcon}
+                placeholder="dealer@example.com"
+                placeholderTextColor="#9CA3AF"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                onFocus={() => setFocusedField("email")}
+                onBlur={() => setFocusedField(null)}
+                returnKeyType="next"
+                onSubmitEditing={() => gstRef.current?.focus()}
+              />
+            </View>
+          </View>
+
+          {/* GST Number */}
+          <View style={[styles.field, { marginBottom: 4 }]}>
+            <Text style={styles.label}>GST Number (Optional)</Text>
+            <View style={[styles.inputWrap, focusedField === "gst" && styles.inputWrapFocused]}>
+              <MaterialCommunityIcons
+                name="receipt-text-outline"
+                size={18}
+                color={focusedField === "gst" ? "#7367F0" : "#9CA3AF"}
+              />
+              <TextInput
+                ref={gstRef}
+                style={styles.inputWithIcon}
+                placeholder="24AAAAA0000A1Z5"
+                placeholderTextColor="#9CA3AF"
+                value={gstNumber}
+                onChangeText={setGstNumber}
+                autoCapitalize="characters"
+                maxLength={15}
+                onFocus={() => setFocusedField("gst")}
+                onBlur={() => setFocusedField(null)}
+                returnKeyType="done"
+                onSubmitEditing={handleSubmit}
+              />
+            </View>
           </View>
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Pincode</Text>
-          <TextInput
-            ref={pincodeRef}
-            style={styles.input}
-            placeholder="6-digit pincode"
-            placeholderTextColor="#9ca3af"
-            value={pincode}
-            onChangeText={setPincode}
-            keyboardType="number-pad"
-            maxLength={6}
-            returnKeyType="next"
-            onSubmitEditing={() => emailRef.current?.focus()}
-          />
-        </View>
-
-        <Text style={[styles.sectionLabel, { marginTop: 16 }]}>BUSINESS DETAILS</Text>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            ref={emailRef}
-            style={styles.input}
-            placeholder="email@example.com"
-            placeholderTextColor="#9ca3af"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            returnKeyType="next"
-            onSubmitEditing={() => gstRef.current?.focus()}
-          />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>GST Number</Text>
-          <TextInput
-            ref={gstRef}
-            style={styles.input}
-            placeholder="GST number (optional)"
-            placeholderTextColor="#9ca3af"
-            value={gstNumber}
-            onChangeText={setGstNumber}
-            autoCapitalize="characters"
-            maxLength={15}
-            returnKeyType="done"
-            onSubmitEditing={handleSubmit}
-          />
-        </View>
-
-        <View style={{ height: 20 }} />
-
-        {/* Submit Button Inside Form */}
+        {/* ── Submit Button ──────────────────────────────────── */}
         <TouchableOpacity
           style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
           onPress={handleSubmit}
@@ -280,17 +522,88 @@ export default function AddPartyScreen() {
           activeOpacity={0.85}
         >
           {submitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <>
-              <MaterialCommunityIcons name="send-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.submitText}>Submit for Approval</Text>
+              <MaterialCommunityIcons name="check-circle-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.submitBtnText}>Register Party</Text>
             </>
           )}
         </TouchableOpacity>
 
-        <View style={{ height: 20 }} />
+        <View style={{ height: 30 }} />
       </KeyboardAwareScreen>
+
+      {/* Location Picker Modal */}
+      <Modal visible={locationPicker !== null} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <ScreenHeader
+              title={
+                locationPicker === "district"
+                  ? "Select District"
+                  : `Select Area in ${selectedDistrict?.name ?? ""}`
+              }
+              onBack={() => setLocationPicker(null)}
+              bgColor="#7367F0"
+            />
+            <ScrollView
+              contentContainerStyle={[
+                styles.modalList,
+                { paddingBottom: Math.max(insets.bottom, 14) + 24 },
+              ]}
+            >
+              {locationPicker === "district" ? (
+                districts.map((d) => (
+                  <TouchableOpacity
+                    key={d.id}
+                    style={styles.modalItem}
+                    onPress={() => {
+                      setSelectedDistrict(d);
+                      setSelectedArea(null);
+                      setState(d.state || "Gujarat");
+                      setCity(d.name);
+                      setLocationPicker(null);
+                    }}
+                  >
+                    <Text style={styles.modalItemText}>{d.name}</Text>
+                    {d.areas?.length ? (
+                      <Text style={styles.modalItemSub}>{d.areas.length} areas</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                (selectedDistrict?.areas || []).map((a) => (
+                  <TouchableOpacity
+                    key={a.id}
+                    style={styles.modalItem}
+                    onPress={() => {
+                      setSelectedArea(a);
+                      setCity(a.name);
+                      if (a.pincode) setPincode(a.pincode);
+                      setLocationPicker(null);
+                    }}
+                  >
+                    <Text style={styles.modalItemText}>{a.name}</Text>
+                    {a.pincode ? (
+                      <Text style={styles.modalItemSub}>Pincode: {a.pincode}</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+            <TouchableOpacity
+              style={[
+                styles.modalCancelBtn,
+                { marginBottom: Math.max(insets.bottom, 14) + 14 },
+              ]}
+              onPress={() => setLocationPicker(null)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -298,99 +611,277 @@ export default function AddPartyScreen() {
 const PURPLE = "#7367F0";
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F4F4F8" },
-
-  header: {
-    backgroundColor: PURPLE,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
-  headerTitle: {
+  container: {
     flex: 1,
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "800",
-    textAlign: "center",
+    backgroundColor: "#F4F4F8",
+  },
+  scrollContent: {
+    padding: 14,
+    paddingBottom: 40,
   },
 
-  notice: {
+  // Info Banner
+  infoBanner: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#EDE9FE",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  noticeText: {
-    flex: 1,
-    fontSize: 12,
-    color: PURPLE,
-    fontWeight: "600",
-  },
-
-  form: { flexGrow: 1, padding: 16, paddingBottom: 20 },
-
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#9ca3af",
-    letterSpacing: 0.8,
-    marginBottom: 10,
-  },
-  required: { color: "#ef4444" },
-
-  field: { marginBottom: 14 },
-  label: { fontSize: 12, fontWeight: "700", color: "#374151", marginBottom: 6 },
-  input: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    borderColor: "#DDD6FE",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+  infoIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoTitle: {
     fontSize: 14,
-    color: "#111827",
+    fontWeight: "800",
+    color: "#5B21B6",
+    marginBottom: 2,
   },
-  textarea: { height: 80, textAlignVertical: "top" },
-
-  row: { flexDirection: "row" },
-
-  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  typeChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: "#e5e7eb",
-    backgroundColor: "#fff",
+  infoText: {
+    fontSize: 12,
+    color: "#6D28D9",
+    lineHeight: 16,
+    fontWeight: "500",
   },
-  typeChipActive: { borderColor: PURPLE, backgroundColor: PURPLE },
-  typeChipText: { fontSize: 12, fontWeight: "700", color: "#6b7280" },
-  typeChipTextActive: { color: "#fff" },
 
-  footer: {
+  // Card Structure
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     padding: 16,
-    paddingBottom: 24,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    marginBottom: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  submitBtn: {
-    backgroundColor: PURPLE,
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  headerIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  cardSubtitle: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+
+  // Form Fields
+  field: {
+    marginBottom: 14,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#374151",
+    marginBottom: 6,
+  },
+  required: {
+    color: "#EF4444",
+  },
+  row: {
+    flexDirection: "row",
+  },
+
+  // Inputs with Icons
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  inputWrapFocused: {
+    borderColor: PURPLE,
+    backgroundColor: "#FFFFFF",
+  },
+  inputWithIcon: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginLeft: 8,
+    paddingVertical: 8,
+  },
+
+  // Textarea
+  textareaWrap: {
+    flexDirection: "row",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 76,
+  },
+  textareaWithIcon: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginLeft: 8,
+    textAlignVertical: "top",
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+
+  // Chips Grid
+  typeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 2,
+  },
+  typeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+  },
+  typeChipActive: {
+    backgroundColor: "#EDE9FE",
+    borderColor: PURPLE,
+  },
+  typeChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#4B5563",
+  },
+  typeChipTextActive: {
+    color: PURPLE,
+    fontWeight: "800",
+  },
+
+  // Submit Button
+  submitBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    backgroundColor: PURPLE,
+    paddingVertical: 15,
+    borderRadius: 14,
+    marginTop: 6,
+    elevation: 4,
     shadowColor: PURPLE,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
   },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  submitBtnDisabled: {
+    opacity: 0.7,
+  },
+  submitBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+
+  // Selectors
+  selectWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  selectValueText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  selectPlaceholderText: {
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+
+  // Modal Sheet
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "80%",
+    overflow: "hidden",
+  },
+  modalList: {
+    padding: 16,
+  },
+  modalItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalItemText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  modalItemSub: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  modalCancelBtn: {
+    marginHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#475569",
+  },
 });

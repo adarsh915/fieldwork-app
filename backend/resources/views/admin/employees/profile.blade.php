@@ -16,9 +16,14 @@
         <div class="flex items-end justify-between -mt-14 mb-4">
             {{-- Avatar --}}
             <div class="shrink-0">
-                <div class="w-24 h-24 rounded-full bg-gradient-to-br from-brand-600 to-brand-700 flex items-center justify-center text-white text-3xl font-bold shadow-lg ring-4 ring-white">
-                    {{ strtoupper(substr($employee->name, 0, 2)) }}
-                </div>
+                @if ($employee->profile_image_url)
+                    <img src="{{ $employee->profile_image_url }}" alt="{{ $employee->name }}"
+                         class="w-24 h-24 rounded-full object-cover shadow-lg ring-4 ring-white">
+                @else
+                    <div class="w-24 h-24 rounded-full bg-gradient-to-br from-brand-600 to-brand-700 flex items-center justify-center text-white text-3xl font-bold shadow-lg ring-4 ring-white">
+                        {{ strtoupper(substr($employee->name, 0, 2)) }}
+                    </div>
+                @endif
             </div>
 
             {{-- Action Buttons --}}

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DayStart;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\ActivityNotificationService;
 use App\Services\DataScope;
 use App\Services\SettingsService;
 use Carbon\Carbon;
@@ -29,25 +30,59 @@ class OrderController extends Controller
     }
 
     /**
-     * Get list of orders
+     * Get list of orders (supports optional pagination & search)
      */
     public function index(Request $request)
     {
         $query = Order::query()
-            ->with(['items.product', 'party']);
-
-        DataScope::apply($query, 'orders');
+            ->with(['items.product', 'party'])
+            ->where('user_id', $request->user()->id);
 
         if ($request->has('party_id')) {
             $query->where('party_id', $request->party_id);
         }
 
-        // Return latest orders first
-        $orders = $query->orderBy('created_at', 'desc')->get();
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where('order_no', 'LIKE', "%{$search}%");
+        }
+
+        $query->orderBy('created_at', 'desc');
+
+        if ($request->has('page') || $request->has('per_page')) {
+            $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+            $paginated = $query->paginate($perPage);
+
+            return response()->json([
+                'success'      => true,
+                'data'         => $paginated->items(),
+                'current_page' => $paginated->currentPage(),
+                'last_page'    => $paginated->lastPage(),
+                'per_page'     => $paginated->perPage(),
+                'total'        => $paginated->total(),
+                'has_more'     => $paginated->hasMorePages(),
+            ]);
+        }
+
+        $orders = $query->get();
 
         return response()->json([
             'success' => true,
-            'data' => $orders
+            'data'    => $orders,
+            'total'   => $orders->count(),
+        ]);
+    }
+
+    /**
+     * Get a single order detail
+     */
+    public function show($id)
+    {
+        $order = Order::with(['items.product', 'party'])->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $order,
         ]);
     }
 
@@ -56,6 +91,14 @@ class OrderController extends Controller
      */
     public function store(Request $request, SettingsService $settings)
     {
+        $user = $request->user();
+        if (!$user->can('orders.create') && !$user->hasRole(['Super Admin', 'Admin'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to place orders.',
+            ], 403);
+        }
+
         $request->validate([
             'visit_id' => 'nullable|exists:visits,id',
             'party_id' => 'required|exists:customers,id',
@@ -143,6 +186,8 @@ class OrderController extends Controller
             }
 
             DB::commit();
+
+            ActivityNotificationService::notifyOrderPlaced($order);
 
             return response()->json([
                 'success' => true,

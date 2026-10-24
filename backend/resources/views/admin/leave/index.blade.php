@@ -6,67 +6,19 @@
 
 @section('content')
 
-@php
-$initialRecords = $leaves->map(function ($leave) {
-    return [
-        'id'                  => $leave->id,
-        'user_id'             => $leave->user_id,
-        'user_name'           => $leave->user?->name ?? 'Unknown',
-        'leave_type_code'     => $leave->leaveType?->code ?? 'L',
-        'leave_type_name'     => $leave->leaveType?->name ?? 'Leave',
-        'from_date_formatted' => $leave->from_date ? $leave->from_date->format('d M Y') : '—',
-        'to_date_formatted'   => $leave->to_date ? $leave->to_date->format('d M Y') : '—',
-        'duration'            => $leave->duration,
-        'duration_formatted'  => ucwords(str_replace('_', ' ', $leave->duration ?? '')),
-        'days_count'          => (float) $leave->days_count,
-        'reason'              => $leave->reason ?? '-',
-        'status'              => $leave->status,
-        'rejected_reason'     => $leave->rejected_reason,
-        'approve_url'         => route('admin.leave.approve', $leave->id),
-        'reject_url'          => route('admin.leave.reject', $leave->id),
-        'cancel_url'          => route('admin.leave.cancel', $leave->id),
-    ];
-});
-
-$initialConflicts = $conflicts->map(function ($c) {
-    return [
-        'id'                      => $c->id,
-        'user_name'               => $c->user?->name ?? 'Unknown',
-        'leave_type_code'         => $c->leaveType?->code ?? 'L',
-        'leave_type_name'         => $c->leaveType?->name ?? 'Leave',
-        'from_date_formatted'     => $c->from_date ? $c->from_date->format('d M Y') : '—',
-        'to_date_formatted'       => $c->to_date ? $c->to_date->format('d M Y') : '—',
-        'conflict_date_formatted' => $c->conflict_date ? \Carbon\Carbon::parse($c->conflict_date)->format('d M Y') : '—',
-        'conflict_status'         => $c->conflict_status,
-        'resolved_action'         => $c->resolved_action,
-        'resolution_note'         => $c->resolution_note,
-        'resolved_by_name'        => $c->resolvedBy?->name ?? 'Admin',
-        'resolved_at_formatted'   => $c->resolved_at ? $c->resolved_at->format('d M Y H:i') : null,
-        'resolve_url'             => route('admin.leave.resolve-conflict', $c->id),
-    ];
-});
-@endphp
-
-<div x-data="leaveManager({
-    initialRecords: {{ Js::from($initialRecords) }},
-    initialConflicts: {{ Js::from($initialConflicts) }},
+<div id="leave-app-container" x-data="leaveManager({
     initialCounts: {
         pending: {{ (int) $pendingCount }},
         approved: {{ (int) $approvedCount }},
         rejected: {{ (int) $rejectedCount }},
         conflicts: {{ (int) $conflictCount }}
     },
-    initialPagination: {
-        current_page: {{ $leaves->currentPage() }},
-        last_page: {{ $leaves->lastPage() }},
-        per_page: {{ $leaves->perPage() }},
-        total: {{ $leaves->total() }},
-        from: {{ $leaves->firstItem() ?? 0 }},
-        to: {{ $leaves->lastItem() ?? 0 }}
-    },
+    canApprove: {{ Js::from(auth()->user()->can('leaves.approve') || auth()->user()->can('leaves.manage') || auth()->user()->hasRole('Super Admin')) }},
+    canReject: {{ Js::from(auth()->user()->can('leaves.reject') || auth()->user()->can('leaves.manage') || auth()->user()->hasRole('Super Admin')) }},
+    canCancel: {{ Js::from(auth()->user()->can('leaves.manage') || auth()->user()->can('leaves.approve') || auth()->user()->hasRole('Super Admin')) }},
+    canResolveConflict: {{ Js::from(auth()->user()->can('leaves.manage') || auth()->user()->can('leaves.approve') || auth()->user()->hasRole('Super Admin')) }},
     defaultView: '{{ request('view', 'applications') }}',
     defaultConflictTab: '{{ request('conflict_tab', 'pending') }}',
-    fetchUrl: '{{ route('admin.leave.index') }}',
     csrfToken: '{{ csrf_token() }}'
 })" class="space-y-6">
 
@@ -87,8 +39,10 @@ $initialConflicts = $conflicts->map(function ($c) {
 
     {{-- Stats Row --}}
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="panel p-5 flex items-center justify-between cursor-pointer hover:border-amber-400 transition"
-             @click="activeView = 'applications'; status = 'pending'; fetchRecords(1)">
+        {{-- Pending Requests --}}
+        <div class="panel p-5 flex items-center justify-between cursor-pointer transition-all border"
+             :class="activeView === 'applications' && status === 'pending' ? 'border-amber-500 ring-2 ring-amber-100 bg-amber-50/20' : 'hover:border-amber-400'"
+             @click="filterByStatus('pending')">
             <div>
                 <p class="text-xs font-semibold text-ink-500 uppercase tracking-wider">Pending Requests</p>
                 <h3 class="text-2xl font-extrabold text-amber-600 mt-1" x-text="counts.pending"></h3>
@@ -98,8 +52,10 @@ $initialConflicts = $conflicts->map(function ($c) {
             </div>
         </div>
 
-        <div class="panel p-5 flex items-center justify-between cursor-pointer hover:border-emerald-400 transition"
-             @click="activeView = 'applications'; status = 'approved'; fetchRecords(1)">
+        {{-- Approved Leaves --}}
+        <div class="panel p-5 flex items-center justify-between cursor-pointer transition-all border"
+             :class="activeView === 'applications' && status === 'approved' ? 'border-emerald-500 ring-2 ring-emerald-100 bg-emerald-50/20' : 'hover:border-emerald-400'"
+             @click="filterByStatus('approved')">
             <div>
                 <p class="text-xs font-semibold text-ink-500 uppercase tracking-wider">Approved Leaves</p>
                 <h3 class="text-2xl font-extrabold text-emerald-600 mt-1" x-text="counts.approved"></h3>
@@ -109,8 +65,10 @@ $initialConflicts = $conflicts->map(function ($c) {
             </div>
         </div>
 
-        <div class="panel p-5 flex items-center justify-between cursor-pointer hover:border-rose-400 transition"
-             @click="activeView = 'applications'; status = 'rejected'; fetchRecords(1)">
+        {{-- Rejected Requests --}}
+        <div class="panel p-5 flex items-center justify-between cursor-pointer transition-all border"
+             :class="activeView === 'applications' && status === 'rejected' ? 'border-rose-500 ring-2 ring-rose-100 bg-rose-50/20' : 'hover:border-rose-400'"
+             @click="filterByStatus('rejected')">
             <div>
                 <p class="text-xs font-semibold text-ink-500 uppercase tracking-wider">Rejected Requests</p>
                 <h3 class="text-2xl font-extrabold text-rose-600 mt-1" x-text="counts.rejected"></h3>
@@ -120,8 +78,9 @@ $initialConflicts = $conflicts->map(function ($c) {
             </div>
         </div>
 
-        <div class="panel p-5 flex items-center justify-between cursor-pointer transition"
-             :class="counts.conflicts > 0 ? 'border-2 border-rose-400 bg-rose-50/20' : 'hover:border-primary-400'"
+        {{-- Work Conflicts --}}
+        <div class="panel p-5 flex items-center justify-between cursor-pointer transition-all border"
+             :class="activeView === 'conflicts' ? 'border-rose-500 ring-2 ring-rose-100 bg-rose-50/20' : (counts.conflicts > 0 ? 'border-2 border-rose-400 bg-rose-50/10' : 'hover:border-primary-400')"
              @click="switchView('conflicts')">
             <div>
                 <p class="text-xs font-semibold text-ink-500 uppercase tracking-wider">Work Conflicts</p>
@@ -144,14 +103,16 @@ $initialConflicts = $conflicts->map(function ($c) {
         <button type="button"
                 @click="switchView('applications')"
                 class="px-5 py-3 font-semibold text-sm border-b-2 transition flex items-center gap-2"
-                :class="activeView === 'applications' ? 'border-primary-600 text-primary-600' : 'border-transparent text-ink-500 hover:text-ink-800'">
-            📋 Leave Applications
+                :class="activeView === 'applications' ? 'border-brand-600 text-brand-600 font-bold' : 'border-transparent text-ink-500 hover:text-ink-800'">
+            <x-lucide-calendar class="w-4 h-4" />
+            <span>Leave Applications</span>
         </button>
         <button type="button"
                 @click="switchView('conflicts')"
                 class="px-5 py-3 font-semibold text-sm border-b-2 transition flex items-center gap-2"
-                :class="activeView === 'conflicts' ? 'border-rose-600 text-rose-600' : 'border-transparent text-ink-500 hover:text-ink-800'">
-            ⚠️ Work Conflicts
+                :class="activeView === 'conflicts' ? 'border-rose-600 text-rose-600 font-bold' : 'border-transparent text-ink-500 hover:text-ink-800'">
+            <x-lucide-alert-triangle class="w-4 h-4" />
+            <span>Work Conflicts</span>
             <template x-if="counts.conflicts > 0">
                 <span class="bg-rose-600 text-white text-xs px-2 py-0.5 rounded-full font-bold" x-text="counts.conflicts"></span>
             </template>
@@ -162,12 +123,13 @@ $initialConflicts = $conflicts->map(function ($c) {
     <div class="panel p-5">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div>
-                <h2 class="text-base font-bold text-ink-900" x-text="activeView === 'applications' ? 'Filter Leave Requests' : 'Filter Conflicts'"></h2>
-                <p class="text-xs text-ink-500">Live backend-driven search and filtering without page reloads</p>
+                <h2 class="text-base font-bold text-ink-900" x-text="activeView === 'applications' ? 'Filter Leave Requests' : 'Filter Work Conflicts'"></h2>
+                <p class="text-xs text-ink-500">Live search and instant filtering with server-side pagination</p>
             </div>
             <div class="flex items-center gap-2">
                 <button type="button" @click="resetFilters()" class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
-                    <x-lucide-rotate-ccw class="w-3.5 h-3.5" /> Reset Filters
+                    <x-lucide-rotate-ccw class="w-3.5 h-3.5" />
+                    <span>Reset Filters</span>
                 </button>
             </div>
         </div>
@@ -179,20 +141,20 @@ $initialConflicts = $conflicts->map(function ($c) {
                 <div class="relative">
                     <input type="text"
                            x-model="search"
-                           @input.debounce.400ms="fetchRecords(1)"
+                           @input.debounce.300ms="applyFilters()"
                            placeholder="Employee, leave type, reason..."
                            class="form-input text-xs pl-8 w-full" />
-                    <x-lucide-search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
+                    <x-lucide-search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
                 </div>
             </div>
 
             {{-- Employee filter --}}
             <div>
                 <label class="form-label text-xs">Employee</label>
-                <select x-model="userId" @change="fetchRecords(1)" class="form-input text-xs w-full">
+                <select x-model="userId" @change="applyFilters()" class="form-input text-xs w-full">
                     <option value="">All Employees</option>
                     @foreach($users as $user)
-                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->role_name }})</option>
+                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->role_name ?? 'Field Worker' }})</option>
                     @endforeach
                 </select>
             </div>
@@ -201,7 +163,7 @@ $initialConflicts = $conflicts->map(function ($c) {
             <template x-if="activeView === 'applications'">
                 <div>
                     <label class="form-label text-xs">Status</label>
-                    <select x-model="status" @change="fetchRecords(1)" class="form-input text-xs w-full">
+                    <select x-model="status" @change="applyFilters()" class="form-input text-xs w-full">
                         <option value="">All Statuses</option>
                         <option value="pending">Pending</option>
                         <option value="approved">Approved</option>
@@ -212,153 +174,49 @@ $initialConflicts = $conflicts->map(function ($c) {
                 </div>
             </template>
 
+            {{-- Conflict Review Tab (Only in conflicts view) --}}
+            <template x-if="activeView === 'conflicts'">
+                <div>
+                    <label class="form-label text-xs">Conflict Status</label>
+                    <select x-model="conflictTab" @change="applyConflictsFilter()" class="form-input text-xs w-full">
+                        <option value="pending">Pending Review Only</option>
+                        <option value="resolved">Resolved History</option>
+                    </select>
+                </div>
+            </template>
+
             {{-- Month Filter --}}
             <div>
                 <label class="form-label text-xs">Month</label>
-                <input type="month" x-model="month" @change="fetchRecords(1)" class="form-input text-xs w-full" />
+                <input type="month" x-model="month" @change="applyFilters()" class="form-input text-xs w-full" />
             </div>
         </div>
     </div>
 
-    {{-- Applications View Content --}}
-    <div x-show="activeView === 'applications'" x-cloak class="panel overflow-hidden">
-        <div class="table-wrap relative">
-            {{-- Loading spinner overlay --}}
-            <div x-show="loading" class="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center z-10">
-                <div class="flex items-center gap-2 text-primary-600 font-semibold text-sm">
-                    <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Loading leaves...</span>
-                </div>
-            </div>
-
-            <table class="data-table">
+    {{-- Applications View Content (DataTables) --}}
+    <div x-show="activeView === 'applications'" class="panel overflow-hidden border border-surface-border shadow-sm rounded-xl">
+        <div class="table-wrap min-h-[350px]">
+            <table id="leave-table" class="data-table w-full">
                 <thead>
                     <tr>
-                        <th>Employee</th>
-                        <th>Type</th>
-                        <th>Date Range</th>
-                        <th>Duration / Days</th>
-                        <th>Reason</th>
-                        <th>Status</th>
-                        <th class="text-right">Actions</th>
+                        <th class="text-left font-semibold">Employee</th>
+                        <th class="text-left font-semibold">Type</th>
+                        <th class="text-left font-semibold">Date Range</th>
+                        <th class="text-left font-semibold">Duration / Days</th>
+                        <th class="text-left font-semibold">Reason</th>
+                        <th class="text-left font-semibold">Status</th>
+                        <th class="text-right font-semibold whitespace-nowrap w-44 px-5 py-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-for="leave in records" :key="leave.id">
-                        <tr>
-                            <td class="font-semibold text-ink-900" x-text="leave.user_name"></td>
-                            <td>
-                                <span class="badge badge-primary font-mono font-bold" x-text="leave.leave_type_code + ' — ' + leave.leave_type_name"></span>
-                            </td>
-                            <td class="whitespace-nowrap text-sm text-ink-600">
-                                <span x-text="leave.from_date_formatted"></span> → <span x-text="leave.to_date_formatted"></span>
-                            </td>
-                            <td class="whitespace-nowrap">
-                                <span class="font-medium text-ink-900 capitalize" x-text="leave.duration_formatted"></span>
-                                <span class="text-ink-500 text-xs" x-text="'(' + leave.days_count + (leave.days_count == 1 ? ' day' : ' days') + ')'"></span>
-                            </td>
-                            <td class="max-w-xs text-sm text-ink-700">
-                                <div x-text="leave.reason"></div>
-                                <template x-if="leave.status === 'rejected' && leave.rejected_reason">
-                                    <div class="text-xs text-rose-600 font-semibold mt-1" x-text="'Rejection: ' + leave.rejected_reason"></div>
-                                </template>
-                            </td>
-                            <td>
-                                <template x-if="leave.status === 'pending'">
-                                    <span class="badge badge-warning">Pending</span>
-                                </template>
-                                <template x-if="leave.status === 'approved'">
-                                    <span class="badge badge-success">Approved</span>
-                                </template>
-                                <template x-if="leave.status === 'cancellation_requested'">
-                                    <span class="badge badge-warning" style="background-color: #f59e0b20; color: #d97706; border: 1px solid #f59e0b40; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 11px;">Cancel Requested</span>
-                                </template>
-                                <template x-if="leave.status === 'cancelled'">
-                                    <span class="badge" style="background-color: #64748b20; color: #64748b; border: 1px solid #64748b40; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 11px;">Cancelled</span>
-                                </template>
-                                <template x-if="leave.status === 'rejected'">
-                                    <span class="badge badge-danger">Rejected</span>
-                                </template>
-                            </td>
-                            <td class="text-right whitespace-nowrap">
-                                <template x-if="leave.status === 'pending'">
-                                    <div class="flex gap-1.5 justify-end items-center">
-                                        <button type="button"
-                                                @click="approveLeave(leave)"
-                                                :disabled="actionLoadingId === leave.id"
-                                                class="px-2.5 py-1 text-xs font-bold rounded-lg inline-flex items-center gap-1 shadow-sm transition disabled:opacity-50 hover:brightness-110"
-                                                style="background-color: #059669; color: #ffffff;">
-                                            <x-lucide-check class="w-3.5 h-3.5 stroke-[2.5]" /> Approve
-                                        </button>
-                                        <button type="button"
-                                                @click="openRejectModal(leave)"
-                                                :disabled="actionLoadingId === leave.id"
-                                                class="px-2.5 py-1 text-xs font-bold rounded-lg inline-flex items-center gap-1 shadow-sm transition disabled:opacity-50 hover:brightness-110"
-                                                style="background-color: #e11d48; color: #ffffff;">
-                                            <x-lucide-x class="w-3.5 h-3.5 stroke-[2.5]" /> Reject
-                                        </button>
-                                    </div>
-                                </template>
-                                <template x-if="leave.status === 'approved' || leave.status === 'cancellation_requested'">
-                                    <div class="flex gap-1.5 justify-end items-center">
-                                        <button type="button"
-                                                @click="cancelLeave(leave)"
-                                                :disabled="actionLoadingId === leave.id"
-                                                class="px-2.5 py-1 text-xs font-bold rounded-lg inline-flex items-center gap-1 shadow-sm transition disabled:opacity-50 hover:brightness-110"
-                                                style="background-color: #d97706; color: #ffffff;">
-                                            <x-lucide-rotate-ccw class="w-3.5 h-3.5 stroke-[2.5]" /> Cancel & Refund
-                                        </button>
-                                    </div>
-                                </template>
-                                <template x-if="leave.status !== 'pending' && leave.status !== 'approved' && leave.status !== 'cancellation_requested'">
-                                    <span class="text-xs text-ink-400 font-medium">Processed</span>
-                                </template>
-                            </td>
-                        </tr>
-                    </template>
-                    <template x-if="records.length === 0 && !loading">
-                        <tr>
-                            <td colspan="7" class="text-center py-8 text-ink-500">
-                                No leave requests found matching the current filters.
-                            </td>
-                        </tr>
-                    </template>
+                    {{-- Populated dynamically by DataTables serverSide --}}
                 </tbody>
             </table>
         </div>
-
-        {{-- AJAX Pagination --}}
-        <template x-if="pagination.total > pagination.per_page">
-            <div class="p-4 border-t border-surface-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-600">
-                <div>
-                    Showing <span class="font-bold text-ink-900" x-text="pagination.from"></span> to
-                    <span class="font-bold text-ink-900" x-text="pagination.to"></span> of
-                    <span class="font-bold text-ink-900" x-text="pagination.total"></span> leave requests
-                </div>
-                <div class="flex items-center gap-1">
-                    <button type="button"
-                            @click="fetchRecords(pagination.current_page - 1)"
-                            :disabled="pagination.current_page <= 1"
-                            class="px-2.5 py-1.5 border border-surface-border rounded-lg bg-white hover:bg-surface-subtle disabled:opacity-40 disabled:cursor-not-allowed">
-                        Previous
-                    </button>
-                    <span class="px-3 py-1.5 font-bold text-ink-900" x-text="pagination.current_page + ' / ' + pagination.last_page"></span>
-                    <button type="button"
-                            @click="fetchRecords(pagination.current_page + 1)"
-                            :disabled="pagination.current_page >= pagination.last_page"
-                            class="px-2.5 py-1.5 border border-surface-border rounded-lg bg-white hover:bg-surface-subtle disabled:opacity-40 disabled:cursor-not-allowed">
-                        Next
-                    </button>
-                </div>
-            </div>
-        </template>
     </div>
 
-    {{-- Conflicts View Content --}}
-    <div x-show="activeView === 'conflicts'" x-cloak class="panel p-6">
+    {{-- Conflicts View Content (DataTables) --}}
+    <div x-show="activeView === 'conflicts'" x-cloak class="panel overflow-hidden border border-surface-border shadow-sm rounded-xl p-6">
         <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-5 pb-3 border-b border-surface-border">
             <div>
                 <h2 class="text-base font-bold text-ink-900">Attendance Work Conflicts</h2>
@@ -366,104 +224,37 @@ $initialConflicts = $conflicts->map(function ($c) {
             </div>
             <div class="flex gap-2">
                 <button type="button"
-                        @click="conflictTab = 'pending'; fetchRecords(1)"
-                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs"
-                        :style="conflictTab === 'pending' ? 'background-color: #e11d48; color: #ffffff;' : 'background-color: #f1f5f9; color: #475569;'">
-                    Pending Review (<span x-text="counts.conflicts"></span>)
+                        @click="conflictTab = 'pending'; applyConflictsFilter()"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs inline-flex items-center gap-1.5"
+                        :class="conflictTab === 'pending' ? 'bg-rose-600 text-white' : 'bg-surface-muted text-ink-700 hover:bg-slate-200'">
+                    <x-lucide-alert-circle class="w-3.5 h-3.5" />
+                    <span>Pending Review (<span x-text="counts.conflicts"></span>)</span>
                 </button>
                 <button type="button"
-                        @click="conflictTab = 'resolved'; fetchRecords(1)"
-                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs"
-                        :style="conflictTab === 'resolved' ? 'background-color: #059669; color: #ffffff;' : 'background-color: #f1f5f9; color: #475569;'">
-                    Resolved History
+                        @click="conflictTab = 'resolved'; applyConflictsFilter()"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs inline-flex items-center gap-1.5"
+                        :class="conflictTab === 'resolved' ? 'bg-emerald-600 text-white' : 'bg-surface-muted text-ink-700 hover:bg-slate-200'">
+                    <x-lucide-check-circle class="w-3.5 h-3.5" />
+                    <span>Resolved History</span>
                 </button>
             </div>
         </div>
 
-        <div class="table-wrap relative">
-            {{-- Loading spinner overlay --}}
-            <div x-show="loading" class="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center z-10">
-                <div class="flex items-center gap-2 text-primary-600 font-semibold text-sm">
-                    <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Loading conflicts...</span>
-                </div>
-            </div>
-
-            <table class="data-table">
+        <div class="table-wrap min-h-[350px]">
+            <table id="conflicts-table" class="data-table w-full">
                 <thead>
                     <tr>
-                        <th>Employee</th>
-                        <th>Leave Type</th>
-                        <th>Approved Leave Range</th>
-                        <th>Conflict Date (DayStart)</th>
-                        <th>Status</th>
-                        <th>Resolution</th>
-                        <th class="text-right">Actions</th>
+                        <th class="text-left font-semibold">Employee</th>
+                        <th class="text-left font-semibold">Leave Type</th>
+                        <th class="text-left font-semibold">Approved Leave Range</th>
+                        <th class="text-left font-semibold">Conflict Date (DayStart)</th>
+                        <th class="text-left font-semibold">Status</th>
+                        <th class="text-left font-semibold">Resolution</th>
+                        <th class="text-right font-semibold whitespace-nowrap w-44 px-5 py-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-for="c in conflicts" :key="c.id">
-                        <tr>
-                            <td class="font-semibold text-ink-900" x-text="c.user_name"></td>
-                            <td>
-                                <span class="badge badge-primary font-mono font-bold" x-text="c.leave_type_code"></span>
-                            </td>
-                            <td class="whitespace-nowrap text-sm text-ink-600">
-                                <span x-text="c.from_date_formatted"></span> → <span x-text="c.to_date_formatted"></span>
-                            </td>
-                            <td class="whitespace-nowrap font-bold text-rose-600" x-text="'🗓️ ' + c.conflict_date_formatted"></td>
-                            <td>
-                                <template x-if="c.conflict_status === 'pending_review'">
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                                        ⚠️ Pending Review
-                                    </span>
-                                </template>
-                                <template x-if="c.conflict_status === 'resolved'">
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                        ✅ Resolved
-                                    </span>
-                                </template>
-                            </td>
-                            <td class="max-w-xs text-xs text-ink-700">
-                                <template x-if="c.conflict_status === 'resolved'">
-                                    <div>
-                                        <div class="font-bold" :class="c.resolved_action === 'marked_present' ? 'text-emerald-700' : 'text-ink-800'"
-                                             x-text="c.resolved_action === 'marked_present' ? 'Marked Present & Refunded' : 'Kept as Leave'"></div>
-                                        <div class="text-ink-500 italic mt-0.5" x-text="'&ldquo;' + c.resolution_note + '&rdquo;'"></div>
-                                        <template x-if="c.resolved_by_name && c.resolved_at_formatted">
-                                            <div class="text-[10px] text-ink-400 mt-0.5" x-text="'By ' + c.resolved_by_name + ' on ' + c.resolved_at_formatted"></div>
-                                        </template>
-                                    </div>
-                                </template>
-                                <template x-if="c.conflict_status !== 'resolved'">
-                                    <span class="text-ink-400 italic">Awaiting Admin Action</span>
-                                </template>
-                            </td>
-                            <td class="text-right whitespace-nowrap">
-                                <template x-if="c.conflict_status === 'pending_review'">
-                                    <button type="button"
-                                            class="px-3 py-1.5 font-bold text-xs rounded-lg shadow-xs transition hover:brightness-110"
-                                            style="background-color: #e11d48; color: #ffffff;"
-                                            @click="openResolveModal(c)">
-                                        ⚖️ Resolve Conflict
-                                    </button>
-                                </template>
-                                <template x-if="c.conflict_status === 'resolved'">
-                                    <span class="text-xs text-ink-400">Completed</span>
-                                </template>
-                            </td>
-                        </tr>
-                    </template>
-                    <template x-if="conflicts.length === 0 && !loading">
-                        <tr>
-                            <td colspan="7" class="text-center py-8 text-ink-500">
-                                No work conflicts found in this category.
-                            </td>
-                        </tr>
-                    </template>
+                    {{-- Populated dynamically by DataTables serverSide --}}
                 </tbody>
             </table>
         </div>
@@ -472,10 +263,14 @@ $initialConflicts = $conflicts->map(function ($c) {
     {{-- Rejection Modal --}}
     <div x-show="rejectModalOpen"
          x-cloak
-         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-        <div @click.outside="rejectModalOpen = false" class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 text-left border border-surface-border">
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+         x-transition.opacity>
+        <div @click.outside="rejectModalOpen = false" class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 text-left border border-surface-border" x-transition.scale>
             <div class="flex items-center justify-between mb-4 border-b border-surface-border pb-3">
-                <h3 class="text-base font-bold text-ink-900">Reject Leave Application</h3>
+                <h3 class="text-base font-bold text-ink-900 flex items-center gap-2">
+                    <x-lucide-x-circle class="w-5 h-5 text-rose-600" />
+                    <span>Reject Leave Application</span>
+                </h3>
                 <button type="button" @click="rejectModalOpen = false" class="text-ink-400 hover:text-ink-700">
                     <x-lucide-x class="w-5 h-5" />
                 </button>
@@ -486,7 +281,7 @@ $initialConflicts = $conflicts->map(function ($c) {
             <form @submit.prevent="submitReject()">
                 <div class="mb-4">
                     <label class="form-label text-xs font-bold">Rejection Reason <span class="text-rose-500">*</span></label>
-                    <textarea x-model="rejectedReason" required rows="3" class="form-input text-xs" placeholder="e.g. High workload scheduled for these dates..."></textarea>
+                    <textarea x-model="rejectedReason" required rows="3" class="form-input text-xs" placeholder="e.g. Critical deployment scheduled during this period..."></textarea>
                 </div>
                 <div class="flex justify-end gap-2">
                     <button type="button" class="btn-secondary text-xs px-3 py-1.5" @click="rejectModalOpen = false">Cancel</button>
@@ -501,11 +296,13 @@ $initialConflicts = $conflicts->map(function ($c) {
     {{-- Conflict Resolution Modal --}}
     <div x-show="resolveModalOpen"
          x-cloak
-         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-        <div @click.outside="resolveModalOpen = false" class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 text-left border border-surface-border">
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+         x-transition.opacity>
+        <div @click.outside="resolveModalOpen = false" class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 text-left border border-surface-border" x-transition.scale>
             <div class="flex items-center justify-between mb-4 border-b border-surface-border pb-3">
                 <h3 class="text-lg font-bold text-ink-900 flex items-center gap-2">
-                    ⚠️ Resolve Attendance Conflict
+                    <x-lucide-alert-triangle class="w-5 h-5 text-rose-600" />
+                    <span>Resolve Attendance Conflict</span>
                 </h3>
                 <button type="button" @click="resolveModalOpen = false" class="text-ink-400 hover:text-ink-700">
                     <x-lucide-x class="w-5 h-5" />
@@ -523,8 +320,8 @@ $initialConflicts = $conflicts->map(function ($c) {
                     <label class="form-label font-bold text-ink-900">Choose Resolution Action <span class="text-rose-500">*</span></label>
                     <div class="space-y-2 mt-2">
                         <label class="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-surface-subtle transition"
-                               :class="resolvedAction === 'marked_present' ? 'border-emerald-500 bg-emerald-50/30' : 'border-surface-border'">
-                            <input type="radio" x-model="resolvedAction" value="marked_present" required class="mt-1 text-primary-600 focus:ring-primary-500">
+                               :class="resolvedAction === 'marked_present' ? 'border-emerald-500 bg-emerald-50/30 ring-1 ring-emerald-400' : 'border-surface-border'">
+                            <input type="radio" x-model="resolvedAction" value="marked_present" required class="mt-1 text-emerald-600 focus:ring-emerald-500">
                             <div>
                                 <span class="block text-xs font-bold text-emerald-700">Mark Present & Refund Leave Day</span>
                                 <span class="block text-[11px] text-ink-500">Overrides calendar status to Present for this date and refunds 1 day back to employee leave balance.</span>
@@ -532,8 +329,8 @@ $initialConflicts = $conflicts->map(function ($c) {
                         </label>
 
                         <label class="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-surface-subtle transition"
-                               :class="resolvedAction === 'kept_as_leave' ? 'border-primary-500 bg-surface-subtle' : 'border-surface-border'">
-                            <input type="radio" x-model="resolvedAction" value="kept_as_leave" required class="mt-1 text-primary-600 focus:ring-primary-500">
+                               :class="resolvedAction === 'kept_as_leave' ? 'border-brand-500 bg-surface-subtle ring-1 ring-brand-400' : 'border-surface-border'">
+                            <input type="radio" x-model="resolvedAction" value="kept_as_leave" required class="mt-1 text-brand-600 focus:ring-brand-500">
                             <div>
                                 <span class="block text-xs font-bold text-ink-800">Keep as Approved Leave</span>
                                 <span class="block text-[11px] text-ink-500">No balance refund. Select if Day Start was accidental or unapproved.</span>
@@ -544,7 +341,7 @@ $initialConflicts = $conflicts->map(function ($c) {
 
                 <div class="mb-5">
                     <label class="form-label font-bold text-ink-900">Resolution Note / Reason <span class="text-rose-500">*</span></label>
-                    <textarea x-model="resolutionNote" required rows="3" class="form-input text-xs" placeholder="Type explicit justification for this decision (e.g. Employee performed full field visit on 04 Sep, verified with manager)..."></textarea>
+                    <textarea x-model="resolutionNote" required rows="3" class="form-input text-xs" placeholder="Type explicit justification for this decision (e.g. Employee performed field visit on this date, verified with manager)..."></textarea>
                 </div>
 
                 <div class="flex justify-end gap-2">
@@ -561,6 +358,16 @@ $initialConflicts = $conflicts->map(function ($c) {
 
 @push('scripts')
 <script>
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function leaveManager(config) {
     return {
         activeView: config.defaultView || 'applications',
@@ -569,12 +376,11 @@ function leaveManager(config) {
         status: '',
         month: '',
         search: '',
-        records: config.initialRecords || [],
-        conflicts: config.initialConflicts || [],
         counts: config.initialCounts || { pending: 0, approved: 0, rejected: 0, conflicts: 0 },
-        pagination: config.initialPagination || { current_page: 1, last_page: 1, per_page: 15, total: 0, from: 0, to: 0 },
-        loading: false,
-        actionLoadingId: null,
+        canApprove: config.canApprove ?? false,
+        canReject: config.canReject ?? false,
+        canCancel: config.canCancel ?? false,
+        canResolveConflict: config.canResolveConflict ?? false,
         bannerMessage: '',
         bannerType: 'success',
 
@@ -595,6 +401,338 @@ function leaveManager(config) {
         resolutionNote: '',
         submittingResolve: false,
 
+        init() {
+            window.leaveApp = this;
+            this.$nextTick(() => {
+                this.initDataTables();
+            });
+        },
+
+        initDataTables() {
+            const self = this;
+            const DT = window.DataTable || (typeof DataTable !== 'undefined' ? DataTable : null);
+            if (!DT) {
+                setTimeout(() => self.initDataTables(), 100);
+                return;
+            }
+
+            // 1. Leave Applications DataTable
+            if (!window.leaveTable) {
+                window.leaveTable = new DT('#leave-table', {
+                    processing: true,
+                    serverSide: true,
+                    ajax: {
+                        url: '{{ route('admin.leave.data') }}',
+                        data: function (d) {
+                            d.user_id = self.userId || '';
+                            d.status = self.status || '';
+                            d.month = self.month || '';
+                            d.search_custom = self.search || '';
+                        },
+                        dataSrc: function (json) {
+                            if (json.counts) {
+                                self.counts = json.counts;
+                            }
+                            return json.data;
+                        }
+                    },
+                    pageLength: 15,
+                    lengthMenu: [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]],
+                    order: [[2, 'desc']],
+                    autoWidth: false,
+                    dom: '<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-b border-surface-border bg-surface-muted/20"<"text-xs text-ink-600 flex items-center gap-2"l><"text-xs text-ink-500 font-medium"i>>rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-t border-surface-border bg-white"<"text-caption text-ink-500 font-medium"i><"text-xs"p>>',
+                    language: {
+                        emptyTable: 'No leave requests found matching the current filters.',
+                        zeroRecords: 'No matching leave requests found.',
+                        info: 'Showing _START_ to _END_ of _TOTAL_ leave requests',
+                        infoEmpty: 'Showing 0 to 0 of 0 leave requests',
+                        infoFiltered: '(filtered from _MAX_ total)',
+                        lengthMenu: 'Show _MENU_ entries',
+                        paginate: {
+                            first: '«',
+                            previous: '‹',
+                            next: '›',
+                            last: '»'
+                        }
+                    },
+                    columns: [
+                        {
+                            data: 'employee',
+                            render: function (data) {
+                                return `
+                                    <div class="font-bold text-ink-900">${data.name}</div>
+                                    <div class="text-xs text-ink-500 font-medium">${data.role} ${data.employee_id && data.employee_id !== '—' ? '• ' + data.employee_id : ''}</div>
+                                `;
+                            }
+                        },
+                        {
+                            data: 'leave_type',
+                            render: function (data) {
+                                return `<span class="badge badge-info text-xs font-semibold font-mono">${data.code} — ${data.name}</span>`;
+                            }
+                        },
+                        {
+                            data: 'date_range',
+                            render: function (data) {
+                                return `<span class="whitespace-nowrap text-xs font-medium text-ink-800">${data.from} <span class="text-ink-400">→</span> ${data.to}</span>`;
+                            }
+                        },
+                        {
+                            data: 'duration',
+                            render: function (data) {
+                                const daysText = data.days_count == 1 ? '1 day' : `${data.days_count} days`;
+                                return `
+                                    <div class="whitespace-nowrap">
+                                        <span class="font-semibold text-ink-900 capitalize text-xs">${data.formatted}</span>
+                                        <span class="text-ink-500 text-xs font-normal">(${daysText})</span>
+                                    </div>
+                                `;
+                            }
+                        },
+                        {
+                            data: 'reason',
+                            render: function (data) {
+                                let html = `<div class="max-w-xs text-xs text-ink-700" title="${escapeHtml(data.reason)}">${escapeHtml(data.reason)}</div>`;
+                                if (data.rejected_reason) {
+                                    html += `<div class="text-[11px] text-rose-600 font-medium mt-1">Rejection: ${escapeHtml(data.rejected_reason)}</div>`;
+                                }
+                                return html;
+                            }
+                        },
+                        {
+                            data: 'status',
+                            render: function (status) {
+                                switch (status) {
+                                    case 'pending':
+                                        return `<span class="badge badge-warning text-xs font-medium">Pending</span>`;
+                                    case 'approved':
+                                        return `<span class="badge badge-success text-xs font-medium">Approved</span>`;
+                                    case 'cancellation_requested':
+                                        return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">Cancel Requested</span>`;
+                                    case 'cancelled':
+                                        return `<span class="badge badge-neutral text-xs font-medium">Cancelled</span>`;
+                                    case 'rejected':
+                                        return `<span class="badge badge-danger text-xs font-medium">Rejected</span>`;
+                                    default:
+                                        return `<span class="badge badge-neutral text-xs font-medium">${status}</span>`;
+                                }
+                            }
+                        },
+                        {
+                            data: 'actions',
+                            orderable: false,
+                            searchable: false,
+                            className: 'text-right whitespace-nowrap align-middle w-44 px-5 py-3.5',
+                            render: function (actions) {
+                                if (actions.status === 'pending') {
+                                    let buttons = [];
+                                    if (actions.can_approve) {
+                                        buttons.push(`
+                                            <button type="button" 
+                                                    onclick="window.leaveApp.approveLeave(${actions.id}, '${escapeHtml(actions.user_name)}')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors shadow-2xs cursor-pointer"
+                                                    title="Approve Leave">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                                <span>Approve</span>
+                                            </button>
+                                        `);
+                                    }
+                                    if (actions.can_reject) {
+                                        buttons.push(`
+                                            <button type="button" 
+                                                    onclick="window.leaveApp.openRejectModal(${actions.id}, '${escapeHtml(actions.user_name)}')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors shadow-2xs cursor-pointer"
+                                                    title="Reject Leave">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                <span>Reject</span>
+                                            </button>
+                                        `);
+                                    }
+                                    return `<div class="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">${buttons.join('')}</div>`;
+                                } else if (actions.status === 'approved' || actions.status === 'cancellation_requested') {
+                                    if (actions.can_cancel) {
+                                        return `
+                                            <div class="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                                <button type="button" 
+                                                        onclick="window.leaveApp.cancelLeave(${actions.id}, '${escapeHtml(actions.user_name)}', ${actions.days_count})"
+                                                        class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors shadow-2xs cursor-pointer"
+                                                        title="Cancel & Refund Leave">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                                    <span>Cancel & Refund</span>
+                                                </button>
+                                            </div>
+                                        `;
+                                    }
+                                    return `<span class="text-xs text-ink-400 font-medium">Approved</span>`;
+                                } else {
+                                    return `<span class="text-xs text-ink-400 font-medium">Processed</span>`;
+                                }
+                            }
+                        }
+                    ]
+                });
+            }
+
+            // 2. Work Conflicts DataTable
+            if (!window.conflictsTable) {
+                window.conflictsTable = new DT('#conflicts-table', {
+                    processing: true,
+                    serverSide: true,
+                    ajax: {
+                        url: '{{ route('admin.leave.conflicts-data') }}',
+                        data: function (d) {
+                            d.user_id = self.userId || '';
+                            d.month = self.month || '';
+                            d.conflict_tab = self.conflictTab || 'pending';
+                            d.search_custom = self.search || '';
+                        }
+                    },
+                    pageLength: 15,
+                    lengthMenu: [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]],
+                    order: [[3, 'desc']],
+                    autoWidth: false,
+                    dom: '<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-b border-surface-border bg-surface-muted/20"<"text-xs text-ink-600 flex items-center gap-2"l><"text-xs text-ink-500 font-medium"i>>rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-t border-surface-border bg-white"<"text-caption text-ink-500 font-medium"i><"text-xs"p>>',
+                    language: {
+                        emptyTable: 'No work conflicts found in this category.',
+                        zeroRecords: 'No matching work conflicts found.',
+                        info: 'Showing _START_ to _END_ of _TOTAL_ conflicts',
+                        infoEmpty: 'Showing 0 to 0 of 0 conflicts',
+                        infoFiltered: '(filtered from _MAX_ total)',
+                        lengthMenu: 'Show _MENU_ entries',
+                        paginate: {
+                            first: '«',
+                            previous: '‹',
+                            next: '›',
+                            last: '»'
+                        }
+                    },
+                    columns: [
+                        {
+                            data: 'employee',
+                            render: function (data) {
+                                return `
+                                    <div class="font-bold text-ink-900">${data.name}</div>
+                                    <div class="text-xs text-ink-500 font-medium">${data.role} ${data.employee_id && data.employee_id !== '—' ? '• ' + data.employee_id : ''}</div>
+                                `;
+                            }
+                        },
+                        {
+                            data: 'leave_type',
+                            render: function (data) {
+                                return `<span class="badge badge-info text-xs font-semibold font-mono">${data.code} — ${data.name}</span>`;
+                            }
+                        },
+                        {
+                            data: 'leave_range',
+                            render: function (data) {
+                                return `<span class="whitespace-nowrap text-xs font-medium text-ink-800">${data.from} <span class="text-ink-400">→</span> ${data.to}</span>`;
+                            }
+                        },
+                        {
+                            data: 'conflict_date',
+                            render: function (data) {
+                                return `<span class="whitespace-nowrap font-bold text-rose-600 text-xs">🗓️ ${data.formatted}</span>`;
+                            }
+                        },
+                        {
+                            data: 'status',
+                            render: function (status) {
+                                if (status === 'pending_review') {
+                                    return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">⚠️ Pending Review</span>`;
+                                }
+                                return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">✅ Resolved</span>`;
+                            }
+                        },
+                        {
+                            data: 'resolution',
+                            render: function (data) {
+                                if (data.action) {
+                                    const actionText = data.action === 'marked_present' ? 'Marked Present & Refunded' : 'Kept as Leave';
+                                    const actionColor = data.action === 'marked_present' ? 'text-emerald-700' : 'text-ink-800';
+                                    let html = `<div class="font-bold text-xs ${actionColor}">${actionText}</div>`;
+                                    if (data.note) {
+                                        html += `<div class="text-ink-500 italic text-[11px] mt-0.5">&ldquo;${escapeHtml(data.note)}&rdquo;</div>`;
+                                    }
+                                    if (data.by_name && data.at_formatted) {
+                                        html += `<div class="text-[10px] text-ink-400 mt-0.5">By ${escapeHtml(data.by_name)} on ${data.at_formatted}</div>`;
+                                    }
+                                    return html;
+                                }
+                                return `<span class="text-ink-400 italic text-xs">Awaiting Admin Action</span>`;
+                            }
+                        },
+                        {
+                            data: 'actions',
+                            orderable: false,
+                            searchable: false,
+                            className: 'text-right whitespace-nowrap align-middle w-44 px-5 py-3.5',
+                            render: function (actions) {
+                                if (actions.conflict_status === 'pending_review' && actions.can_resolve_conflict) {
+                                    return `
+                                        <div class="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                            <button type="button" 
+                                                    onclick="window.leaveApp.openResolveModal(${actions.id}, '${escapeHtml(actions.user_name)}', '${escapeHtml(actions.conflict_date)}', '${escapeHtml(actions.leave_range)}')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors shadow-2xs cursor-pointer"
+                                                    title="Resolve Conflict">
+                                                <span>⚖️ Resolve Conflict</span>
+                                            </button>
+                                        </div>
+                                    `;
+                                } else {
+                                    return `<span class="text-xs text-ink-400 font-medium">Completed</span>`;
+                                }
+                            }
+                        }
+                    ]
+                });
+            }
+        },
+
+        applyFilters() {
+            if (this.activeView === 'applications' && window.leaveTable) {
+                window.leaveTable.draw();
+            } else if (this.activeView === 'conflicts' && window.conflictsTable) {
+                window.conflictsTable.draw();
+            }
+        },
+
+        applyConflictsFilter() {
+            if (window.conflictsTable) {
+                window.conflictsTable.draw();
+            }
+        },
+
+        filterByStatus(statusVal) {
+            this.activeView = 'applications';
+            this.status = statusVal;
+            this.applyFilters();
+        },
+
+        switchView(view) {
+            this.activeView = view;
+            this.$nextTick(() => {
+                if (view === 'applications' && window.leaveTable) {
+                    window.leaveTable.columns.adjust().draw(false);
+                } else if (view === 'conflicts' && window.conflictsTable) {
+                    window.conflictsTable.columns.adjust().draw(false);
+                }
+            });
+        },
+
+        resetFilters() {
+            this.userId = '';
+            this.status = '';
+            this.month = '';
+            this.search = '';
+            this.conflictTab = 'pending';
+            if (window.leaveTable) {
+                window.leaveTable.search('').draw();
+            }
+            if (window.conflictsTable) {
+                window.conflictsTable.search('').draw();
+            }
+        },
+
         showBanner(msg, type = 'success') {
             this.bannerMessage = msg;
             this.bannerType = type;
@@ -606,58 +744,11 @@ function leaveManager(config) {
             }, 6000);
         },
 
-        switchView(view) {
-            this.activeView = view;
-            this.fetchRecords(1);
-        },
+        async approveLeave(leaveId, userName) {
+            if (!confirm(`Approve leave application for ${userName}?`)) return;
 
-        resetFilters() {
-            this.userId = '';
-            this.status = '';
-            this.month = '';
-            this.search = '';
-            this.fetchRecords(1);
-        },
-
-        async fetchRecords(page = 1) {
-            this.loading = true;
             try {
-                const params = new URLSearchParams();
-                if (this.userId) params.append('user_id', this.userId);
-                if (this.status && this.activeView === 'applications') params.append('status', this.status);
-                if (this.month) params.append('month', this.month);
-                if (this.search) params.append('search', this.search);
-                if (this.activeView === 'conflicts') params.append('conflict_tab', this.conflictTab);
-                params.append('page', page);
-
-                const response = await fetch(`${config.fetchUrl}?${params.toString()}`, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    this.records = data.records || [];
-                    this.conflicts = data.conflicts || [];
-                    this.counts = data.counts || this.counts;
-                    this.pagination = data.pagination || this.pagination;
-                }
-            } catch (err) {
-                console.error('Error fetching leaves:', err);
-                this.showBanner('Failed to load leave records. Please refresh.', 'error');
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async approveLeave(leave) {
-            if (!confirm(`Approve leave for ${leave.user_name}?`)) return;
-
-            this.actionLoadingId = leave.id;
-            try {
-                const response = await fetch(leave.approve_url, {
+                const response = await fetch(`/admin/leave/${leaveId}/approve`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -670,21 +761,19 @@ function leaveManager(config) {
                 const res = await response.json();
                 if (response.ok && res.success) {
                     this.showBanner(res.message || 'Leave approved successfully.', 'success');
-                    await this.fetchRecords(this.pagination.current_page);
+                    if (window.leaveTable) window.leaveTable.draw(false);
                 } else {
                     this.showBanner(res.message || 'Failed to approve leave.', 'error');
                 }
             } catch (err) {
                 console.error('Approve error:', err);
                 this.showBanner('An unexpected error occurred.', 'error');
-            } finally {
-                this.actionLoadingId = null;
             }
         },
 
-        openRejectModal(leave) {
-            this.activeLeaveId = leave.id;
-            this.employeeName = leave.user_name;
+        openRejectModal(leaveId, userName) {
+            this.activeLeaveId = leaveId;
+            this.employeeName = userName;
             this.rejectedReason = '';
             this.rejectModalOpen = true;
         },
@@ -711,7 +800,7 @@ function leaveManager(config) {
                 if (response.ok && res.success) {
                     this.rejectModalOpen = false;
                     this.showBanner(res.message || 'Leave rejected successfully.', 'success');
-                    await this.fetchRecords(this.pagination.current_page);
+                    if (window.leaveTable) window.leaveTable.draw(false);
                 } else {
                     this.showBanner(res.message || 'Failed to reject leave.', 'error');
                 }
@@ -723,12 +812,11 @@ function leaveManager(config) {
             }
         },
 
-        async cancelLeave(leave) {
-            if (!confirm(`Cancel approved leave for ${leave.user_name}? This will refund ${leave.days_count} day(s) back to employee balance.`)) return;
+        async cancelLeave(leaveId, userName, daysCount) {
+            if (!confirm(`Cancel approved leave for ${userName}? This will refund ${daysCount} day(s) back to employee balance.`)) return;
 
-            this.actionLoadingId = leave.id;
             try {
-                const response = await fetch(leave.cancel_url, {
+                const response = await fetch(`/admin/leave/${leaveId}/cancel`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -741,23 +829,21 @@ function leaveManager(config) {
                 const res = await response.json();
                 if (response.ok && res.success) {
                     this.showBanner(res.message || 'Leave cancelled successfully.', 'success');
-                    await this.fetchRecords(this.pagination.current_page);
+                    if (window.leaveTable) window.leaveTable.draw(false);
                 } else {
                     this.showBanner(res.message || 'Failed to cancel leave.', 'error');
                 }
             } catch (err) {
                 console.error('Cancel error:', err);
                 this.showBanner('An unexpected error occurred.', 'error');
-            } finally {
-                this.actionLoadingId = null;
             }
         },
 
-        openResolveModal(c) {
-            this.conflictId = c.id;
-            this.conflictEmp = c.user_name;
-            this.conflictDate = c.conflict_date_formatted;
-            this.conflictLeaveDates = `${c.from_date_formatted} → ${c.to_date_formatted}`;
+        openResolveModal(conflictId, empName, conflictDate, leaveDates) {
+            this.conflictId = conflictId;
+            this.conflictEmp = empName;
+            this.conflictDate = conflictDate;
+            this.conflictLeaveDates = leaveDates;
             this.resolvedAction = 'marked_present';
             this.resolutionNote = '';
             this.resolveModalOpen = true;
@@ -786,7 +872,8 @@ function leaveManager(config) {
                 if (response.ok && res.success) {
                     this.resolveModalOpen = false;
                     this.showBanner(res.message || 'Attendance conflict resolved successfully.', 'success');
-                    await this.fetchRecords(1);
+                    if (window.conflictsTable) window.conflictsTable.draw(false);
+                    if (window.leaveTable) window.leaveTable.draw(false);
                 } else {
                     this.showBanner(res.message || 'Failed to resolve conflict.', 'error');
                 }

@@ -30,6 +30,11 @@ class AuditLog extends Model
         return $this->belongsTo(User::class, 'causer_id');
     }
 
+    public function auditable()
+    {
+        return $this->morphTo();
+    }
+
     /**
      * Static helper to log an audit event.
      */
@@ -49,7 +54,7 @@ class AuditLog extends Model
             'old_values'     => $oldValues,
             'new_values'     => $newValues,
             'reason'         => $reason,
-            'ip_address'     => request()->ip(),
+            'ip_address'     => request() ? request()->ip() : null,
         ]);
     }
 }

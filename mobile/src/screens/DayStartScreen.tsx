@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 
@@ -24,12 +25,15 @@ import {
   getMasterTourTypes,
   getMasterVehicleTypes,
   getMasterParties,
+  getMasterLocations,
 } from "../api/master";
 import type {
   MasterItem,
   TourPurpose,
   VehicleType,
   Party,
+  District,
+  Area,
 } from "../api/master";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -43,6 +47,7 @@ export default function DayStartScreen() {
   const [tourPurposes, setTourPurposes] = useState<TourPurpose[]>([]);
   const [tourTypes, setTourTypes] = useState<MasterItem[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [masterLoading, setMasterLoading] = useState(true);
 
@@ -50,6 +55,9 @@ export default function DayStartScreen() {
   const [tourPurpose, setTourPurpose] = useState<TourPurpose | null>(null);
   const [tourType, setTourType] = useState<MasterItem | null>(null);
   const [vehicleType, setVehicleType] = useState<VehicleType | null>(null);
+  const [purposeDetails, setPurposeDetails] = useState("");
+  const [selectedDistrictIds, setSelectedDistrictIds] = useState<Record<number, boolean>>({});
+  const [selectedAreaIds, setSelectedAreaIds] = useState<Record<number, boolean>>({});
   const [vehicleNo, setVehicleNo] = useState("");
   const [openingKm, setOpeningKm] = useState("");
   const [kmPhotoUri, setKmPhotoUri] = useState<string | null>(null);
@@ -59,6 +67,8 @@ export default function DayStartScreen() {
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [pickerOpen, setPickerOpen] = useState<PickerKey | null>(null);
+  const [districtModalOpen, setDistrictModalOpen] = useState(false);
+  const [areaModalOpen, setAreaModalOpen] = useState(false);
   const [partyModalOpen, setPartyModalOpen] = useState(false);
   const [partySearch, setPartySearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -68,21 +78,24 @@ export default function DayStartScreen() {
     (async () => {
       setMasterLoading(true);
       try {
-        const [p, t, v, parties] = await Promise.all([
+        const [p, t, v, locs, partiesRes] = await Promise.all([
           getMasterTourPurposes(),
           getMasterTourTypes(),
           getMasterVehicleTypes(),
+          getMasterLocations(),
           getMasterParties(),
         ]);
         setTourPurposes(p.data);
         setTourTypes(t.data);
         setVehicleTypes(v.data);
-        setParties(parties.data);
+        setDistricts(locs.data);
+        setParties(partiesRes.data);
 
         // Set defaults
         if (p.data.length) setTourPurpose(p.data[0]);
         if (t.data.length) setTourType(t.data[0]);
         if (v.data.length) setVehicleType(v.data[0]);
+        if (locs.data.length) setSelectedDistrictIds({ [locs.data[0].id]: true });
       } catch (e: any) {
         Alert.alert(
           "Error",
@@ -120,15 +133,63 @@ export default function DayStartScreen() {
     openCamera();
   }
 
-  // ── Parties ───────────────────────────────────────────────────────────────
+  // ── Multi-location derived state ──────────────────────────────────────────
+  const selectedDistrictsList = useMemo(() => {
+    return districts.filter((d) => selectedDistrictIds[d.id]);
+  }, [districts, selectedDistrictIds]);
+
+  const districtLabel = useMemo(() => {
+    if (selectedDistrictsList.length === 0) return "Select District(s)";
+    if (selectedDistrictsList.length === 1) return selectedDistrictsList[0].name;
+    return `${selectedDistrictsList.length} Districts (${selectedDistrictsList.map((d) => d.name).join(", ")})`;
+  }, [selectedDistrictsList]);
+
+  const availableAreas = useMemo(() => {
+    const sourceDistricts = selectedDistrictsList.length > 0 ? selectedDistrictsList : districts;
+    const list: { id: number; name: string; subtitle?: string }[] = [];
+    sourceDistricts.forEach((d) => {
+      (d.areas ?? []).forEach((a) => {
+        list.push({
+          id: a.id,
+          name: a.name,
+          subtitle: selectedDistrictsList.length > 1 ? `District: ${d.name}` : undefined,
+        });
+      });
+    });
+    return list;
+  }, [districts, selectedDistrictsList]);
+
+  const selectedAreasList = useMemo(() => {
+    return availableAreas.filter((a) => selectedAreaIds[a.id]);
+  }, [availableAreas, selectedAreaIds]);
+
+  const areaLabel = useMemo(() => {
+    if (selectedAreasList.length === 0) {
+      return selectedDistrictsList.length > 0 ? "All Areas in Selected District(s)" : "Select Area(s) / Beat(s)";
+    }
+    if (selectedAreasList.length === 1) return selectedAreasList[0].name;
+    return `${selectedAreasList.length} Areas (${selectedAreasList.map((a) => a.name).join(", ")})`;
+  }, [selectedAreasList, selectedDistrictsList]);
+
+  // ── Parties filtered by Districts/Areas & Search ──────────────────────────
   const filteredParties = useMemo(() => {
-    const activeOnly = parties.filter((p) => p.approval_status !== "pending" && p.approval_status !== "rejected");
+    let list = parties.filter((p) => p.approval_status !== "pending" && p.approval_status !== "rejected");
+
+    // Location-based filtering:
+    if (selectedAreasList.length > 0) {
+      const areaSet = new Set(selectedAreasList.map((a) => a.id));
+      list = list.filter((p) => p.area_id && areaSet.has(p.area_id));
+    } else if (selectedDistrictsList.length > 0) {
+      const distSet = new Set(selectedDistrictsList.map((d) => d.id));
+      list = list.filter((p) => p.district_id && distSet.has(p.district_id));
+    }
+
     const q = partySearch.trim().toLowerCase();
-    if (!q) return activeOnly;
-    return activeOnly.filter(
+    if (!q) return list;
+    return list.filter(
       (p) => p.name.toLowerCase().includes(q) || (p.mobile ?? "").includes(q),
     );
-  }, [parties, partySearch]);
+  }, [parties, selectedDistrictsList, selectedAreasList, partySearch]);
 
   const selectedCount = useMemo(
     () => Object.values(selectedPartyIds).filter(Boolean).length,
@@ -147,10 +208,24 @@ export default function DayStartScreen() {
 
     setSubmitting(true);
     try {
+      const chosenDistrictId = selectedDistrictsList.length > 0 ? selectedDistrictsList[0].id : undefined;
+      const chosenAreaId = selectedAreasList.length > 0 ? selectedAreasList[0].id : undefined;
+      const chosenAreaIds = selectedAreasList.map((a) => a.id);
+      const areaCustomNames = selectedAreasList.map((a) => a.name).join(", ");
+      const visitPlaceStr =
+        selectedDistrictsList.map((d) => d.name).join(", ") +
+        (areaCustomNames ? ` (${areaCustomNames})` : "");
+
       await submitDayStart({
         tour_purpose_id: tourPurpose.id,
         tour_type_id: tourType.id,
         vehicle_type_id: vehicleType.id,
+        district_id: chosenDistrictId,
+        area_id: chosenAreaId,
+        area_ids: chosenAreaIds.length > 0 ? chosenAreaIds : undefined,
+        area_name_custom: areaCustomNames || undefined,
+        visit_place: visitPlaceStr || undefined,
+        remarks: purposeDetails.trim() || undefined,
         vehicle_no: vehicleNo || undefined,
         opening_km: openingKm || undefined,
         opening_km_image_uri: kmPhotoUri ?? undefined,
@@ -208,6 +283,14 @@ export default function DayStartScreen() {
             onPress={() => setPickerOpen("tourPurpose")}
           />
 
+          {/* Specific Purpose Details / Plan Notes */}
+          <FieldInput
+            label="Tour Purpose Details / Plan Notes"
+            value={purposeDetails}
+            onChangeText={setPurposeDetails}
+            placeholder="e.g. Field visits, market survey, order collection..."
+          />
+
           {/* Tour Type */}
           <FieldSelect
             label="Tour Type"
@@ -232,9 +315,29 @@ export default function DayStartScreen() {
             />
           )}
 
+          {/* Destination / Tour Territory */}
+          <View style={styles.sectionDivider}>
+            <MaterialIcons name="place" size={18} color="#7367F0" />
+            <Text style={styles.sectionTitle}>Tour Destination (Multi-Location)</Text>
+          </View>
+
+          {/* District Multi-Select */}
+          <FieldSelect
+            label="Target District(s) / Cities"
+            value={districtLabel}
+            onPress={() => setDistrictModalOpen(true)}
+          />
+
+          {/* Area Multi-Select */}
+          <FieldSelect
+            label="Target Area(s) / Beat(s) / Towns"
+            value={areaLabel}
+            onPress={() => setAreaModalOpen(true)}
+          />
+
           {/* Parties to Visit */}
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Place To Visit (Parties)</Text>
+            <Text style={styles.fieldLabel}>Places To Visit (Parties)</Text>
             <TouchableOpacity
               style={styles.fieldRow}
               onPress={() => setPartyModalOpen(true)}
@@ -247,6 +350,8 @@ export default function DayStartScreen() {
               >
                 {selectedCount
                   ? `${selectedCount} party(s) selected`
+                  : filteredParties.length === 0
+                  ? "No parties (Prospecting Tour)"
                   : "Tap to select parties"}
               </Text>
               <MaterialIcons
@@ -257,13 +362,29 @@ export default function DayStartScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.bigButton}
-            activeOpacity={0.92}
-            onPress={() => setPartyModalOpen(true)}
-          >
-            <Text style={styles.bigButtonText}>Select Parties To Visit</Text>
-          </TouchableOpacity>
+          {filteredParties.length === 0 ? (
+            <View style={styles.prospectingBanner}>
+              <MaterialCommunityIcons name="information-outline" size={20} color="#4F46E5" />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.prospectingTitle}>
+                  Area Prospecting / Market Survey
+                </Text>
+                <Text style={styles.prospectingSub}>
+                  No registered parties in {selectedAreasList.map((a) => a.name).join(", ") || selectedDistrictsList.map((d) => d.name).join(", ") || "this location"} yet. You can start your day directly to explore and register new parties on-the-go!
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.bigButton}
+              activeOpacity={0.92}
+              onPress={() => setPartyModalOpen(true)}
+            >
+              <Text style={styles.bigButtonText}>
+                {selectedCount ? `Edit Parties (${selectedCount} selected)` : "Select Parties To Visit"}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Opening KM */}
           <FieldInput
@@ -374,6 +495,57 @@ export default function DayStartScreen() {
         }}
       />
 
+      {/* District Multi-Select Modal */}
+      <MultiSelectModal
+        visible={districtModalOpen}
+        title="Select Target Districts"
+        placeholder="Search district..."
+        items={districts.map((d) => ({ id: d.id, name: d.name }))}
+        selected={selectedDistrictIds}
+        onToggle={(id) => {
+          setSelectedDistrictIds((s) => ({ ...s, [id]: !s[id] }));
+          setSelectedPartyIds({});
+        }}
+        onSelectAll={() => {
+          const all: Record<number, boolean> = {};
+          districts.forEach((d) => (all[d.id] = true));
+          setSelectedDistrictIds(all);
+          setSelectedPartyIds({});
+        }}
+        onClearAll={() => {
+          setSelectedDistrictIds({});
+          setSelectedAreaIds({});
+          setSelectedPartyIds({});
+        }}
+        onDone={() => setDistrictModalOpen(false)}
+        onCancel={() => setDistrictModalOpen(false)}
+      />
+
+      {/* Area Multi-Select Modal */}
+      <MultiSelectModal
+        visible={areaModalOpen}
+        title="Select Target Areas / Beats"
+        placeholder="Search area / beat..."
+        items={availableAreas}
+        selected={selectedAreaIds}
+        onToggle={(id) => {
+          setSelectedAreaIds((s) => ({ ...s, [id]: !s[id] }));
+          setSelectedPartyIds({});
+        }}
+        onSelectAll={() => {
+          const all: Record<number, boolean> = {};
+          availableAreas.forEach((a) => (all[a.id] = true));
+          setSelectedAreaIds(all);
+          setSelectedPartyIds({});
+        }}
+        onClearAll={() => {
+          setSelectedAreaIds({});
+          setSelectedPartyIds({});
+        }}
+        onDone={() => setAreaModalOpen(false)}
+        onCancel={() => setAreaModalOpen(false)}
+      />
+
       {/* Party Select Modal */}
       <PartySelectModal
         visible={partyModalOpen}
@@ -456,18 +628,18 @@ function PickerModal({
   onCancel: () => void;
   onSelect: (v: string) => void;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.modalSheet}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity style={styles.modalBack} onPress={onCancel}>
-              <MaterialIcons name="arrow-back-ios-new" size={18} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <View style={{ width: 40 }} />
-          </View>
-          <ScrollView contentContainerStyle={styles.modalList}>
+          <ScreenHeader title={title} onBack={onCancel} bgColor={PURPLE} />
+          <ScrollView
+            contentContainerStyle={[
+              styles.modalList,
+              { paddingBottom: Math.max(insets.bottom, 14) + 24 },
+            ]}
+          >
             {options.map((opt) => (
               <TouchableOpacity
                 key={opt}
@@ -478,7 +650,13 @@ function PickerModal({
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <TouchableOpacity style={styles.modalCancelBtn} onPress={onCancel}>
+          <TouchableOpacity
+            style={[
+              styles.modalCancelBtn,
+              { marginBottom: Math.max(insets.bottom, 14) + 14 },
+            ]}
+            onPress={onCancel}
+          >
             <Text style={styles.modalCancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -506,19 +684,21 @@ function PartySelectModal({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.modalSheet}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity style={styles.modalBack} onPress={onCancel}>
-              <MaterialIcons name="arrow-back-ios-new" size={18} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Select Parties</Text>
-            <TouchableOpacity style={styles.modalDoneBtn} onPress={onDone}>
-              <Text style={styles.modalDoneText}>Done</Text>
-            </TouchableOpacity>
-          </View>
+          <ScreenHeader
+            title="Select Parties"
+            onBack={onCancel}
+            bgColor={PURPLE}
+            rightElement={
+              <TouchableOpacity style={styles.modalDoneBtn} onPress={onDone}>
+                <Text style={styles.modalDoneText}>Done</Text>
+              </TouchableOpacity>
+            }
+          />
           <View style={styles.partySearchWrap}>
             <TextInput
               style={styles.partySearchInput}
@@ -529,7 +709,12 @@ function PartySelectModal({
             />
             <MaterialIcons name="search" size={22} color="#7367F0" />
           </View>
-          <ScrollView contentContainerStyle={styles.partyList}>
+          <ScrollView
+            contentContainerStyle={[
+              styles.partyList,
+              { paddingBottom: Math.max(insets.bottom, 14) + 24 },
+            ]}
+          >
             {items.length === 0 ? (
               <Text style={styles.noParties}>No parties found</Text>
             ) : (
@@ -554,6 +739,125 @@ function PartySelectModal({
                       <Text style={styles.partyRowText}>{item.name}</Text>
                       {item.mobile ? (
                         <Text style={styles.partyRowSub}>{item.mobile}</Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function MultiSelectModal({
+  visible,
+  title,
+  placeholder = "Search...",
+  items,
+  selected,
+  onToggle,
+  onSelectAll,
+  onClearAll,
+  onDone,
+  onCancel,
+}: {
+  visible: boolean;
+  title: string;
+  placeholder?: string;
+  items: { id: number; name: string; subtitle?: string }[];
+  selected: Record<number, boolean>;
+  onToggle: (id: number) => void;
+  onSelectAll?: () => void;
+  onClearAll?: () => void;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.subtitle && item.subtitle.toLowerCase().includes(q)),
+    );
+  }, [items, query]);
+
+  const selectedCount = Object.values(selected).filter(Boolean).length;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalSheet}>
+          <ScreenHeader
+            title={title}
+            onBack={onCancel}
+            bgColor={PURPLE}
+            rightElement={
+              <TouchableOpacity style={styles.modalDoneBtn} onPress={onDone}>
+                <Text style={styles.modalDoneText}>Done ({selectedCount})</Text>
+              </TouchableOpacity>
+            }
+          />
+          <View style={styles.partySearchWrap}>
+            <TextInput
+              style={styles.partySearchInput}
+              placeholder={placeholder}
+              placeholderTextColor="#8E8E8E"
+              value={query}
+              onChangeText={setQuery}
+            />
+            <MaterialIcons name="search" size={22} color="#7367F0" />
+          </View>
+          {(onSelectAll || onClearAll) && (
+            <View style={styles.selectionQuickActions}>
+              {onSelectAll && (
+                <TouchableOpacity onPress={onSelectAll} style={styles.quickActionBtn}>
+                  <Text style={styles.quickActionText}>Select All</Text>
+                </TouchableOpacity>
+              )}
+              {onClearAll && (
+                <TouchableOpacity onPress={onClearAll} style={styles.quickActionBtn}>
+                  <Text style={[styles.quickActionText, { color: "#EF4444" }]}>Clear All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+          <ScrollView
+            contentContainerStyle={[
+              styles.partyList,
+              { paddingBottom: Math.max(insets.bottom, 14) + 24 },
+            ]}
+          >
+            {filtered.length === 0 ? (
+              <Text style={styles.noParties}>No locations found</Text>
+            ) : (
+              filtered.map((item) => {
+                const checked = !!selected[item.id];
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.partyRowItem}
+                    onPress={() => onToggle(item.id)}
+                  >
+                    <MaterialCommunityIcons
+                      name={
+                        checked
+                          ? "checkbox-marked-outline"
+                          : "checkbox-blank-outline"
+                      }
+                      size={22}
+                      color="#7367F0"
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.partyRowText}>{item.name}</Text>
+                      {item.subtitle ? (
+                        <Text style={styles.partyRowSub}>{item.subtitle}</Text>
                       ) : null}
                     </View>
                   </TouchableOpacity>
@@ -631,6 +935,44 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   bigButtonText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+
+  sectionDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginVertical: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#EDE9FE",
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: PURPLE,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  prospectingBanner: {
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  prospectingTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#312E81",
+  },
+  prospectingSub: {
+    fontSize: 11,
+    color: "#4338CA",
+    marginTop: 2,
+    lineHeight: 16,
+  },
 
   // Camera
   cameraWrap: {
@@ -758,5 +1100,24 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
     fontSize: 14,
     marginTop: 40,
+  },
+  selectionQuickActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EDEDED",
+    backgroundColor: "#F9FAFB",
+  },
+  quickActionBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  quickActionText: {
+    fontSize: 12,
+    color: "#7367F0",
+    fontWeight: "700",
   },
 });

@@ -8,6 +8,8 @@ export interface PartyProfile {
   mobile: string;
   email: string;
   address: string;
+  district_id?: number | null;
+  area_id?: number | null;
   city: string;
   state: string;
   pincode: string;
@@ -25,6 +27,8 @@ export interface NewPartyPayload {
   mobile: string;
   party_type?: string;
   owner_name?: string;
+  district_id?: number;
+  area_id?: number;
   address?: string;
   city?: string;
   state?: string;

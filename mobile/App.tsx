@@ -2,64 +2,78 @@ import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import Constants, { AppOwnership } from "expo-constants";
+import * as Notifications from "expo-notifications";
 
 import { AuthProvider } from "./src/auth/AuthContext";
+import { AlertModalProvider } from "./src/context/AlertModalContext";
 import RootNavigator from "./src/navigation/RootNavigator";
+import { navigationRef, navigateToNotificationTarget } from "./src/navigation/navigationRef";
+import { fetchUnreadCount } from "./src/api/notifications";
 
 /**
  * App Entry Point
  *
  * Wraps the entire app with:
  *   <AuthProvider>        – provides global auth state (user, login, logout)
- *   <NavigationContainer> – required by React Navigation
+ *   <NavigationContainer> – with global navigationRef for deep-linking
  */
 export default function App() {
   useEffect(() => {
-    // Skip remote notification listeners inside Expo Go to avoid SDK 53+ restriction
-    if (Constants.appOwnership === AppOwnership.Expo) {
-      return;
-    }
+    // 1. Initial badge sync
+    fetchUnreadCount().catch(() => {});
 
-    try {
-      const Notifications = require("expo-notifications");
-      // Listener for notifications received while app is in foreground
-      const notificationSubscription = Notifications.addNotificationReceivedListener(
-        (notification: any) => {
-          console.log("[Notification Received]:", notification?.request?.content?.title);
+    // 2. Foreground notification listener
+    const notificationSubscription = Notifications.addNotificationReceivedListener(
+      (notification) => {
+        console.log("[Notification Received]:", notification?.request?.content?.title);
+        // Sync unread badge count
+        fetchUnreadCount().catch(() => {});
+      }
+    );
+
+    // 3. User tapped on a notification in system tray (App in background or foreground)
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response?.notification?.request?.content?.data;
+        console.log("[Notification Tapped]:", data);
+        const screen = data?.screen;
+        if (screen && typeof screen === "string") {
+          // Slight delay to ensure navigation container is ready
+          setTimeout(() => {
+            navigateToNotificationTarget(screen);
+          }, 300);
         }
-      );
+      }
+    );
 
-      // Listener for when user taps on a notification
-      const responseSubscription = Notifications.addNotificationResponseReceivedListener(
-        (response: any) => {
-          console.log(
-            "[Notification Clicked]:",
-            response?.notification?.request?.content?.data
-          );
+    // 4. Check if app was opened directly from a notification (Cold start)
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        const screen = response.notification?.request?.content?.data?.screen;
+        if (screen && typeof screen === "string") {
+          setTimeout(() => {
+            navigateToNotificationTarget(screen);
+          }, 600);
         }
-      );
+      }
+    }).catch(() => {});
 
-      return () => {
-        notificationSubscription?.remove?.();
-        responseSubscription?.remove?.();
-      };
-    } catch (e) {
-      console.log("[Notification Listeners Error]:", e);
-    }
+    return () => {
+      notificationSubscription.remove();
+      responseSubscription.remove();
+    };
   }, []);
 
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer>
-          <RootNavigator />
-          <StatusBar style="auto" />
-        </NavigationContainer>
+        <AlertModalProvider>
+          <NavigationContainer ref={navigationRef}>
+            <RootNavigator />
+            <StatusBar style="auto" />
+          </NavigationContainer>
+        </AlertModalProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
 }
-
-
-

@@ -9,6 +9,7 @@ use App\Models\AttendanceAdjustment;
 use App\Models\AuditLog;
 use App\Models\DayStart;
 use App\Models\Leave;
+use App\Services\ActivityNotificationService;
 use App\Services\AttendanceService;
 use App\Services\DataScope;
 use Carbon\Carbon;
@@ -24,18 +25,91 @@ class LeaveController extends Controller
 
     /**
      * GET /api/leaves
-     * My/team leave applications (all time, newest first).
+     * My/team leave applications (paginated, with server-side filtering & instant counts).
      */
     public function index(Request $request): JsonResponse
     {
+        $userId = $request->user()->id;
+
+        // Ultra-fast single aggregate query for tab badge counts (uses composite index)
+        $statusCounts = Leave::where('user_id', $userId)
+            ->selectRaw('
+                COUNT(*) as total_all,
+                SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as total_pending,
+                SUM(CASE WHEN status = "approved" THEN 1 ELSE 0 END) as total_approved,
+                SUM(CASE WHEN status = "rejected" THEN 1 ELSE 0 END) as total_rejected,
+                SUM(CASE WHEN status IN ("cancellation_requested", "cancelled") THEN 1 ELSE 0 END) as total_cancelled
+            ')
+            ->first();
+
         $query = Leave::query()
-            ->with(['leaveType:id,name,code', 'user:id,name,employee_id']);
+            ->with(['leaveType:id,name,code', 'user:id,name,employee_id'])
+            ->where('user_id', $userId);
 
-        DataScope::apply($query, 'leaves');
+        // Status filtering
+        if ($request->filled('status') && $request->status !== 'all') {
+            $status = strtolower(trim($request->status));
+            if ($status === 'cancelled') {
+                $query->whereIn('status', ['cancellation_requested', 'cancelled']);
+            } else {
+                $query->where('status', $status);
+            }
+        }
 
-        $leaves = $query->orderBy('from_date', 'desc')->get();
+        // Leave type filter
+        if ($request->filled('leave_type_id')) {
+            $query->where('leave_type_id', $request->leave_type_id);
+        }
 
-        return response()->json(['success' => true, 'data' => $leaves]);
+        // Search in reason, rejected_reason, or leave type name/code
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('reason', 'LIKE', "%{$search}%")
+                  ->orWhere('rejected_reason', 'LIKE', "%{$search}%")
+                  ->orWhereHas('leaveType', function ($ltQ) use ($search) {
+                      $ltQ->where('name', 'LIKE', "%{$search}%")
+                          ->orWhere('code', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        $query->orderBy('from_date', 'desc')
+              ->orderBy('id', 'desc');
+
+        $countsArray = [
+            'all'       => (int) ($statusCounts->total_all ?? 0),
+            'pending'   => (int) ($statusCounts->total_pending ?? 0),
+            'approved'  => (int) ($statusCounts->total_approved ?? 0),
+            'rejected'  => (int) ($statusCounts->total_rejected ?? 0),
+            'cancelled' => (int) ($statusCounts->total_cancelled ?? 0),
+        ];
+
+        // Server-side pagination
+        if ($request->has('page') || $request->has('per_page')) {
+            $perPage = max(1, min(100, (int) $request->input('per_page', 15)));
+            $paginated = $query->paginate($perPage);
+
+            return response()->json([
+                'success'      => true,
+                'data'         => $paginated->items(),
+                'current_page' => $paginated->currentPage(),
+                'last_page'    => $paginated->lastPage(),
+                'per_page'     => $paginated->perPage(),
+                'total'        => $paginated->total(),
+                'has_more'     => $paginated->hasMorePages(),
+                'counts'       => $countsArray,
+            ]);
+        }
+
+        $leaves = $query->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $leaves,
+            'total'   => $leaves->count(),
+            'counts'  => $countsArray,
+        ]);
     }
 
     /**
@@ -134,6 +208,8 @@ class LeaveController extends Controller
             'reason'        => $request->reason,
             'status'        => 'pending',
         ]);
+
+        ActivityNotificationService::notifyLeaveApplied($leave);
 
         return response()->json([
             'success' => true,
@@ -234,10 +310,23 @@ class LeaveController extends Controller
      */
     public function approve(Request $request, int $id): JsonResponse
     {
+        if (!$request->user()->can('leaves.approve') && !$request->user()->can('leaves.manage') && !$request->user()->hasRole('Super Admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized to approve leave requests.'], 403);
+        }
+
         $leave = Leave::with('leaveType')->find($id);
 
         if (! $leave) {
             return response()->json(['success' => false, 'message' => 'Leave not found.'], 404);
+        }
+
+        if ($leave->user_id === $request->user()->id && !$request->user()->hasRole(['Super Admin', 'super_admin'])) {
+            return response()->json(['success' => false, 'message' => 'Conflict of Interest: You cannot approve your own leave.'], 403);
+        }
+
+        $actionableIds = DataScope::actionableSubordinateIds('leaves');
+        if ($actionableIds !== null && !in_array($leave->user_id, $actionableIds, true)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized: You can only approve leave requests for subordinates strictly below you.'], 403);
         }
 
         if ($leave->status !== 'pending') {
@@ -288,10 +377,23 @@ class LeaveController extends Controller
      */
     public function reject(RejectLeaveRequest $request, int $id): JsonResponse
     {
+        if (!$request->user()->can('leaves.reject') && !$request->user()->can('leaves.manage') && !$request->user()->hasRole('Super Admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized to reject leave requests.'], 403);
+        }
+
         $leave = Leave::find($id);
 
         if (! $leave) {
             return response()->json(['success' => false, 'message' => 'Leave not found.'], 404);
+        }
+
+        if ($leave->user_id === $request->user()->id && !$request->user()->hasRole(['Super Admin', 'super_admin'])) {
+            return response()->json(['success' => false, 'message' => 'Conflict of Interest: You cannot reject your own leave.'], 403);
+        }
+
+        $actionableIds = DataScope::actionableSubordinateIds('leaves');
+        if ($actionableIds !== null && !in_array($leave->user_id, $actionableIds, true)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized: You can only reject leave requests for subordinates strictly below you.'], 403);
         }
 
         if ($leave->status !== 'pending') {
@@ -373,6 +475,10 @@ class LeaveController extends Controller
      */
     public function resolveConflict(Request $request, int $id): JsonResponse
     {
+        if (!$request->user()->can('leaves.manage') && !$request->user()->can('leaves.approve') && !$request->user()->hasRole('Super Admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized to resolve attendance conflicts.'], 403);
+        }
+
         $validated = $request->validate([
             'resolved_action' => 'required|in:marked_present,kept_as_leave',
             'resolution_note' => 'required|string|min:3|max:1000',

@@ -27,6 +27,10 @@ class PaymentRecordedNotification extends Notification
         $amount = number_format((float) $this->payment->amount, 2);
 
         return [
+            'title' => 'Payment Collected',
+            'category' => 'payment',
+            'icon' => 'banknote',
+            'url' => route('admin.payments.index'),
             'message' => "{$repName} recorded a payment of ₹{$amount} from {$partyName} — pending your confirmation.",
             'type' => 'payment.recorded',
             'payment_id' => $this->payment->id,
@@ -37,6 +41,7 @@ class PaymentRecordedNotification extends Notification
             'collected_by' => $this->payment->collected_by,
             'rep_name' => $repName,
             'payment_mode' => $this->payment->payment_mode,
+            'created_at' => now()->toISOString(),
         ];
     }
 }

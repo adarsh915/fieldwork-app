@@ -15,6 +15,7 @@ use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Spatie\Permission\Models\Role;
@@ -99,6 +100,34 @@ class EmployeeWebController extends Controller
         }
     }
 
+    private function syncEmployeeTerritories($employeeId, array $districtIds, array $areaIds)
+    {
+        \App\Models\EmployeeTerritory::where('employee_id', $employeeId)->delete();
+
+        // Specific Areas assigned
+        if (!empty($areaIds)) {
+            $areas = \App\Models\Area::whereIn('id', $areaIds)->get();
+            foreach ($areas as $area) {
+                \App\Models\EmployeeTerritory::firstOrCreate([
+                    'employee_id' => $employeeId,
+                    'district_id' => $area->district_id,
+                    'area_id'     => $area->id,
+                ]);
+            }
+        }
+
+        // Entire Districts assigned
+        if (!empty($districtIds)) {
+            foreach ($districtIds as $distId) {
+                \App\Models\EmployeeTerritory::firstOrCreate([
+                    'employee_id' => $employeeId,
+                    'district_id' => (int)$distId,
+                    'area_id'     => null,
+                ]);
+            }
+        }
+    }
+
     /**
      * Display employee listing page
      */
@@ -173,6 +202,22 @@ class EmployeeWebController extends Controller
     public function store(Request $request)
     {
         try {
+            if ($request->input('reporting_to') === '' || $request->input('reporting_to') === '0') {
+                $request->merge(['reporting_to' => null]);
+            }
+            if ($request->input('salary') === '') {
+                $request->merge(['salary' => null]);
+            }
+            if ($request->input('employee_id') === '') {
+                $request->merge(['employee_id' => null]);
+            }
+            if ($request->has('profile_image') && !$request->hasFile('profile_image')) {
+                $request->request->remove('profile_image');
+            }
+            if ($request->has('is_active')) {
+                $request->merge(['is_active' => $request->boolean('is_active')]);
+            }
+
             $validated = $request->validate([
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
@@ -192,7 +237,13 @@ class EmployeeWebController extends Controller
                 'roles.*' => ['exists:roles,name'],
                 'parties' => ['nullable', 'array'],
                 'parties.*' => ['exists:customers,id'],
+                'profile_image' => ['nullable', 'image', 'max:10240'],
             ]);
+
+            $profileImagePath = null;
+            if ($request->hasFile('profile_image')) {
+                $profileImagePath = $request->file('profile_image')->store('employees/avatars', 'public');
+            }
 
             // Create employee
             $employee = User::create([
@@ -209,15 +260,27 @@ class EmployeeWebController extends Controller
                 'salary' => $validated['salary'] ?? null,
                 'reporting_to' => $validated['reporting_to'] ?? null,
                 'is_active' => $request->boolean('is_active', true),
+                'profile_image' => $profileImagePath,
             ]);
 
-            // Assign single role if provided
+            // Assign single role if provided and user has permission
+            $canAssignRoles = $request->user() && ($request->user()->can('employees.assign-roles') || $request->user()->hasRole('Super Admin'));
             $roleToAssign = [];
-            if (!empty($validated['role'])) {
-                $roleToAssign = [$validated['role']];
-            } elseif (!empty($validated['roles'])) {
-                $rolesArr = is_array($validated['roles']) ? $validated['roles'] : [$validated['roles']];
-                $roleToAssign = array_slice(array_filter($rolesArr), 0, 1);
+            if ($canAssignRoles) {
+                if (!empty($validated['role'])) {
+                    $roleToAssign = [$validated['role']];
+                } elseif (!empty($validated['roles'])) {
+                    $rolesArr = is_array($validated['roles']) ? $validated['roles'] : [$validated['roles']];
+                    $roleToAssign = array_slice(array_filter($rolesArr), 0, 1);
+                }
+
+                // Prevent non-Super Admin from creating Super Admin
+                if (in_array('Super Admin', $roleToAssign) && !$request->user()->hasRole('Super Admin')) {
+                    $roleToAssign = ['Field Worker'];
+                }
+            } else {
+                // Default fallback role when creator does not have role assignment rights
+                $roleToAssign = ['Field Worker'];
             }
 
             if (!empty($roleToAssign)) {
@@ -249,10 +312,15 @@ class EmployeeWebController extends Controller
                 ->with('status', 'Employee created successfully! ID: ' . $employee->id);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::warning('Employee store validation failed', [
+                'errors' => $e->errors(),
+                'input' => $request->except(['password'])
+            ]);
             if ($request->ajax() || $request->wantsJson()) {
+                $firstError = collect($e->errors())->flatten()->first();
                 return response()->json([
                     'success' => false,
-                    'message' => 'Please correct the validation errors below.',
+                    'message' => $firstError ?: 'Please correct the validation errors below.',
                     'errors' => $e->errors(),
                 ], 422);
             }
@@ -317,6 +385,13 @@ class EmployeeWebController extends Controller
         $managers = User::with('roles')->where('is_active', true)->where('id', '!=', $id)->orderBy('name')->get();
         $assignedPartyIds = $employee->parties->pluck('id')->all();
 
+        $districts = \App\Models\District::with(['areas' => fn($q) => $q->where('is_active', true)->orderBy('name')])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        $assignedDistrictIds = $employee->territories()->whereNull('area_id')->pluck('district_id')->toArray();
+        $assignedAreaIds = $employee->territories()->whereNotNull('area_id')->pluck('area_id')->toArray();
+
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
                 'success' => true,
@@ -336,6 +411,8 @@ class EmployeeWebController extends Controller
                     'is_active' => (bool)$employee->is_active,
                     'roles' => $employee->roles->pluck('name')->all(),
                     'parties' => $assignedPartyIds,
+                    'profile_image' => $employee->profile_image,
+                    'profile_image_url' => $employee->profile_image_url,
                 ],
                 'managers' => $managers->map(fn($m) => [
                     'id'        => $m->id,
@@ -343,10 +420,12 @@ class EmployeeWebController extends Controller
                     'role_name' => $m->role_name,
                 ]),
                 'assigned_party_ids' => $assignedPartyIds,
+                'assigned_district_ids' => $assignedDistrictIds,
+                'assigned_area_ids' => $assignedAreaIds,
             ]);
         }
 
-        return view('admin.employees.edit', compact('employee', 'roles', 'customers', 'managers', 'assignedPartyIds'));
+        return view('admin.employees.edit', compact('employee', 'roles', 'customers', 'managers', 'assignedPartyIds', 'districts', 'assignedDistrictIds', 'assignedAreaIds'));
     }
 
     /**
@@ -358,10 +437,35 @@ class EmployeeWebController extends Controller
             $employee = User::findOrFail($id);
             $this->authorize('update', $employee);
 
+            if (empty($request->password)) {
+                $request->request->remove('password');
+            }
+            if ($request->input('reporting_to') === '' || $request->input('reporting_to') === '0') {
+                $request->merge(['reporting_to' => null]);
+            }
+            if ($request->input('salary') === '') {
+                $request->merge(['salary' => null]);
+            }
+            if ($request->input('employee_id') === '') {
+                $request->merge(['employee_id' => null]);
+            }
+            if ($request->input('date_of_birth') === '') {
+                $request->merge(['date_of_birth' => null]);
+            }
+            if ($request->input('hire_date') === '') {
+                $request->merge(['hire_date' => null]);
+            }
+            if ($request->has('profile_image') && !$request->hasFile('profile_image')) {
+                $request->request->remove('profile_image');
+            }
+            if ($request->has('is_active')) {
+                $request->merge(['is_active' => $request->boolean('is_active')]);
+            }
+
             $validated = $request->validate([
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($employee->id)],
-                'password' => ['nullable', Password::defaults()],
+                'password' => ['nullable', 'sometimes', Password::defaults()],
                 'phone' => ['nullable', 'string', 'max:20'],
                 'employee_id' => ['nullable', 'string', 'max:50', Rule::unique('users')->ignore($employee->id)],
                 'address' => ['nullable', 'string', 'max:500'],
@@ -377,6 +481,12 @@ class EmployeeWebController extends Controller
                 'roles.*' => ['exists:roles,name'],
                 'parties' => ['nullable', 'array'],
                 'parties.*' => ['exists:customers,id'],
+                'territory_districts' => ['nullable', 'array'],
+                'territory_districts.*' => ['integer', 'exists:districts,id'],
+                'territory_areas' => ['nullable', 'array'],
+                'territory_areas.*' => ['integer', 'exists:areas,id'],
+                'profile_image' => ['nullable', 'image', 'max:10240'],
+                'remove_profile_image' => ['nullable'],
             ]);
 
             $updateData = [
@@ -394,6 +504,18 @@ class EmployeeWebController extends Controller
                 'is_active' => $request->boolean('is_active', true),
             ];
 
+            if ($request->boolean('remove_profile_image')) {
+                if ($employee->profile_image && Storage::disk('public')->exists($employee->profile_image)) {
+                    Storage::disk('public')->delete($employee->profile_image);
+                }
+                $updateData['profile_image'] = null;
+            } elseif ($request->hasFile('profile_image')) {
+                if ($employee->profile_image && Storage::disk('public')->exists($employee->profile_image)) {
+                    Storage::disk('public')->delete($employee->profile_image);
+                }
+                $updateData['profile_image'] = $request->file('profile_image')->store('employees/avatars', 'public');
+            }
+
             if (!empty($validated['password'])) {
                 $updateData['password'] = Hash::make($validated['password']);
             }
@@ -401,18 +523,38 @@ class EmployeeWebController extends Controller
             $employee->update($updateData);
 
             if ($request->has('role') || $request->has('roles')) {
-                $roleToSync = [];
-                if (!empty($validated['role'])) {
-                    $roleToSync = [$validated['role']];
-                } elseif (!empty($validated['roles'])) {
-                    $rolesArr = is_array($validated['roles']) ? $validated['roles'] : [$validated['roles']];
-                    $roleToSync = array_slice(array_filter($rolesArr), 0, 1);
+                $canAssignRoles = $request->user() && ($request->user()->can('employees.assign-roles') || $request->user()->hasRole('Super Admin'));
+                if ($canAssignRoles) {
+                    $roleToSync = [];
+                    if (!empty($validated['role'])) {
+                        $roleToSync = [$validated['role']];
+                    } elseif (!empty($validated['roles'])) {
+                        $rolesArr = is_array($validated['roles']) ? $validated['roles'] : [$validated['roles']];
+                        $roleToSync = array_slice(array_filter($rolesArr), 0, 1);
+                    }
+
+                    // Guard: only Super Admin can modify or assign Super Admin role
+                    $isTargetSuperAdmin = $employee->hasRole('Super Admin');
+                    $isAssigningSuperAdmin = in_array('Super Admin', $roleToSync);
+
+                    if (!$request->user()->hasRole('Super Admin') && ($isTargetSuperAdmin || $isAssigningSuperAdmin)) {
+                        // Prevent non-Super Admin from modifying Super Admin accounts or promoting to Super Admin
+                    } elseif (!empty($roleToSync)) {
+                        $employee->syncRoles($roleToSync);
+                    }
                 }
-                $employee->syncRoles($roleToSync);
             }
 
             if (isset($validated['parties'])) {
                 $this->syncEmployeeParties($employee->id, $validated['parties']);
+            }
+
+            if ($request->has('territory_districts') || $request->has('territory_areas') || $request->has('has_territory_sync')) {
+                $this->syncEmployeeTerritories(
+                    $employee->id,
+                    $request->input('territory_districts', []),
+                    $request->input('territory_areas', [])
+                );
             }
 
             if ($request->ajax() || $request->wantsJson()) {
@@ -434,6 +576,8 @@ class EmployeeWebController extends Controller
                         'reporting_to_name' => $employee->reportingManager?->name_with_role ?? '—',
                         'parties_count' => $employee->parties->count(),
                         'assigned_party_ids' => $employee->parties->pluck('id')->all(),
+                        'profile_image' => $employee->profile_image,
+                        'profile_image_url' => $employee->profile_image_url,
                     ],
                     'redirect_url' => route('admin.employees.index'),
                 ]);
@@ -443,10 +587,15 @@ class EmployeeWebController extends Controller
                 ->with('status', 'Employee updated successfully!');
 
         } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::warning('Employee update validation failed', [
+                'errors' => $e->errors(),
+                'input' => $request->except(['password'])
+            ]);
             if ($request->ajax() || $request->wantsJson()) {
+                $firstError = collect($e->errors())->flatten()->first();
                 return response()->json([
                     'success' => false,
-                    'message' => 'Please correct the validation errors below.',
+                    'message' => $firstError ?: 'Please correct the validation errors below.',
                     'errors' => $e->errors(),
                 ], 422);
             }

@@ -29,8 +29,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // In-App Notifications
     Route::prefix('notifications')->name('api.notifications.')->group(function () {
+        Route::get('/',               [\App\Http\Controllers\Api\NotificationController::class, 'index'])->name('index');
         Route::get('latest',          [\App\Http\Controllers\Api\NotificationController::class, 'latest'])->name('latest');
+        Route::get('unread-count',    [\App\Http\Controllers\Api\NotificationController::class, 'unreadCount'])->name('unread-count');
+        Route::post('read-all',       [\App\Http\Controllers\Api\NotificationController::class, 'markAllRead'])->name('read-all');
         Route::post('{id}/read',      [\App\Http\Controllers\Api\NotificationController::class, 'markRead'])->name('read');
+    });
+
+    // Mobile Reports & MIS
+    Route::prefix('reports')->name('api.reports.')->group(function () {
+        Route::get('mobile-summary', [\App\Http\Controllers\Api\ReportController::class, 'mobileSummary'])->name('mobile-summary');
     });
 
     // Master Data (dropdowns / pickers)
@@ -38,6 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('tour-purposes',  [MasterController::class, 'tourPurposes'])->name('tour-purposes');
         Route::get('tour-types',     [MasterController::class, 'tourTypes'])->name('tour-types');
         Route::get('vehicle-types',  [MasterController::class, 'vehicleTypes'])->name('vehicle-types');
+        Route::get('locations',      [MasterController::class, 'locations'])->name('locations');
         Route::get('parties',        [MasterController::class, 'parties'])->name('parties');
         Route::get('parties/{id}',   [MasterController::class, 'partyDetails'])->name('party.details');
     });
@@ -55,14 +64,17 @@ Route::middleware('auth:sanctum')->group(function () {
     // Orders
     Route::get('/orders/config', [\App\Http\Controllers\Api\OrderController::class, 'config']);
     Route::get('/orders', [\App\Http\Controllers\Api\OrderController::class, 'index']);
+    Route::get('/orders/{id}', [\App\Http\Controllers\Api\OrderController::class, 'show']);
     Route::post('/orders', [\App\Http\Controllers\Api\OrderController::class, 'store']);
 
     // Visits
     Route::prefix('visits')->name('api.visits.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\VisitController::class, 'index'])->name('index');
         Route::get('/party/{partyId}/status', [\App\Http\Controllers\Api\VisitController::class, 'status'])->name('status');
+        Route::get('/party/{partyId}/history', [\App\Http\Controllers\Api\VisitController::class, 'partyHistory'])->name('party-history');
         Route::post('/check-in', [\App\Http\Controllers\Api\VisitController::class, 'checkIn'])->name('check-in');
         Route::patch('/{id}/check-out', [\App\Http\Controllers\Api\VisitController::class, 'checkOut'])->name('check-out');
+        Route::patch('/{id}/notes', [\App\Http\Controllers\Api\VisitController::class, 'updateNotes'])->name('update-notes');
     });
 
     // Expenses
@@ -72,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/statement', [\App\Http\Controllers\Api\ExpenseController::class, 'statement'])->name('statement');
         Route::get('/categories', [\App\Http\Controllers\Api\ExpenseController::class, 'categories'])->name('categories');
         Route::post('/', [\App\Http\Controllers\Api\ExpenseController::class, 'store'])->name('store');
+        Route::post('/{expense}', [\App\Http\Controllers\Api\ExpenseController::class, 'update'])->name('update');
     });
 
     // Parties (field worker: view assigned + submit new)
@@ -117,11 +130,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/payments/{id}/reject',  [\App\Http\Controllers\Api\PaymentController::class, 'reject'])->name('payments.reject');
 
         // Leave management
-        Route::get('/leaves',                          [\App\Http\Controllers\Api\LeaveController::class, 'adminIndex'])->name('leaves.index');
-        Route::get('/leaves/conflicts',                [\App\Http\Controllers\Api\LeaveController::class, 'indexConflicts'])->name('leaves.conflicts');
-        Route::post('/leaves/{id}/approve',            [\App\Http\Controllers\Api\LeaveController::class, 'approve'])->name('leaves.approve');
-        Route::post('/leaves/{id}/reject',             [\App\Http\Controllers\Api\LeaveController::class, 'reject'])->name('leaves.reject');
-        Route::patch('/leaves/{id}/resolve-conflict',  [\App\Http\Controllers\Api\LeaveController::class, 'resolveConflict'])->name('leaves.resolve-conflict');
+        Route::get('/leaves',                          [\App\Http\Controllers\Api\LeaveController::class, 'adminIndex'])->middleware('role_or_permission:Super Admin|leaves.view')->name('leaves.index');
+        Route::get('/leaves/conflicts',                [\App\Http\Controllers\Api\LeaveController::class, 'indexConflicts'])->middleware('role_or_permission:Super Admin|leaves.view')->name('leaves.conflicts');
+        Route::post('/leaves/{id}/approve',            [\App\Http\Controllers\Api\LeaveController::class, 'approve'])->middleware('role_or_permission:Super Admin|leaves.approve|leaves.manage')->name('leaves.approve');
+        Route::post('/leaves/{id}/reject',             [\App\Http\Controllers\Api\LeaveController::class, 'reject'])->middleware('role_or_permission:Super Admin|leaves.reject|leaves.manage')->name('leaves.reject');
+        Route::patch('/leaves/{id}/resolve-conflict',  [\App\Http\Controllers\Api\LeaveController::class, 'resolveConflict'])->middleware('role_or_permission:Super Admin|leaves.manage|leaves.approve')->name('leaves.resolve-conflict');
 
         // Attendance
         Route::get('/attendance',           [\App\Http\Controllers\Api\AttendanceController::class, 'adminCalendar'])->name('attendance.calendar');
@@ -140,5 +153,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/leaves/{id}/edit',                   [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'editLeave'])->name('leaves.edit');
         Route::patch('/leave-balances/{id}/adjust',          [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'adjustBalance'])->name('leave-balances.adjust');
         Route::get('/audit-logs',                           [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'auditLogs'])->name('audit-logs.index');
+
+        // Fuel / Petrol Allowance Rate Management
+        Route::get('/fuel-rates',             [\App\Http\Controllers\Admin\FuelRateController::class, 'index'])->name('fuel-rates.index');
+        Route::post('/fuel-rates',            [\App\Http\Controllers\Admin\FuelRateController::class, 'store'])->name('fuel-rates.store');
+        Route::delete('/fuel-rates/{id}',     [\App\Http\Controllers\Admin\FuelRateController::class, 'destroy'])->name('fuel-rates.destroy');
+        Route::post('/fuel-rates/resolve',    [\App\Http\Controllers\Admin\FuelRateController::class, 'resolve'])->name('fuel-rates.resolve');
     });
 });

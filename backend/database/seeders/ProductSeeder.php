@@ -18,15 +18,17 @@ class ProductSeeder extends Seeder
         ];
 
         foreach ($products as $p) {
-            Product::create([
-                'name' => $p['name'],
-                'code' => $p['code'],
-                'category_id' => $p['category_id'],
-                'description' => 'A great product for your fields.',
-                'price' => $p['price'],
-                'unit' => $p['unit'],
-                'status' => 'active',
-            ]);
+            Product::firstOrCreate(
+                ['code' => $p['code']],
+                [
+                    'name' => $p['name'],
+                    'category_id' => $p['category_id'],
+                    'description' => 'A great product for your fields.',
+                    'price' => $p['price'],
+                    'unit' => $p['unit'],
+                    'status' => 'active',
+                ]
+            );
         }
 
         $this->command->info('Products seeded successfully!');

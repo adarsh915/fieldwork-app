@@ -124,16 +124,20 @@ class AuthController extends Controller
     private function formatUser(User $user): array
     {
         return [
-            'id'          => $user->id,
-            'name'        => $user->name,
-            'email'       => $user->email,
-            'phone'       => $user->phone,
-            'employee_id' => $user->employee_id,
-            'department'  => $user->department,
-            'position'    => $user->position,
-            'is_active'   => $user->is_active,
-            'roles'       => $user->getRoleNames(),        // from spatie/laravel-permission
-            'permissions' => $user->getAllPermissions()->pluck('name'),
+            'id'                => $user->id,
+            'name'              => $user->name,
+            'email'             => $user->email,
+            'phone'             => $user->phone,
+            'employee_id'       => $user->employee_id,
+            'department'        => $user->department,
+            'position'          => $user->position,
+            'is_active'         => $user->is_active,
+            'roles'             => $user->getRoleNames(),        // from spatie/laravel-permission
+            'permissions'       => $user->getAllPermissions()->pluck('name'),
+            'profile_image_url' => $user->profile_image_url,
+            'role_name'         => $user->role_name,
+            'address'           => $user->address,
+            'hire_date'         => $user->hire_date ? $user->hire_date->format('Y-m-d') : null,
         ];
     }
 }

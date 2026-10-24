@@ -19,7 +19,7 @@ import { HttpError } from "../api/http";
 import { type NativeStackScreenProps } from "@react-navigation/native-stack";
 import { type AppStackParamList } from "../navigation/RootNavigator";
 
-type Props = NativeStackScreenProps<AppStackParamList, "AttendanceCalendar">;
+type Props = NativeStackScreenProps<AppStackParamList, "AttendanceCalendar" | "Calendar">;
 
 // Ordered weekday header labels
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -110,7 +110,7 @@ export default function AttendanceCalendarScreen({ navigation }: Props) {
           style={styles.navBtn}
           accessibilityLabel="Previous month"
         >
-          <MaterialCommunityIcons name="chevron-left" size={28} color="#fff" />
+          <MaterialCommunityIcons name="chevron-left" size={28} color="#7367F0" />
         </TouchableOpacity>
 
         <View style={styles.navCenter}>
@@ -127,18 +127,18 @@ export default function AttendanceCalendarScreen({ navigation }: Props) {
           style={styles.navBtn}
           accessibilityLabel="Next month"
         >
-          <MaterialCommunityIcons name="chevron-right" size={28} color="#fff" />
+          <MaterialCommunityIcons name="chevron-right" size={28} color="#7367F0" />
         </TouchableOpacity>
       </View>
 
       {/* Summary bar */}
       {summary && (
         <View style={styles.summaryRow}>
-          <SummaryCard label="Present"   count={summary.present}    color="#22c55e" />
-          <SummaryCard label="Leave"     count={summary.on_leave}   color="#f59e0b" />
-          <SummaryCard label="Holiday"   count={summary.holiday}    color="#60a5fa" />
-          <SummaryCard label="Week Off"  count={summary.weekly_off} color="#a78bfa" />
-          <SummaryCard label="Absent"    count={summary.absent}     color="#f87171" />
+          <SummaryCard label="Present"   count={summary.present}    color="#16a34a" />
+          <SummaryCard label="Leave"     count={summary.on_leave}   color="#d97706" />
+          <SummaryCard label="Holiday"   count={summary.holiday}    color="#2563eb" />
+          <SummaryCard label="Week Off"  count={summary.weekly_off} color="#7367F0" />
+          <SummaryCard label="Absent"    count={summary.absent}     color="#ef4444" />
         </View>
       )}
 
@@ -214,37 +214,37 @@ function shortLabel(day: DayAttendance): string {
 
 function getStatusColor(status: string): string {
   const map: Record<string, string> = {
-    present: "#22c55e", on_leave: "#f59e0b", holiday: "#60a5fa",
-    weekly_off: "#a78bfa", absent: "#f87171", not_yet: "#374151",
+    present: "#16a34a", on_leave: "#d97706", holiday: "#2563eb",
+    weekly_off: "#7367F0", absent: "#ef4444", not_yet: "#9ca3af",
   };
-  return map[status] ?? "#374151";
+  return map[status] ?? "#6b7280";
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: "#0f172a" },
-  navRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 12, backgroundColor: "#1e293b" },
-  navBtn:         { padding: 6 },
+  container:      { flex: 1, backgroundColor: "#F4F4F8" },
+  navRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderColor: "#E5E7EB" },
+  navBtn:         { width: 36, height: 36, borderRadius: 18, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center" },
   navCenter:      { alignItems: "center" },
-  monthLabel:     { color: "#f1f5f9", fontSize: 17, fontWeight: "700" },
-  currentMonthDot:{ width: 5, height: 5, borderRadius: 3, backgroundColor: "#7367F0", marginTop: 3 },
-  summaryRow:     { flexDirection: "row", backgroundColor: "#1e293b", borderTopWidth: 1, borderColor: "#334155", paddingVertical: 10 },
+  monthLabel:     { color: "#111827", fontSize: 17, fontWeight: "800" },
+  currentMonthDot:{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#7367F0", marginTop: 4 },
+  summaryRow:     { flexDirection: "row", backgroundColor: "#FFFFFF", borderRadius: 12, marginHorizontal: 12, marginTop: 10, paddingVertical: 12, borderWidth: 1, borderColor: "#E5E7EB", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
   summaryCard:    { flex: 1, alignItems: "center" },
-  summaryCount:   { fontSize: 20, fontWeight: "800" },
-  summaryLabel:   { color: "#64748b", fontSize: 10, marginTop: 2 },
-  weekRow:        { flexDirection: "row", paddingHorizontal: 4, paddingVertical: 6, backgroundColor: "#0f172a" },
-  weekDay:        { flex: 1, textAlign: "center", color: "#64748b", fontSize: 11, fontWeight: "600" },
-  sunday:         { color: "#f87171" },
-  gridContainer:  { paddingHorizontal: 4, paddingBottom: 20 },
+  summaryCount:   { fontSize: 19, fontWeight: "800" },
+  summaryLabel:   { color: "#6B7280", fontSize: 10, fontWeight: "700", marginTop: 2 },
+  weekRow:        { flexDirection: "row", paddingHorizontal: 8, paddingVertical: 8, marginTop: 4 },
+  weekDay:        { flex: 1, textAlign: "center", color: "#6B7280", fontSize: 11, fontWeight: "700" },
+  sunday:         { color: "#EF4444" },
+  gridContainer:  { paddingHorizontal: 8, paddingBottom: 24 },
   emptyCell:      { flex: 1, aspectRatio: 0.85, margin: 2 },
-  dayCell:        { flex: 1, aspectRatio: 0.85, margin: 2, backgroundColor: "#1e293b", borderRadius: 8, alignItems: "center", justifyContent: "center", paddingVertical: 4, paddingHorizontal: 2 },
-  todayCell:      { borderWidth: 1.5, borderColor: "#7367F0" },
-  dayNum:         { color: "#94a3b8", fontSize: 12, fontWeight: "600" },
-  todayNum:       { color: "#7367F0" },
-  dayLabel:       { fontSize: 8, marginTop: 2, fontWeight: "600" },
+  dayCell:        { flex: 1, aspectRatio: 0.85, margin: 2, backgroundColor: "#FFFFFF", borderRadius: 8, alignItems: "center", justifyContent: "center", paddingVertical: 4, paddingHorizontal: 2, borderWidth: 1, borderColor: "#E5E7EB", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+  todayCell:      { borderWidth: 2, borderColor: "#7367F0", backgroundColor: "#F5F3FF" },
+  dayNum:         { color: "#1F2937", fontSize: 12, fontWeight: "700" },
+  todayNum:       { color: "#7367F0", fontWeight: "800" },
+  dayLabel:       { fontSize: 8, marginTop: 2, fontWeight: "700" },
   errorBox:       { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  errorText:      { color: "#f87171", textAlign: "center", marginBottom: 12 },
+  errorText:      { color: "#EF4444", textAlign: "center", marginBottom: 12, fontWeight: "600" },
   retryBtn:       { backgroundColor: "#7367F0", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
   retryText:      { color: "#fff", fontWeight: "700" },
 });

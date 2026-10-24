@@ -14,9 +14,11 @@
  * Backward-compat type exported so existing screens that import
  * RootStackParamList continue to compile without changes.
  */
+import { View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { useAuth } from "../auth/AuthContext";
+import AppBottomBar from "../components/AppBottomBar";
 
 // Screens
 import CalendarScreen from "../screens/CalendarScreen";
@@ -43,14 +45,19 @@ import AddExpenseScreen from "../screens/AddExpenseScreen";
 import AttendanceCalendarScreen from "../screens/AttendanceCalendarScreen";
 import MyLeavesScreen from "../screens/MyLeavesScreen";
 import LeaveApplicationScreen from "../screens/LeaveApplicationScreen";
+import ReportScreen from "../screens/ReportScreen";
+import NotificationsScreen from "../screens/NotificationsScreen";
+import UserProfileScreen from "../screens/UserProfileScreen";
 
 export type RootStackParamList = {
   // App screens
   Dashboard: undefined;
+  Report: undefined;
   DayStart: undefined;
   DayEnd: undefined;
   DealerList: undefined;
   ProductList: undefined;
+  Notifications: undefined;
   Visit: {
     partyId: number;
     partyName: string;
@@ -81,11 +88,12 @@ export type RootStackParamList = {
   ExpenseList: undefined;
   ExpenseMonthlySummary: undefined;
   ExpenseStatement: { month: string };
-  AddExpense: undefined;
+  AddExpense: { expense?: import("../api/expense").ExpenseBill } | undefined;
   AddParty: undefined;
   AttendanceCalendar: undefined;
   MyLeaves: undefined;
   LeaveApplication: undefined;
+  UserProfile: undefined;
   // Admin screens (future)
   AdminDashboard: undefined;
   EmployeeList: undefined;
@@ -100,10 +108,12 @@ export type AuthStackParamList = {
 
 export type AppStackParamList = {
   Dashboard: undefined;
+  Report: undefined;
   DayStart: undefined;
   DayEnd: undefined;
   DealerList: undefined;
   ProductList: undefined;
+  Notifications: undefined;
   Visit: {
     partyId: number;
     partyName: string;
@@ -134,11 +144,12 @@ export type AppStackParamList = {
   ExpenseList: undefined;
   ExpenseMonthlySummary: undefined;
   ExpenseStatement: { month: string };
-  AddExpense: undefined;
+  AddExpense: { expense?: import("../api/expense").ExpenseBill } | undefined;
   AddParty: undefined;
   AttendanceCalendar: undefined;
   MyLeaves: undefined;
   LeaveApplication: undefined;
+  UserProfile: undefined;
 };
 
 // ─── Stacks ────────────────────────────────────────────────────────────────────
@@ -156,34 +167,42 @@ function AuthNavigator() {
 
 function AppNavigator() {
   return (
-    <AppStack.Navigator
-      initialRouteName="Dashboard"
-      screenOptions={{ headerShown: false }}
-    >
-      <AppStack.Screen name="Dashboard" component={DashboardScreen} />
-      <AppStack.Screen name="DayStart" component={DayStartScreen} />
-      <AppStack.Screen name="DayEnd" component={DayEndScreen} />
-      <AppStack.Screen name="DealerList" component={DealerListScreen} />
-      <AppStack.Screen name="ProductList" component={ProductListScreen} />
-      <AppStack.Screen name="Visit" component={VisitScreen} />
-      <AppStack.Screen name="Order" component={OrderScreen} />
-      <AppStack.Screen name="OrderList" component={OrderListScreen} />
-      <AppStack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-      <AppStack.Screen name="PaymentCollection" component={PaymentCollectionScreen} />
-      <AppStack.Screen name="PaymentRegister" component={PaymentRegisterScreen} />
-      <AppStack.Screen name="CustomerProfile" component={CustomerProfileScreen} />
-      <AppStack.Screen name="Track" component={TrackScreen} />
-      <AppStack.Screen name="Reward" component={RewardScreen} />
-      <AppStack.Screen name="Calendar" component={CalendarScreen} />
-      <AppStack.Screen name="ExpenseList" component={ExpenseListScreen} />
-      <AppStack.Screen name="ExpenseMonthlySummary" component={ExpenseMonthlySummaryScreen} />
-      <AppStack.Screen name="ExpenseStatement" component={require('../screens/ExpenseStatementScreen').default} />
-      <AppStack.Screen name="AddExpense" component={AddExpenseScreen} />
-      <AppStack.Screen name="AddParty" component={AddPartyScreen} />
-      <AppStack.Screen name="AttendanceCalendar" component={AttendanceCalendarScreen} />
-      <AppStack.Screen name="MyLeaves" component={MyLeavesScreen} />
-      <AppStack.Screen name="LeaveApplication" component={LeaveApplicationScreen} />
-    </AppStack.Navigator>
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      <View style={{ flex: 1 }}>
+        <AppStack.Navigator
+          initialRouteName="Dashboard"
+          screenOptions={{ headerShown: false }}
+        >
+          <AppStack.Screen name="Dashboard" component={DashboardScreen} />
+          <AppStack.Screen name="Report" component={ReportScreen} />
+          <AppStack.Screen name="Notifications" component={NotificationsScreen} />
+          <AppStack.Screen name="DayStart" component={DayStartScreen} />
+          <AppStack.Screen name="DayEnd" component={DayEndScreen} />
+          <AppStack.Screen name="DealerList" component={DealerListScreen} />
+          <AppStack.Screen name="ProductList" component={ProductListScreen} />
+          <AppStack.Screen name="Visit" component={VisitScreen} />
+          <AppStack.Screen name="Order" component={OrderScreen} />
+          <AppStack.Screen name="OrderList" component={OrderListScreen} />
+          <AppStack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+          <AppStack.Screen name="PaymentCollection" component={PaymentCollectionScreen} />
+          <AppStack.Screen name="PaymentRegister" component={PaymentRegisterScreen} />
+          <AppStack.Screen name="CustomerProfile" component={CustomerProfileScreen} />
+          <AppStack.Screen name="Track" component={TrackScreen} />
+          <AppStack.Screen name="Reward" component={RewardScreen} />
+          <AppStack.Screen name="Calendar" component={AttendanceCalendarScreen} />
+          <AppStack.Screen name="ExpenseList" component={ExpenseListScreen} />
+          <AppStack.Screen name="ExpenseMonthlySummary" component={ExpenseMonthlySummaryScreen} />
+          <AppStack.Screen name="ExpenseStatement" component={require('../screens/ExpenseStatementScreen').default} />
+          <AppStack.Screen name="AddExpense" component={AddExpenseScreen} />
+          <AppStack.Screen name="AddParty" component={AddPartyScreen} />
+          <AppStack.Screen name="AttendanceCalendar" component={AttendanceCalendarScreen} />
+          <AppStack.Screen name="MyLeaves" component={MyLeavesScreen} />
+          <AppStack.Screen name="LeaveApplication" component={LeaveApplicationScreen} />
+          <AppStack.Screen name="UserProfile" component={UserProfileScreen} />
+        </AppStack.Navigator>
+      </View>
+      <AppBottomBar />
+    </View>
   );
 }
 

@@ -7,6 +7,7 @@ import {
   FlatList,
   Platform,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,6 +19,19 @@ import { getMyCollections, type PaymentRecord } from "../api/payment";
 import type { AppStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "PaymentRegister">;
+
+const PURPLE = "#7367F0";
+
+const PAYMENT_FILTERS: {
+  key: string;
+  label: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+}[] = [
+  { key: "all", label: "All", icon: "receipt-long" },
+  { key: "pending", label: "Pending", icon: "hourglass-empty" },
+  { key: "confirmed", label: "Confirmed", icon: "check-circle" },
+  { key: "rejected", label: "Rejected", icon: "cancel" },
+];
 
 export default function PaymentRegisterScreen() {
   const navigation = useNavigation<Nav>();
@@ -69,6 +83,18 @@ export default function PaymentRegisterScreen() {
       return matchesSearch && matchesStatus;
     });
   }, [payments, searchQuery, statusFilter]);
+
+  const counts = useMemo(() => {
+    return {
+      all: payments.length,
+      pending: payments.filter((p) => (p.status || "pending").toLowerCase() === "pending").length,
+      confirmed: payments.filter((p) => {
+        const s = (p.status || "").toLowerCase();
+        return s === "confirmed" || s === "approved";
+      }).length,
+      rejected: payments.filter((p) => (p.status || "").toLowerCase() === "rejected").length,
+    };
+  }, [payments]);
 
   const totalAmount = useMemo(() => {
     return filteredPayments.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
@@ -185,28 +211,55 @@ export default function PaymentRegisterScreen() {
           )}
         </View>
 
-        {/* Status Filters */}
-        <View style={styles.filterRow}>
-          {["all", "pending", "confirmed", "rejected"].map((st) => (
-            <TouchableOpacity
-              key={st}
-              style={[
-                styles.filterChip,
-                statusFilter === st && styles.filterChipActive,
-              ]}
-              onPress={() => setStatusFilter(st)}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  statusFilter === st && styles.filterChipTextActive,
-                ]}
+        {/* ── Status Filter Capsule Slider (matching ReportScreen / ExpenseList design) ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterPillsWrap}
+          style={styles.filterSlider}
+        >
+          {PAYMENT_FILTERS.map((item) => {
+            const active = statusFilter === item.key;
+            const count = counts[item.key as keyof typeof counts] ?? 0;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setStatusFilter(item.key)}
+                activeOpacity={0.8}
               >
-                {st === "all" ? "All" : st.charAt(0).toUpperCase() + st.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <MaterialIcons
+                  name={item.icon}
+                  size={16}
+                  color={active ? "#FFFFFF" : "#64748B"}
+                />
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    active && styles.filterChipTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+                <View
+                  style={[
+                    styles.chipCountBadge,
+                    active && styles.chipCountBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipCountText,
+                      active && styles.chipCountTextActive,
+                    ]}
+                  >
+                    {count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         {/* Stats banner */}
         <View style={styles.statsCard}>
@@ -265,7 +318,7 @@ export default function PaymentRegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F3F4F6" },
+  container: { flex: 1, backgroundColor: "#F4F4F8" },
   topSection: { paddingHorizontal: 14, paddingTop: 12 },
 
   searchWrap: {
@@ -282,18 +335,67 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: "#1F2937", fontWeight: "600" },
 
-  filterRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+  filterSlider: {
+    marginBottom: 10,
   },
-  filterChipActive: { backgroundColor: "#7367F0", borderColor: "#7367F0" },
-  filterChipText: { fontSize: 12, fontWeight: "700", color: "#6B7280" },
-  filterChipTextActive: { color: "#FFFFFF" },
+  filterPillsWrap: {
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  filterChipActive: {
+    backgroundColor: PURPLE,
+    borderColor: PURPLE,
+    shadowColor: PURPLE,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  filterChipTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  chipCountBadge: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipCountBadgeActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  chipCountText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748B",
+  },
+  chipCountTextActive: {
+    color: "#FFFFFF",
+  },
 
   statsCard: {
     backgroundColor: "#FFFFFF",

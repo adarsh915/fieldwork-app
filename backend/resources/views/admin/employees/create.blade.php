@@ -44,6 +44,41 @@
                 <h3 class="text-sm font-bold text-ink-900 border-b border-surface-border pb-2 mb-4 flex items-center gap-2">
                     <x-lucide-user class="w-4 h-4 text-primary-600" /> Personal Information
                 </h3>
+
+                {{-- Profile Photo Upload --}}
+                <div class="mb-6 flex items-center gap-5 p-4 rounded-xl bg-surface-ground/50 border border-surface-border">
+                    <div class="relative group shrink-0">
+                        <template x-if="photoPreview">
+                            <img :src="photoPreview" alt="Profile Preview"
+                                 class="w-20 h-20 rounded-full object-cover shadow-sm border-2 border-primary-500">
+                        </template>
+                        <template x-if="!photoPreview">
+                            <div class="w-20 h-20 rounded-full bg-surface-card border-2 border-dashed border-ink-300 flex flex-col items-center justify-center text-ink-400 group-hover:border-primary-500 group-hover:text-primary-600 transition-colors">
+                                <x-lucide-camera class="w-6 h-6" />
+                                <span class="text-[10px] mt-1 font-medium">Photo</span>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex-1">
+                        <label class="form-label text-xs block mb-1">Profile Photo</label>
+                        <div class="flex items-center gap-2">
+                            <label class="btn btn-secondary text-xs cursor-pointer inline-flex items-center gap-1.5 py-1.5 px-3">
+                                <x-lucide-upload class="w-3.5 h-3.5" />
+                                <span x-text="photoPreview ? 'Change Photo' : 'Upload Photo'"></span>
+                                <input type="file" accept="image/*" class="hidden" @change="handlePhotoChange($event)">
+                            </label>
+                            <button type="button" x-show="photoPreview" @click="removePhotoSelection()"
+                                    class="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1">
+                                Remove
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-ink-400 mt-1">Recommended: PNG, JPG, or WEBP up to 5MB.</p>
+                        <template x-if="errors.profile_image">
+                            <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="errors.profile_image[0]"></p>
+                        </template>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {{-- Full Name --}}
                     <div>
@@ -243,12 +278,19 @@
                 
                 <div class="mb-4">
                     <label class="form-label text-xs">Assign Role <span class="text-rose-500">*</span></label>
+                    @if(auth()->user()->can('employees.assign-roles') || auth()->user()->hasRole('Super Admin'))
                     <select x-model="form.role" class="form-input text-xs w-full max-w-md">
                         <option value="">Select Role</option>
                         @foreach ($roles as $role)
                             <option value="{{ $role->name }}">{{ ucfirst($role->name) }}</option>
                         @endforeach
                     </select>
+                    @else
+                    <div class="px-3 py-2 bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 max-w-md border border-slate-200 flex items-center justify-between">
+                        <span>Field Worker</span>
+                        <span class="text-[10px] text-slate-400 font-normal">Default role (role assignment locked)</span>
+                    </div>
+                    @endif
                     <template x-if="errors.role || errors.roles">
                         <p class="mt-1 text-xs text-rose-600 font-semibold" x-text="(errors.role || errors.roles)[0]"></p>
                     </template>
@@ -346,12 +388,27 @@ function createEmployeeForm(config) {
             roles: [],
             parties: []
         },
+        photoFile: null,
+        photoPreview: null,
         partySearch: '',
         showPassword: false,
         submitting: false,
         errors: {},
         bannerMessage: '',
         bannerType: 'success',
+
+        handlePhotoChange(e) {
+            const file = e.target.files[0];
+            if (file) {
+                this.photoFile = file;
+                this.photoPreview = URL.createObjectURL(file);
+            }
+        },
+
+        removePhotoSelection() {
+            this.photoFile = null;
+            this.photoPreview = null;
+        },
 
         showBanner(msg, type = 'success') {
             this.bannerMessage = msg;
@@ -370,21 +427,35 @@ function createEmployeeForm(config) {
             this.bannerMessage = '';
 
             try {
-                const payload = {
-                    ...this.form,
-                    roles: this.form.role ? [this.form.role] : [],
-                    parties: this.form.parties.map(id => parseInt(id, 10))
-                };
+                const formData = new FormData();
+                for (const [key, val] of Object.entries(this.form)) {
+                    if (key === 'roles' && Array.isArray(val)) {
+                        val.forEach(r => formData.append('roles[]', r));
+                    } else if (key === 'parties' && Array.isArray(val)) {
+                        val.forEach(p => formData.append('parties[]', p));
+                    } else if (key === 'is_active') {
+                        formData.append('is_active', val ? '1' : '0');
+                    } else if (val !== null && val !== undefined && val !== '') {
+                        formData.append(key, val);
+                    }
+                }
+
+                if (this.form.role && (!Array.isArray(this.form.roles) || !this.form.roles.length)) {
+                    formData.append('roles[]', this.form.role);
+                }
+
+                if (this.photoFile) {
+                    formData.append('profile_image', this.photoFile);
+                }
 
                 const response = await fetch(config.storeUrl, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
                         'X-CSRF-TOKEN': config.csrfToken
                     },
-                    body: JSON.stringify(payload)
+                    body: formData
                 });
 
                 const data = await response.json();
@@ -393,7 +464,8 @@ function createEmployeeForm(config) {
                     this.showBanner(data.message || 'Employee created successfully! Redirecting...', 'success');
                 } else if (response.status === 422) {
                     this.errors = data.errors || {};
-                    this.showBanner(data.message || 'Please fix the validation errors below.', 'error');
+                    const firstMsg = Object.values(this.errors).flat()[0];
+                    this.showBanner(firstMsg || data.message || 'Please fix the validation errors below.', 'error');
                 } else {
                     this.showBanner(data.message || 'An error occurred while creating the employee.', 'error');
                 }

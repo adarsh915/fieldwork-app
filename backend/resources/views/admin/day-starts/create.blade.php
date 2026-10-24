@@ -218,6 +218,43 @@
         const geoStatus = document.getElementById('geo-status');
         const submitBtn = document.getElementById('submit-btn');
 
+        async function submitFormAjax() {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+
+            try {
+                const formData = new FormData(form);
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                const data = await res.json();
+                if (res.ok && (data.success || res.status === 200)) {
+                    if (window.toast) window.toast(data.message || 'Tour plan submitted successfully.', 'success');
+                    setTimeout(() => {
+                        window.location.href = data.redirect_url || '{{ route('admin.day-starts.index') }}';
+                    }, 600);
+                } else {
+                    let msg = data.message || 'Validation failed';
+                    if (data.errors) msg = Object.values(data.errors).flat().join('<br>');
+                    if (window.toast) window.toast(msg, 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Tour Plan';
+                    geoStatus.textContent = 'Submission failed. Please check inputs.';
+                }
+            } catch (err) {
+                console.error(err);
+                if (window.toast) window.toast('Network error while submitting tour plan.', 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Tour Plan';
+                geoStatus.textContent = 'Network error.';
+            }
+        }
+
         form.addEventListener('submit', function (event) {
             event.preventDefault();
 
@@ -227,7 +264,7 @@
 
             if (!navigator.geolocation) {
                 geoStatus.textContent = 'Geolocation not supported. Submitting without location.';
-                form.submit();
+                submitFormAjax();
                 return;
             }
 
@@ -236,13 +273,13 @@
                     document.getElementById('start_lat').value = position.coords.latitude;
                     document.getElementById('start_lng').value = position.coords.longitude;
                     geoStatus.textContent = 'Location captured. Submitting...';
-                    form.submit();
+                    submitFormAjax();
                 },
                 function () {
                     geoStatus.textContent = 'Location unavailable. Submitting without coordinates.';
-                    form.submit();
+                    submitFormAjax();
                 },
-                { enableHighAccuracy: true, timeout: 10000 }
+                { enableHighAccuracy: true, timeout: 6000 }
             );
         });
     })();

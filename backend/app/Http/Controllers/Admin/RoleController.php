@@ -64,10 +64,15 @@ class RoleController extends Controller
      */
     public function store(StoreRoleRequest $request)
     {
-        // Authorization handled by FormRequest
-        // Validation handled by FormRequest
-        
         $role = $this->roleService->createRole($request->validated());
+
+        \App\Models\AuditLog::logEvent(
+            event: 'role.created',
+            auditable: $role,
+            oldValues: null,
+            newValues: ['name' => $role->name, 'permissions' => $request->input('permissions', [])],
+            reason: 'Role created by ' . (auth()->user()?->name ?? 'Admin')
+        );
 
         return redirect()->route('admin.roles.index')
             ->with('success', 'Role "' . $role->name . '" created successfully!');
@@ -94,10 +99,19 @@ class RoleController extends Controller
      */
     public function update(UpdateRoleRequest $request, $id)
     {
-        // Authorization handled by FormRequest
-        // Validation handled by FormRequest
-        
+        $oldRole = $this->roleService->getRoleById($id);
+        $oldPerms = $oldRole->permissions->pluck('name')->toArray();
+
         $role = $this->roleService->updateRole($id, $request->validated());
+        $newPerms = $role->fresh()->permissions->pluck('name')->toArray();
+
+        \App\Models\AuditLog::logEvent(
+            event: 'role.updated',
+            auditable: $role,
+            oldValues: ['name' => $oldRole->name, 'permissions' => $oldPerms],
+            newValues: ['name' => $role->name, 'permissions' => $newPerms],
+            reason: 'Role updated by ' . (auth()->user()?->name ?? 'Admin')
+        );
 
         return redirect()->route('admin.roles.index')
             ->with('success', 'Role "' . $role->name . '" updated successfully!');
@@ -121,8 +135,18 @@ class RoleController extends Controller
             return back()->with('error', $canDelete['reason']);
         }
 
+        $roleName = $role->name;
+
         // Delete role
         $this->roleService->deleteRole($id);
+
+        \App\Models\AuditLog::logEvent(
+            event: 'role.deleted',
+            auditable: $role,
+            oldValues: ['name' => $roleName],
+            newValues: null,
+            reason: 'Role deleted by ' . (auth()->user()?->name ?? 'Admin')
+        );
 
         return redirect()->route('admin.roles.index')
             ->with('success', 'Role deleted successfully!');
@@ -144,10 +168,15 @@ class RoleController extends Controller
      */
     public function storePermission(StorePermissionRequest $request)
     {
-        // Authorization handled by FormRequest
-        // Validation handled by FormRequest
-        
         $permission = $this->permissionService->createPermission($request->validated());
+
+        \App\Models\AuditLog::logEvent(
+            event: 'permission.created',
+            auditable: $permission,
+            oldValues: null,
+            newValues: ['name' => $permission->name],
+            reason: 'Permission created by ' . (auth()->user()?->name ?? 'Admin')
+        );
 
         return redirect()->route('admin.roles.index')
             ->with('success', 'Permission "' . $permission->name . '" created successfully!');
@@ -161,7 +190,18 @@ class RoleController extends Controller
         // Authorization check
         $this->authorize('delete', Permission::class);
 
+        $permission = Permission::find($id);
+        $name = $permission?->name ?? 'Unknown';
+
         $this->permissionService->deletePermission($id);
+
+        \App\Models\AuditLog::logEvent(
+            event: 'permission.deleted',
+            auditable: $permission,
+            oldValues: ['name' => $name],
+            newValues: null,
+            reason: 'Permission deleted by ' . (auth()->user()?->name ?? 'Admin')
+        );
 
         return redirect()->route('admin.roles.index')
             ->with('success', 'Permission deleted successfully!');

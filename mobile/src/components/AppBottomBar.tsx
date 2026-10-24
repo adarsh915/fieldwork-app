@@ -1,13 +1,16 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Keyboard,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { navigate, useCurrentRouteName } from "../navigation/navigationRef";
 
 export type BottomTabKey = "Home" | "Track" | "MIS" | "Task" | "Calendar";
 
@@ -26,20 +29,46 @@ const TABS: TabItem[] = [
 ];
 
 // Tabs not yet implemented — tap shows a toast instead of navigating
-const COMING_SOON: BottomTabKey[] = ["Track", "MIS", "Task"];
+const COMING_SOON: BottomTabKey[] = ["Track", "Task"];
 
 export default function AppBottomBar({
   activeKey,
   onTabPress,
 }: {
-  activeKey: BottomTabKey;
+  activeKey?: BottomTabKey | null;
   onTabPress?: (key: BottomTabKey) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const currentRoute = useCurrentRouteName();
   const [toastVisible, setToastVisible] = useState(false);
-  const opacity   = useRef(new Animated.Value(0)).current;
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Hide bottom bar when keyboard is open to keep inputs unobstructed
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Compute active tab from route name if not explicitly passed
+  const resolvedActiveKey = useMemo<BottomTabKey | null>(() => {
+    if (activeKey !== undefined) return activeKey;
+    if (currentRoute === "Dashboard") return "Home";
+    if (currentRoute === "Report") return "MIS";
+    if (currentRoute === "AttendanceCalendar" || currentRoute === "Calendar") return "Calendar";
+    if (currentRoute === "Track") return "Track";
+    return null;
+  }, [activeKey, currentRoute]);
 
   function showToast() {
     if (timer.current) clearTimeout(timer.current);
@@ -57,8 +86,30 @@ export default function AppBottomBar({
   }
 
   function handlePress(key: BottomTabKey) {
-    if (COMING_SOON.includes(key)) { showToast(); return; }
-    onTabPress?.(key);
+    if (COMING_SOON.includes(key)) {
+      showToast();
+      return;
+    }
+
+    if (onTabPress) {
+      onTabPress(key);
+    }
+
+    // Do nothing if already on the active tab
+    if (resolvedActiveKey && key === resolvedActiveKey) return;
+
+    // Default global navigation across all screens
+    if (key === "Calendar") {
+      navigate("AttendanceCalendar");
+    } else if (key === "Home") {
+      navigate("Dashboard");
+    } else if (key === "MIS") {
+      navigate("Report");
+    }
+  }
+
+  if (keyboardVisible) {
+    return null;
   }
 
   return (
@@ -72,7 +123,7 @@ export default function AppBottomBar({
 
       <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         {TABS.map((tab) => {
-          const active = tab.key === activeKey;
+          const active = resolvedActiveKey ? tab.key === resolvedActiveKey : false;
           return (
             <TouchableOpacity
               key={tab.key}
@@ -98,26 +149,25 @@ export default function AppBottomBar({
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    backgroundColor: "#fff",
   },
   toast: {
+    position: "absolute",
+    bottom: 65,
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "center",
     backgroundColor: "#7367F0",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 24,
-    marginBottom: 8,
     shadowColor: "#7367F0",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
     elevation: 8,
     maxWidth: "92%",
+    zIndex: 999,
   },
   toastText: {
     color: "#fff",

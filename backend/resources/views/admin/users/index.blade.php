@@ -61,8 +61,8 @@
                             </div>
                         </td>
                         <td class="text-body">{{ $user->email }}</td>
-                        <td>
-                            <div class="flex flex-wrap gap-1.5">
+                        <td class="roles-cell">
+                            <div class="flex flex-wrap gap-1.5 roles-badges-container">
                                 @forelse ($user->roles as $role)
                                     <span class="badge badge-info">{{ $role->name }}</span>
                                 @empty
@@ -89,7 +89,7 @@
                                             class="absolute right-0 top-full mt-1 w-64 bg-white border border-surface-border rounded-xl shadow-xl z-20 p-4"
                                             style="display: none;"
                                         >
-                                            <form method="POST" action="{{ route('admin.users.roles.update', $user) }}" class="space-y-3">
+                                            <form method="POST" action="{{ route('admin.users.roles.update', $user) }}" class="space-y-3 user-role-form" @submit="open = false">
                                                 @csrf
                                                 <div class="text-xs font-semibold text-ink-500 mb-1">Select Role</div>
                                                 <div class="max-h-48 overflow-y-auto space-y-1.5">
@@ -136,3 +136,56 @@
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('submit', async function (e) {
+        const form = e.target.closest('.user-role-form');
+        if (!form) return;
+        e.preventDefault();
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const origText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="inline-block animate-spin mr-1">↻</span> Saving...';
+
+        const row = form.closest('tr');
+        const badgeContainer = row ? row.querySelector('.roles-badges-container') : null;
+
+        try {
+            const formData = new FormData(form);
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (window.toast) window.toast(data.message || 'User role updated successfully.', 'success');
+                if (badgeContainer && data.roles) {
+                    if (data.roles.length > 0) {
+                        badgeContainer.innerHTML = data.roles.map(r => `<span class="badge badge-info">${r}</span>`).join(' ');
+                    } else {
+                        badgeContainer.innerHTML = '<span class="badge badge-neutral">No role</span>';
+                    }
+                }
+            } else {
+                let msg = data.message || 'Failed to update user role';
+                if (data.errors) msg = Object.values(data.errors).flat().join('<br>');
+                if (window.toast) window.toast(msg, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            if (window.toast) window.toast('Network error.', 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origText;
+        }
+    });
+});
+</script>
+@endpush

@@ -46,6 +46,9 @@ class PushNotificationController extends Controller
         if ($validated['recipient'] === 'all') {
             $recipients = User::where('is_active', true)->get();
             if ($recipients->isEmpty()) {
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'No active users found.'], 422);
+                }
                 return back()->with('error', 'No active users found.');
             }
 
@@ -62,11 +65,19 @@ class PushNotificationController extends Controller
             if ($tokenRecipients->isNotEmpty()) {
                 $pushResult = FirebasePushService::sendToUsers($tokenRecipients, $title, $body, $data);
                 if (!$pushResult['success'] && !empty($pushResult['errors'])) {
-                    return back()->with('error', "Notification saved to DB, but push delivery failed: " . implode('; ', $pushResult['errors']));
+                    $errMsg = "Notification saved to DB, but push delivery failed: " . implode('; ', $pushResult['errors']);
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => $errMsg], 422);
+                    }
+                    return back()->with('error', $errMsg);
                 }
             }
 
-            return back()->with('status', "Notification sent to {$recipients->count()} user(s)!");
+            $successMsg = "Notification sent to {$recipients->count()} user(s)!";
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => true, 'message' => $successMsg]);
+            }
+            return back()->with('status', $successMsg);
         }
 
         if ($validated['recipient'] === 'field_workers') {
@@ -75,6 +86,9 @@ class PushNotificationController extends Controller
                 ->get();
 
             if ($recipients->isEmpty()) {
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'No field workers found.'], 422);
+                }
                 return back()->with('error', 'No field workers found.');
             }
 
@@ -91,11 +105,19 @@ class PushNotificationController extends Controller
             if ($tokenRecipients->isNotEmpty()) {
                 $pushResult = FirebasePushService::sendToUsers($tokenRecipients, $title, $body, $data);
                 if (!$pushResult['success'] && !empty($pushResult['errors'])) {
-                    return back()->with('error', "Notification saved to DB, but push delivery failed: " . implode('; ', $pushResult['errors']));
+                    $errMsg = "Notification saved to DB, but push delivery failed: " . implode('; ', $pushResult['errors']);
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => $errMsg], 422);
+                    }
+                    return back()->with('error', $errMsg);
                 }
             }
 
-            return back()->with('status', "Notification sent to {$recipients->count()} field worker(s)!");
+            $successMsg = "Notification sent to {$recipients->count()} field worker(s)!";
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => true, 'message' => $successMsg]);
+            }
+            return back()->with('status', $successMsg);
         }
 
         // Specific single user
@@ -112,12 +134,24 @@ class PushNotificationController extends Controller
         if (!empty($user->fcm_token)) {
             $pushResult = FirebasePushService::sendToUser($user, $title, $body, $data);
             if (!$pushResult['success']) {
-                return back()->with('error', "Notification saved to DB, but push delivery failed: " . ($pushResult['message'] ?? 'Unknown error'));
+                $errMsg = "Notification saved to DB, but push delivery failed: " . ($pushResult['message'] ?? 'Unknown error');
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $errMsg], 422);
+                }
+                return back()->with('error', $errMsg);
             }
         } else {
-            return back()->with('error', "Notification saved in database, but {$user->name} has no device registered (fcm_token is empty).");
+            $warnMsg = "Notification saved in database, but {$user->name} has no device registered (fcm_token is empty).";
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => true, 'warning' => true, 'message' => $warnMsg]);
+            }
+            return back()->with('error', $warnMsg);
         }
 
-        return back()->with('status', "Notification dispatched successfully to {$user->name}!");
+        $successMsg = "Notification dispatched successfully to {$user->name}!";
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => $successMsg]);
+        }
+        return back()->with('status', $successMsg);
     }
 }

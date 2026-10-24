@@ -23,21 +23,12 @@ class ComprehensivePermissionsSeeder extends Seeder
             // Dashboard
             'dashboard.view',
 
-            // User Management
-            'users.view',
-            'users.create',
-            'users.edit',
-            'users.delete',
-            'users.manage',
-
-            // Role & Permission Management
+            // Role Management
             'roles.view',
             'roles.create',
             'roles.edit',
             'roles.delete',
             'roles.manage',
-            'permissions.create',
-            'permissions.delete',
 
             // Employee Management
             'employees.view',
@@ -64,10 +55,6 @@ class ComprehensivePermissionsSeeder extends Seeder
 
             // Transaction Management
             'transactions.view',
-            'transactions.create',
-            'transactions.edit',
-            'transactions.delete',
-            'transactions.manage',
 
             // Orders Management
             'orders.view',
@@ -75,8 +62,6 @@ class ComprehensivePermissionsSeeder extends Seeder
             'orders.view-team',
             'orders.view-all',
             'orders.create',
-            'orders.edit',
-            'orders.delete',
             'orders.manage',
 
             // Payments Management
@@ -84,10 +69,6 @@ class ComprehensivePermissionsSeeder extends Seeder
             'payments.view-own',
             'payments.view-team',
             'payments.view-all',
-            'payments.create',
-            'payments.edit',
-            'payments.delete',
-            'payments.manage',
 
             // Visits Management
             'visits.view',
@@ -95,8 +76,6 @@ class ComprehensivePermissionsSeeder extends Seeder
             'visits.view-team',
             'visits.view-all',
             'visits.create',
-            'visits.edit',
-            'visits.delete',
             'visits.manage',
 
             // Dealers Management
@@ -120,20 +99,12 @@ class ComprehensivePermissionsSeeder extends Seeder
 
             // Activities
             'activities.view',
-            'activities.create',
-            'activities.edit',
-            'activities.delete',
-            'activities.manage',
 
             // Reports
             'reports.view',
             'reports.view-own',
             'reports.view-team',
             'reports.view-all',
-            'reports.create',
-            'reports.edit',
-            'reports.delete',
-            'reports.manage',
 
             // Expenses
             'expenses.view',
@@ -144,19 +115,21 @@ class ComprehensivePermissionsSeeder extends Seeder
             'expenses.edit',
             'expenses.delete',
             'expenses.manage',
+            'expenses.approve',
+            'expenses.final_approve',
+
+            // Fuel Rates
+            'fuel-rates.view',
+            'fuel-rates.manage',
 
             // Leave Management
-            'leave.view',
             'leaves.view',
             'leaves.view-own',
             'leaves.view-team',
             'leaves.view-all',
-            'leave.create',
-            'leave.edit',
-            'leave.delete',
-            'leave.manage',
-            'leave.approve',
-            'leave.reject',
+            'leaves.manage',
+            'leaves.approve',
+            'leaves.reject',
 
             // Meetings
             'meetings.view',
@@ -224,12 +197,13 @@ class ComprehensivePermissionsSeeder extends Seeder
             $this->command->info('✅ Admin: ALL permissions');
         }
 
-        // Update Manager - Give permissions for operations scoped to team, excluding view-all and role admin
+        // Update Manager - Give permissions for operations scoped to team, excluding view-all, role admin, and assign-roles
         $manager = Role::where('name', 'Manager')->first();
         if ($manager) {
             $managerPermissions = Permission::where('name', 'not like', 'roles.%')
                 ->where('name', 'not like', 'permissions.%')
                 ->where('name', 'not like', 'settings.manage')
+                ->where('name', '!=', 'employees.assign-roles')
                 ->where('name', 'not like', '%.view-all')
                 ->get();
             $manager->syncPermissions($managerPermissions);
@@ -238,7 +212,7 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'parties.view-team', 'parties.assign', 'employees.view-team',
                 'attendance.view-team', 'orders.view-team', 'payments.view-team',
                 'visits.view-team', 'leaves.view-team', 'expenses.view-team',
-                'day-start.view-team', 'reports.view-team'
+                'day-start.view-team', 'reports.view-team', 'expenses.approve'
             ]);
             $this->command->info('✅ Manager: ' . $manager->fresh()->permissions->count() . ' permissions');
         }
@@ -246,13 +220,15 @@ class ComprehensivePermissionsSeeder extends Seeder
         // Update VP (if exists) - Team scope across entire reporting tree
         $vp = Role::where('name', 'VP')->first();
         if ($vp) {
-            $vpPermissions = Permission::where('name', 'not like', '%.view-all')->get();
+            $vpPermissions = Permission::where('name', 'not like', '%.view-all')
+                ->where('name', '!=', 'employees.assign-roles')
+                ->get();
             $vp->syncPermissions($vpPermissions);
             $vp->givePermissionTo([
                 'parties.view-team', 'parties.assign', 'employees.view-team',
                 'attendance.view-team', 'orders.view-team', 'payments.view-team',
                 'visits.view-team', 'leaves.view-team', 'expenses.view-team',
-                'day-start.view-team', 'reports.view-team'
+                'day-start.view-team', 'reports.view-team', 'expenses.approve', 'expenses.final_approve'
             ]);
             $this->command->info('✅ VP: ' . $vp->fresh()->permissions->count() . ' permissions');
         }
@@ -264,19 +240,42 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'dashboard.view',
                 'customers.view',
                 'transactions.view',
-                'transactions.create',
-                'transactions.edit',
-                'transactions.manage',
                 'payments.view',
-                'payments.create',
-                'payments.edit',
-                'payments.manage',
                 'expenses.view',
                 'expenses.manage',
+                'expenses.final_approve',
+                'fuel-rates.view',
+                'fuel-rates.manage',
                 'reports.view',
                 'reports.view-all',
             ]);
             $this->command->info('✅ Finance: Financial permissions');
+        }
+
+        // Update HR - Give HR related permissions including company-wide expense final approval
+        $hr = Role::firstOrCreate(['name' => 'HR', 'guard_name' => 'web']);
+        if ($hr) {
+            $hr->syncPermissions([
+                'dashboard.view',
+                'employees.view',
+                'employees.view-all',
+                'attendance.view',
+                'attendance.view-all',
+                'day-start.view',
+                'day-start.view-all',
+                'leaves.view',
+                'leaves.view-all',
+                'leaves.approve',
+                'leaves.reject',
+                'leaves.manage',
+                'expenses.view',
+                'expenses.view-all',
+                'expenses.final_approve',
+                'expenses.manage',
+                'reports.view',
+                'reports.view-all',
+            ]);
+            $this->command->info('✅ HR: HR & Final Approval permissions');
         }
 
         // Update Employee - Give basic viewing permissions
@@ -287,7 +286,9 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'customers.view',
                 'transactions.view',
                 'orders.view',
+                'orders.view-own',
                 'visits.view',
+                'visits.view-own',
                 'activities.view',
                 'reports.view',
                 'reports.view-own',
@@ -296,7 +297,8 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'products.view',
                 'expenses.view',
                 'expenses.view-own',
-                'leave.view',
+                'leaves.view',
+                'leaves.view-own',
                 'day-start.view',
                 'day-start.view-own',
                 'employees.view',
@@ -317,19 +319,19 @@ class ComprehensivePermissionsSeeder extends Seeder
                 'parties.view-own',
                 'visits.view',
                 'visits.create',
-                'visits.edit',
                 'visits.manage',
+                'orders.view',
+                'orders.view-own',
+                'orders.create',
                 'day-start.view',
                 'day-start.view-own',
                 'day-start.create',
-                'day-start.manage',
                 'activities.view',
-                'activities.create',
                 'expenses.view',
                 'expenses.view-own',
                 'expenses.create',
-                'leave.view',
-                'leave.create',
+                'leaves.view',
+                'leaves.view-own',
                 'meetings.view',
                 'product-demo.view',
                 'product-demo.create',

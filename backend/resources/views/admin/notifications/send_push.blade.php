@@ -41,7 +41,7 @@
                 </div>
             </div>
 
-            <form action="{{ route('admin.push-notifications.send') }}" method="POST" class="space-y-5">
+            <form id="pushNotificationForm" action="{{ route('admin.push-notifications.send') }}" method="POST" class="space-y-5">
                 @csrf
 
                 {{-- Recipient Selection --}}
@@ -151,3 +151,49 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('pushNotificationForm');
+    if (!form) return;
+
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const origHtml = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="inline-block animate-spin mr-2">↻</span> Sending Push Alerts...';
+
+        try {
+            const formData = new FormData(form);
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (window.toast) window.toast(data.message || 'Push notifications sent successfully!', 'success');
+                // Clear message fields but preserve recipient selection
+                form.querySelector('input[name="title"]').value = '';
+                form.querySelector('textarea[name="body"]').value = '';
+            } else {
+                let msg = data.message || 'Failed to send notification';
+                if (data.errors) msg = Object.values(data.errors).flat().join('<br>');
+                if (window.toast) window.toast(msg, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            if (window.toast) window.toast('Network error. Failed to reach server.', 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origHtml;
+        }
+    });
+});
+</script>
+@endpush

@@ -5,265 +5,293 @@
 @section('page_title', 'Day Start / Tour Plan')
 
 @section('content')
-<div class="panel" x-data="{
-    dateFrom: '{{ request('date_from') }}',
-    dateTo: '{{ request('date_to') }}',
-    employeeId: '{{ request('employee_id') }}',
-    status: '{{ request('status') }}',
-    loading: false,
-    records: {{ Js::from($dayStarts->map(fn($ds) => [
-        'id'                => $ds->id,
-        'user_name'         => $ds->user?->name ?? 'Unknown',
-        'date_formatted'    => $ds->date?->format('d M Y') ?? '—',
-        'tour_purpose'      => $ds->tourPurpose?->name ?? '—',
-        'opening_km'        => $ds->opening_km ?? '—',
-        'closing_km'        => $ds->closing_km ?? '—',
-        'status'            => $ds->status,
-        'end_time'          => $ds->end_time,
-        'show_url'          => route('admin.day-starts.show', $ds->id),
-        'update_status_url' => route('admin.day-starts.updateStatus', $ds->id),
-    ])) }},
-    pagination: {
-        current_page: {{ $dayStarts->currentPage() }},
-        last_page: {{ $dayStarts->lastPage() }},
-        per_page: {{ $dayStarts->perPage() }},
-        total: {{ $dayStarts->total() }},
-        from: {{ $dayStarts->firstItem() ?? 0 }},
-        to: {{ $dayStarts->lastItem() ?? 0 }}
-    },
-    canApprove: {{ auth()->user()->can('day-start.approve') ? 'true' : 'false' }},
 
-    async fetchRecords(page = 1) {
-        this.loading = true;
-        try {
-            const params = new URLSearchParams();
-            if (this.dateFrom) params.append('date_from', this.dateFrom);
-            if (this.dateTo) params.append('date_to', this.dateTo);
-            if (this.employeeId) params.append('employee_id', this.employeeId);
-            if (this.status) params.append('status', this.status);
-            params.append('page', page);
-
-            const res = await fetch(`{{ route('admin.day-starts.index') }}?${params.toString()}`, {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                this.records = data.records;
-                this.pagination = data.pagination;
-                this.canApprove = data.can_approve;
-            }
-        } catch (e) {
-            console.error('Failed to load day starts', e);
-        } finally {
-            this.loading = false;
-        }
-    },
-
-    resetFilters() {
-        this.dateFrom = '';
-        this.dateTo = '';
-        this.employeeId = '';
-        this.status = '';
-        this.fetchRecords(1);
-    },
-
-    async updateRecordStatus(record, newStatus) {
-        if (!confirm(`Are you sure you want to ${newStatus} this tour plan?`)) return;
-        try {
-            const res = await fetch(record.update_status_url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({ status: newStatus })
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                record.status = newStatus;
-                window.toast(data.message || `Day start record marked as ${newStatus} successfully.`, newStatus === 'approved' ? 'success' : 'warning');
-            } else {
-                window.toast(data.message || 'Failed to update status.', 'error');
-            }
-        } catch (e) {
-            window.toast('Error updating status.', 'error');
-        }
-    }
-}">
-    {{-- Header --}}
-    <div class="panel-header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="text-section-title">Day Start Records</h2>
-                <p class="text-caption mt-1">View and filter submitted tour plans in real-time.</p>
-            </div>
-            @can('day-start.create')
-                <x-button href="{{ route('admin.day-starts.create') }}" variant="primary">
-                    <x-lucide-plus class="w-4 h-4" />
-                    Start My Day
-                </x-button>
-            @endcan
+    @if(session('status'))
+        <div class="mb-5 flex items-center gap-3 rounded-xl border border-green-200 bg-success-bg px-4 py-3">
+            <x-lucide-check-circle class="w-5 h-5 text-success-text shrink-0" />
+            <p class="text-sm font-medium text-success-text">{{ session('status') }}</p>
         </div>
+    @endif
 
-        {{-- AJAX Filters --}}
-        <form @submit.prevent="fetchRecords(1)" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div>
-                <label class="form-label">Date From</label>
-                <input type="date" x-model="dateFrom" @change="fetchRecords(1)" class="form-input">
-            </div>
-            <div>
-                <label class="form-label">Date To</label>
-                <input type="date" x-model="dateTo" @change="fetchRecords(1)" class="form-input">
-            </div>
-            @canany(['day-start.view-all', 'day-start.view-team'])
+    <div class="panel">
+        {{-- Header --}}
+        <div class="panel-header">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <label class="form-label">Employee</label>
-                    <select x-model="employeeId" @change="fetchRecords(1)" class="form-input">
-                        <option value="">All employees</option>
-                        @foreach ($employees as $employee)
-                            <option value="{{ $employee['id'] ?? $employee->id }}">
-                                {{ $employee['name'] ?? $employee->name }} ({{ $employee->role_name ?? 'Field Worker' }})
-                            </option>
-                        @endforeach
-                    </select>
+                    <h2 class="text-section-title">Day Start Records</h2>
+                    <p class="text-caption mt-1">View, search, filter, and review submitted tour plans in real-time.</p>
                 </div>
-            @endcanany
-            <div>
-                <label class="form-label">Status</label>
-                <select x-model="status" @change="fetchRecords(1)" class="form-input">
-                    <option value="">All Statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                </select>
+                <div class="flex flex-wrap items-center gap-2">
+                    @can('day-start.create')
+                        <x-button href="{{ route('admin.day-starts.create') }}" variant="primary">
+                            <x-lucide-plus class="w-4 h-4" />
+                            Start My Day
+                        </x-button>
+                    @endcan
+                </div>
             </div>
-            <div class="flex items-end gap-2">
-                <button type="submit" :disabled="loading" class="btn btn-primary flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold">
-                    <span x-show="!loading" class="flex items-center gap-1">
+
+            {{-- Filters --}}
+            <div id="day-start-filters" x-data="{
+                search: '',
+                dateFrom: '',
+                dateTo: '',
+                employeeId: '',
+                status: '',
+                filtersVisible: false
+            }" class="mt-4">
+                <div class="flex flex-wrap gap-3 items-end">
+                    {{-- Search --}}
+                    <div class="relative flex-1 min-w-[200px]">
+                        <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
+                        <input x-model="search" @input.debounce.400ms="window.dayStartTable.search(search).draw()"
+                            class="form-input pl-9" placeholder="Search employee, purpose, location, vehicle...">
+                    </div>
+
+                    {{-- Toggle Filters Button --}}
+                    <x-button type="button" variant="secondary" @click="filtersVisible = !filtersVisible">
                         <x-lucide-filter class="w-4 h-4" />
-                        Filter
-                    </span>
-                    <span x-show="loading" class="flex items-center gap-1">
-                        <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Filtering...
-                    </span>
-                </button>
-                <button type="button" @click="resetFilters" class="btn btn-secondary px-3 py-2 text-sm">Reset</button>
-            </div>
-        </form>
-    </div>
+                        <span x-text="filtersVisible ? 'Hide Filters' : 'Show Filters'"></span>
+                    </x-button>
 
-    {{-- Table --}}
-    <div class="table-wrap relative min-h-[250px]">
-        {{-- Loading Overlay --}}
-        <div x-show="loading" class="absolute inset-0 bg-white/70 backdrop-blur-[1px] flex items-center justify-center z-10" x-transition>
-            <div class="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
-                <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Updating records...
+                    {{-- Clear All --}}
+                    <x-button type="button" variant="secondary"
+                        @click="search=''; dateFrom=''; dateTo=''; employeeId=''; status=''; window.dayStartTable.search('').draw()"
+                        x-show="search || dateFrom || dateTo || employeeId || status" style="display: none;">
+                        <x-lucide-x class="w-4 h-4" />
+                        Clear
+                    </x-button>
+                </div>
+
+                {{-- Advanced Filters --}}
+                <div x-show="filtersVisible" x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+                    class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" style="display: none;">
+                    <div>
+                        <label class="text-xs font-medium text-ink-600 mb-1 block">Date From</label>
+                        <input type="date" x-model="dateFrom" @change="window.dayStartTable.draw()" class="form-input">
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-medium text-ink-600 mb-1 block">Date To</label>
+                        <input type="date" x-model="dateTo" @change="window.dayStartTable.draw()" class="form-input">
+                    </div>
+
+                    @canany(['day-start.view-all', 'day-start.view-team'])
+                    <div>
+                        <label class="text-xs font-medium text-ink-600 mb-1 block">Employee</label>
+                        <select x-model="employeeId" @change="window.dayStartTable.draw()" class="form-input">
+                            <option value="">All Employees</option>
+                            @foreach ($employees as $emp)
+                                <option value="{{ $emp->id }}">{{ $emp->name }} ({{ $emp->role_name ?? ($emp->roles->first()?->name ?? 'Field Worker') }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endcanany
+
+                    <div>
+                        <label class="text-xs font-medium text-ink-600 mb-1 block">Status</label>
+                        <select x-model="status" @change="window.dayStartTable.draw()" class="form-input">
+                            <option value="">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Employee</th>
-                    <th>Date</th>
-                    <th>Tour Purpose</th>
-                    <th>Opening KM</th>
-                    <th>Closing KM</th>
-                    <th>Status</th>
-                    <th class="text-right">View</th>
-                </tr>
-            </thead>
-            <tbody>
-                <template x-for="item in records" :key="item.id">
-                    <tr class="hover:bg-surface-muted/50 transition-colors">
-                        <td class="text-body-emphasis" x-text="item.user_name"></td>
-                        <td class="text-body" x-text="item.date_formatted"></td>
-                        <td class="text-body" x-text="item.tour_purpose"></td>
-                        <td class="text-body" x-text="item.opening_km"></td>
-                        <td class="text-body" x-text="item.closing_km"></td>
-                        <td>
-                            <div class="flex flex-col gap-1">
-                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold w-fit"
-                                    :class="{
-                                        'bg-emerald-100 text-emerald-800': item.status === 'approved',
-                                        'bg-rose-100 text-rose-800': item.status === 'rejected' || item.status === 'flagged',
-                                        'bg-amber-100 text-amber-800': item.status === 'pending' || item.status === 'submitted',
-                                        'bg-slate-100 text-slate-700': item.status !== 'approved' && item.status !== 'rejected' && item.status !== 'flagged' && item.status !== 'pending' && item.status !== 'submitted'
-                                    }"
-                                    x-text="item.status.charAt(0).toUpperCase() + item.status.slice(1)">
-                                </span>
-                                <template x-if="item.end_time">
-                                    <span class="badge badge-neutral text-[10px] w-fit" x-text="'Ended: ' + item.end_time"></span>
-                                </template>
-                                <template x-if="canApprove && (item.status === 'pending' || item.status === 'submitted')">
-                                    <div class="flex items-center gap-1 mt-1">
-                                        <button type="button" @click="updateRecordStatus(item, 'approved')" class="px-2 py-0.5 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition shadow-sm">
-                                            ✓ Approve
-                                        </button>
-                                        <button type="button" @click="updateRecordStatus(item, 'rejected')" class="px-2 py-0.5 text-[10px] font-bold bg-rose-600 hover:bg-rose-700 text-white rounded transition shadow-sm">
-                                            ✕ Reject
-                                        </button>
-                                    </div>
-                                </template>
-                            </div>
-                        </td>
-                        <td class="text-right">
-                            <a :href="item.show_url" class="btn btn-secondary text-xs px-2.5 py-1.5 inline-flex items-center gap-1">
-                                <x-lucide-eye class="w-4 h-4" />
-                                View
-                            </a>
-                        </td>
+        {{-- DataTable --}}
+        <div class="table-wrap min-h-[350px]">
+            <table id="day-starts-table" class="data-table">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Date</th>
+                        <th>Tour Purpose</th>
+                        <th>Opening KM</th>
+                        <th>Closing KM</th>
+                        <th>Status</th>
+                        <th class="text-right">Actions</th>
                     </tr>
-                </template>
-
-                <tr x-show="!loading && records.length === 0">
-                    <td colspan="7" class="py-16 text-center">
-                        <div class="flex flex-col items-center gap-2 text-ink-400">
-                            <x-lucide-inbox class="w-10 h-10" />
-                            <p class="text-sm font-medium">No day start records found.</p>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    {{-- AJAX Pagination --}}
-    <div x-show="pagination.last_page > 1" class="border-t border-surface-border px-6 py-4 flex items-center justify-between">
-        <div class="text-xs text-ink-500">
-            Showing <span class="font-semibold text-ink-800" x-text="pagination.from"></span> to <span class="font-semibold text-ink-800" x-text="pagination.to"></span> of <span class="font-semibold text-ink-800" x-text="pagination.total"></span> records
-        </div>
-        <div class="flex items-center gap-1.5">
-            <button type="button"
-                @click="fetchRecords(pagination.current_page - 1)"
-                :disabled="pagination.current_page <= 1 || loading"
-                class="btn btn-secondary text-xs px-2.5 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
-                Previous
-            </button>
-            <span class="text-xs text-ink-600 px-2 font-medium">
-                Page <span x-text="pagination.current_page"></span> of <span x-text="pagination.last_page"></span>
-            </span>
-            <button type="button"
-                @click="fetchRecords(pagination.current_page + 1)"
-                :disabled="pagination.current_page >= pagination.last_page || loading"
-                class="btn btn-secondary text-xs px-2.5 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
-                Next
-            </button>
+                </thead>
+                <tbody>
+                    {{-- DataTables will populate this --}}
+                </tbody>
+            </table>
         </div>
     </div>
-</div>
+
 @endsection
 
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Initialize DataTable
+            window.dayStartTable = new DataTable('#day-starts-table', {
+                processing: true,
+                serverSide: true,
+                ajax: {
+                    url: '{{ route('admin.day-starts.data') }}',
+                    data: function (d) {
+                        const filtersElement = document.getElementById('day-start-filters');
+                        const filters = window.Alpine ? Alpine.$data(filtersElement) : null;
+                        if (filters) {
+                            d.search = filters.search || '';
+                            d.date_from = filters.dateFrom || '';
+                            d.date_to = filters.dateTo || '';
+                            d.employee_id = filters.employeeId || '';
+                            d.status = filters.status || '';
+                        }
+                    }
+                },
+                columns: [
+                    {
+                        data: 'employee',
+                        render: function (data) {
+                            return `
+                                <div class="text-body-emphasis font-medium">${data.name}</div>
+                                <div class="text-caption">${data.role} ${data.employee_id && data.employee_id !== '—' ? '• ' + data.employee_id : ''}</div>
+                            `;
+                        }
+                    },
+                    {
+                        data: 'date',
+                        render: function (data) {
+                            return `<div class="text-body">${data.formatted}</div>`;
+                        }
+                    },
+                    {
+                        data: 'tour_purpose',
+                        render: function (data) {
+                            let sub = [];
+                            if (data.tour_type) sub.push(data.tour_type);
+                            if (data.vehicle) sub.push(data.vehicle);
+                            if (data.visit_place) sub.push(data.visit_place);
+
+                            let locBadge = '';
+                            if (data.district || data.area) {
+                                let locText = [data.district, data.area].filter(Boolean).join(' • ');
+                                locBadge = `<div class="mt-1"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">📍 ${locText}</span></div>`;
+                            }
+
+                            return `
+                                <div class="text-body font-medium">${data.purpose}</div>
+                                ${sub.length ? `<div class="text-caption">${sub.join(' • ')}</div>` : ''}
+                                ${locBadge}
+                            `;
+                        }
+                    },
+                    {
+                        data: 'opening_km',
+                        render: function (data) {
+                            return `<div class="text-body font-mono text-xs">${data}</div>`;
+                        }
+                    },
+                    {
+                        data: 'closing_km',
+                        render: function (data) {
+                            return `<div class="text-body font-mono text-xs">${data}</div>`;
+                        }
+                    },
+                    {
+                        data: 'status',
+                        render: function (data) {
+                            let badgeClass = 'bg-slate-100 text-slate-700';
+                            let label = (data.status || 'pending').charAt(0).toUpperCase() + (data.status || 'pending').slice(1);
+                            
+                            if (data.status === 'approved') {
+                                badgeClass = 'bg-emerald-100 text-emerald-800';
+                            } else if (data.status === 'pending' || data.status === 'submitted') {
+                                badgeClass = 'bg-amber-100 text-amber-800';
+                                label = 'Pending';
+                            } else if (data.status === 'rejected' || data.status === 'flagged') {
+                                badgeClass = 'bg-rose-100 text-rose-800';
+                            }
+
+                            let html = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeClass}">${label}</span>`;
+                            if (data.end_time) {
+                                html += `<span class="badge badge-neutral text-[10px] mt-1 block w-fit">Ended: ${data.end_time}</span>`;
+                            }
+                            return html;
+                        }
+                    },
+                    {
+                        data: 'actions',
+                        orderable: false,
+                        searchable: false,
+                        className: 'text-right whitespace-nowrap',
+                        render: function (data) {
+                            return `
+                                <div class="relative inline-block text-left" x-data="{ open: false }">
+                                    <button type="button" @click="open = !open" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 focus:outline-none">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+                                        </svg>
+                                    </button>
+                                    <div x-show="open" @click.outside="open = false" x-transition 
+                                         class="absolute right-0 mt-1 min-w-[210px] bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1.5 top-full" 
+                                         style="min-width: 210px; width: max-content; display: none;">
+                                        <a href="${data.show_url}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm text-ink-900 hover:bg-surface-muted whitespace-nowrap transition-colors">
+                                            <svg class="w-4 h-4 text-ink-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                            <span>View Details</span>
+                                        </a>
+                                        ${data.can_action ? `
+                                        <div class="my-1.5 border-t border-surface-border"></div>
+                                        <button type="button" onclick="updateTourPlanStatus('${data.update_status_url}', 'approved')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 hover:bg-emerald-50 text-left whitespace-nowrap transition-colors">
+                                            <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            <span>Approve Tour Plan</span>
+                                        </button>
+                                        <button type="button" onclick="updateTourPlanStatus('${data.update_status_url}', 'rejected')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-rose-700 hover:bg-rose-50 text-left whitespace-nowrap transition-colors">
+                                            <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            <span>Reject Tour Plan</span>
+                                        </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                ],
+                order: [[1, 'desc']],
+                pageLength: 20,
+                lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
+                dom: 'rt<"flex items-center justify-between px-6 py-3 border-t border-surface-border"<"text-caption text-ink-400"i><""p>>',
+                drawCallback: function () {
+                    if (window.Alpine) {
+                        window.Alpine.initTree(document.getElementById('day-starts-table'));
+                    }
+                }
+            });
+
+            // Status Update Handler
+            window.updateTourPlanStatus = async function (url, newStatus) {
+                if (!confirm(`Are you sure you want to ${newStatus} this tour plan?`)) return;
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        window.toast(data.message || `Tour plan marked as ${newStatus} successfully.`, newStatus === 'approved' ? 'success' : 'warning');
+                        if (window.dayStartTable) {
+                            window.dayStartTable.ajax.reload(null, false);
+                        }
+                    } else {
+                        window.toast(data.message || 'Failed to update status.', 'error');
+                    }
+                } catch (e) {
+                    window.toast('Error updating status.', 'error');
+                }
+            };
+        });
+    </script>
+@endpush

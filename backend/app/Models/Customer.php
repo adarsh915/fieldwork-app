@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class Customer extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
 
     protected $fillable = [
         'party_code',
@@ -18,6 +19,8 @@ class Customer extends Model
         'address',
         'city',
         'state',
+        'district_id',
+        'area_id',
         'pincode',
         'party_type',
         'category',
@@ -42,6 +45,16 @@ class Customer extends Model
     ];
 
     // ── Relationships ──────────────────────────────────────────────────────────
+
+    public function district()
+    {
+        return $this->belongsTo(District::class);
+    }
+
+    public function area()
+    {
+        return $this->belongsTo(Area::class);
+    }
 
     public function user()
     {

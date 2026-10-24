@@ -67,7 +67,7 @@ class VisitController extends Controller
                         'status'         => $visit->status,
                         'purpose'        => $visit->purpose ?? '',
                         'notes'          => $visit->notes ?? '',
-                        'check_in_photo' => $visit->check_in_photo ? asset($visit->check_in_photo) : null,
+                        'check_in_photo' => $visit->check_in_photo_url,
                     ];
                 }),
                 'pagination' => [

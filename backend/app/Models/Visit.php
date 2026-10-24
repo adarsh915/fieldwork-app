@@ -17,6 +17,41 @@ class Visit extends Model
         'check_out_lng' => 'decimal:7',
     ];
 
+    protected $appends = ['check_in_at', 'check_out_at', 'remarks', 'check_in_photo_url'];
+
+    public function getCheckInAtAttribute()
+    {
+        return $this->check_in_time?->toISOString() ?? ($this->attributes['check_in_time'] ?? null);
+    }
+
+    public function getCheckOutAtAttribute()
+    {
+        return $this->check_out_time?->toISOString() ?? ($this->attributes['check_out_time'] ?? null);
+    }
+
+    public function getRemarksAttribute()
+    {
+        return $this->notes;
+    }
+
+    public function getCheckInPhotoUrlAttribute(): ?string
+    {
+        if (!$this->check_in_photo) {
+            return null;
+        }
+
+        if (str_starts_with($this->check_in_photo, 'http://') || str_starts_with($this->check_in_photo, 'https://')) {
+            return $this->check_in_photo;
+        }
+
+        $cleanPath = ltrim($this->check_in_photo, '/');
+        if (str_starts_with($cleanPath, 'storage/')) {
+            return asset($cleanPath);
+        }
+
+        return asset('storage/' . $cleanPath);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

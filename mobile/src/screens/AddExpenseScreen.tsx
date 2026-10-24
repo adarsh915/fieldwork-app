@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,10 +17,13 @@ import {
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 
-import { submitExpense, getExpenseCategories, type ExpenseCategory } from "../api/expense";
+import { submitExpense, updateExpense, getExpenseCategories, type ExpenseCategory } from "../api/expense";
+import { API_BASE_URL } from "../api/config";
+import { useAlert } from "../context/AlertModalContext";
 import type { AppStackParamList } from "../navigation/RootNavigator";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "AddExpense">;
+type RouteProps = RouteProp<AppStackParamList, "AddExpense">;
 
 function formatYmd(d: Date): string {
   const year = d.getFullYear();
@@ -31,19 +34,47 @@ function formatYmd(d: Date): string {
 
 export default function AddExpenseScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<RouteProps>();
+  const { showSuccess, showError, showWarning } = useAlert();
+  const editingExpense = route.params?.expense;
+  const isEditing = !!editingExpense;
 
   const todayStr = useMemo(() => formatYmd(new Date()), []);
-  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const initialDate = useMemo(() => {
+    if (editingExpense?.date) {
+      return typeof editingExpense.date === "string"
+        ? editingExpense.date.split("T")[0]
+        : formatYmd(new Date(editingExpense.date));
+    }
+    return todayStr;
+  }, [editingExpense, todayStr]);
+
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate);
   const [pastDaysAllowed, setPastDaysAllowed] = useState<number>(7);
 
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [amount, setAmount] = useState("");
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(editingExpense?.category_id ?? null);
+  const [amount, setAmount] = useState(editingExpense?.amount ? String(editingExpense.amount) : "");
+
+  const initialPhotoUri = useMemo(() => {
+    if (!editingExpense) return null;
+    if (editingExpense.bill_photo_url) return editingExpense.bill_photo_url;
+    if (editingExpense.bill_photo) return `${API_BASE_URL}/storage/${editingExpense.bill_photo}`;
+    return null;
+  }, [editingExpense]);
+
+  const [photoUri, setPhotoUri] = useState<string | null>(initialPhotoUri);
   const [submitting, setSubmitting] = useState(false);
 
   // Stationery Items State & refs
-  const [items, setItems] = useState<{ item_name: string; quantity: number; unit_price: number; total_price: number }[]>([]);
+  const [items, setItems] = useState<{ item_name: string; quantity: number; unit_price: number; total_price: number }[]>(
+    editingExpense?.items?.map((it) => ({
+      item_name: it.item_name,
+      quantity: it.quantity,
+      unit_price: Number(it.unit_price),
+      total_price: Number(it.total_price),
+    })) ?? []
+  );
   const [newItemName, setNewItemName] = useState("");
   const [newItemQty, setNewItemQty] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
@@ -63,6 +94,34 @@ export default function AddExpenseScreen() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (editingExpense) {
+      if (editingExpense.category_id) setSelectedCategory(editingExpense.category_id);
+      if (editingExpense.amount) setAmount(String(editingExpense.amount));
+      if (editingExpense.date) {
+        setSelectedDate(
+          typeof editingExpense.date === "string"
+            ? editingExpense.date.split("T")[0]
+            : formatYmd(new Date(editingExpense.date))
+        );
+      }
+      const pUrl =
+        editingExpense.bill_photo_url ||
+        (editingExpense.bill_photo ? `${API_BASE_URL}/storage/${editingExpense.bill_photo}` : null);
+      if (pUrl) setPhotoUri(pUrl);
+      if (editingExpense.items && editingExpense.items.length > 0) {
+        setItems(
+          editingExpense.items.map((it) => ({
+            item_name: it.item_name,
+            quantity: it.quantity,
+            unit_price: Number(it.unit_price),
+            total_price: Number(it.total_price),
+          }))
+        );
+      }
+    }
+  }, [editingExpense]);
 
   const availableDates = useMemo(() => {
     const list: { dateStr: string; label: string; isPast: boolean }[] = [];
@@ -84,8 +143,17 @@ export default function AddExpenseScreen() {
 
       list.push({ dateStr, label, isPast: i > 0 });
     }
+
+    if (selectedDate && !list.some((it) => it.dateStr === selectedDate)) {
+      list.push({
+        dateStr: selectedDate,
+        label: new Date(selectedDate).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+        isPast: true,
+      });
+    }
+
     return list;
-  }, [pastDaysAllowed]);
+  }, [pastDaysAllowed, selectedDate]);
 
   const selectedCategoryName = useMemo(() => {
     return categories.find((c) => c.id === selectedCategory)?.name?.trim().toLowerCase();
@@ -97,13 +165,13 @@ export default function AddExpenseScreen() {
 
   function handleAddItem() {
     if (!newItemName.trim() || !newItemQty || !newItemPrice) {
-      Alert.alert("Validation", "Please fill item name, quantity, and price.");
+      showWarning("Required Fields", "Please fill item name, quantity, and price.");
       return;
     }
     const qty = parseInt(newItemQty, 10);
     const price = parseFloat(newItemPrice);
     if (isNaN(qty) || isNaN(price)) {
-      Alert.alert("Validation", "Invalid quantity or price.");
+      showWarning("Invalid Values", "Please enter valid numbers for quantity and price.");
       return;
     }
     const total = qty * price;
@@ -155,37 +223,58 @@ export default function AddExpenseScreen() {
 
   async function handleSubmit() {
     if (!selectedCategory) {
-      Alert.alert("Required", "Please select an expense category.");
+      showWarning("Category Required", "Please select an expense category.");
       return;
     }
     if (isStationery && items.length === 0) {
-      Alert.alert("Missing", "Please add at least one stationery item.");
+      showWarning("Missing Items", "Please add at least one stationery item.");
       return;
     }
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      Alert.alert("Required", "Please enter a valid expense amount.");
+      showWarning("Amount Required", "Please enter a valid expense amount.");
       return;
     }
     if (!photoUri) {
-      Alert.alert("Missing", "Photo proof is mandatory for expenses.");
+      showWarning("Receipt Photo Required", "Photo proof is mandatory for expense claims.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const res = await submitExpense(
-        selectedCategory,
-        amount,
-        photoUri,
-        isStationery ? items : undefined,
-        selectedDate
-      );
+      if (isEditing && editingExpense) {
+        const res = await updateExpense(
+          editingExpense.id,
+          selectedCategory,
+          amount,
+          photoUri,
+          isStationery ? items : undefined,
+          selectedDate
+        );
+        showSuccess(
+          "Expense Updated",
+          res.message || "Your expense claim has been updated and resubmitted!",
+          () => navigation.goBack()
+        );
+      } else {
+        const res = await submitExpense(
+          selectedCategory,
+          amount,
+          photoUri,
+          isStationery ? items : undefined,
+          selectedDate
+        );
 
-      Alert.alert("Success", res.message || "Expense submitted!", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+        showSuccess(
+          "Added Successfully!",
+          res.message || "Your expense claim has been submitted for review.",
+          () => navigation.goBack()
+        );
+      }
     } catch (err: any) {
-      Alert.alert("Error", err?.message || "Failed to submit.");
+      showError(
+        "Submission Error",
+        err?.message || (isEditing ? "Failed to update expense." : "Failed to submit expense.")
+      );
     } finally {
       setSubmitting(false);
     }
@@ -193,10 +282,32 @@ export default function AddExpenseScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F3F4F6" }}>
-      <ScreenHeader title="Add Expense" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={isEditing ? "Edit Expense" : "Add Expense"} onBack={() => navigation.goBack()} />
 
       <KeyboardAwareScreen contentStyle={{ padding: 16, paddingBottom: 60 }} backgroundColor="#F3F4F6">
         <View style={styles.card}>
+          {isEditing && (editingExpense?.rejection_reason || editingExpense?.status === "rejected" || editingExpense?.status === "manager_rejected") && (
+            <View style={styles.rejectionBanner}>
+              <View style={styles.rejectionHeaderRow}>
+                <MaterialCommunityIcons name="alert-octagon" size={20} color="#DC2626" />
+                <Text style={styles.rejectionHeaderTitle}>Expense Rejected</Text>
+              </View>
+              {editingExpense.rejection_reason ? (
+                <Text style={styles.rejectionReasonText}>
+                  Reason: {editingExpense.rejection_reason}
+                </Text>
+              ) : null}
+              {editingExpense.rejected_by?.name ? (
+                <Text style={styles.rejectedByText}>
+                  Rejected by: {editingExpense.rejected_by.name}
+                </Text>
+              ) : null}
+              <Text style={styles.rejectionHint}>
+                Please update your expense details or bill photo below and resubmit for approval.
+              </Text>
+            </View>
+          )}
+
           {/* Date Selector */}
           <Text style={styles.fieldLabel}>Expense Date</Text>
           <ScrollView
@@ -321,7 +432,7 @@ export default function AddExpenseScreen() {
               <View style={styles.photoPreviewWrap}>
                 <Image source={{ uri: photoUri }} style={styles.photoPreview} />
                 <View style={styles.retakeBtn}>
-                  <Text style={styles.retakeText}>Retake</Text>
+                  <Text style={styles.retakeText}>Change Photo</Text>
                 </View>
               </View>
             ) : (
@@ -337,7 +448,13 @@ export default function AddExpenseScreen() {
             onPress={handleSubmit}
             disabled={submitting}
           >
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.startBtnText}>Submit Expense</Text>}
+            {submitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.startBtnText}>
+                {isEditing ? "Update & Resubmit Claim" : "Submit Expense"}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAwareScreen>
@@ -551,5 +668,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#92400E",
+  },
+  rejectionBanner: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  rejectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  rejectionHeaderTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#DC2626",
+  },
+  rejectionReasonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#991B1B",
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  rejectedByText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#B91C1C",
+    marginTop: 4,
+  },
+  rejectionHint: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 6,
+    fontStyle: "italic",
   },
 });

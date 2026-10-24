@@ -77,8 +77,22 @@
 
     {{-- ── Daily Ledger Table ── --}}
     <div class="panel overflow-hidden border border-slate-200 shadow-sm rounded-xl bg-white">
+        {{-- Quick Search Toolbar --}}
+        <div class="p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div class="relative flex-1 min-w-[200px] max-w-sm">
+                <input type="text" id="ledger-search-input" placeholder="Search employee, date, status..." 
+                       class="form-input text-xs py-2 pl-9 pr-3 w-full rounded-lg border-slate-200 bg-white shadow-2xs focus:border-brand-500" />
+                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            <div class="text-xs text-slate-500 font-semibold">
+                Showing {{ $records->count() }} of {{ $records->total() }} records
+            </div>
+        </div>
+
         <div class="table-wrap overflow-x-auto">
-            <table class="data-table w-full text-left border-collapse">
+            <table id="daily-ledger-table" class="data-table w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 border-y border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th class="py-3 px-4">Date</th>
@@ -98,28 +112,28 @@
                             $distance = ($rec->closing_km && $rec->opening_km) ? max(0, $rec->closing_km - $rec->opening_km) : null;
                         @endphp
                         <tr class="hover:bg-slate-50/80 transition-colors">
-                            <td class="py-3.5 px-4 font-bold text-slate-900">
+                            <td class="py-3.5 px-4 font-bold text-slate-900" data-order="{{ $rec->date }}">
                                 {{ \Carbon\Carbon::parse($rec->date)->format('D, d M Y') }}
                             </td>
-                            <td class="py-3.5 px-4">
+                            <td class="py-3.5 px-4" data-order="{{ $rec->user ? $rec->user->name : '' }}">
                                 <div class="font-bold text-slate-900">{{ $rec->user ? $rec->user->name . ' (' . $rec->user->role_name . ')' : 'N/A' }}</div>
                             </td>
-                            <td class="py-3.5 px-3 text-center text-slate-600 font-medium">
+                            <td class="py-3.5 px-3 text-center text-slate-600 font-medium" data-order="{{ $rec->opening_km ?? 0 }}">
                                 {{ $rec->opening_km ?? '—' }}
                             </td>
-                            <td class="py-3.5 px-3 text-center text-slate-600 font-medium">
+                            <td class="py-3.5 px-3 text-center text-slate-600 font-medium" data-order="{{ $rec->closing_km ?? 0 }}">
                                 {{ $rec->closing_km ?? '—' }}
                             </td>
-                            <td class="py-3.5 px-3 text-center font-bold text-emerald-700">
+                            <td class="py-3.5 px-3 text-center font-bold text-emerald-700" data-order="{{ $distance ?? 0 }}">
                                 {{ $distance !== null ? number_format($distance, 1) . ' KM' : '—' }}
                             </td>
-                            <td class="py-3.5 px-3 text-center">
+                            <td class="py-3.5 px-3 text-center" data-order="{{ $rec->visits->count() }}">
                                 <span class="badge badge-secondary font-bold text-xs">{{ $rec->visits->count() }} visits</span>
                             </td>
-                            <td class="py-3.5 px-4 text-right font-bold text-slate-900">
+                            <td class="py-3.5 px-4 text-right font-bold text-slate-900" data-order="{{ $rec->expenses->sum('amount') }}">
                                 ₹{{ number_format($rec->expenses->sum('amount'), 2) }}
                             </td>
-                            <td class="py-3.5 px-3 text-center">
+                            <td class="py-3.5 px-3 text-center" data-order="{{ $rec->status }}">
                                 @if($rec->status === 'auto_closed' || (!$rec->closing_km && $rec->date < \Carbon\Carbon::today()))
                                     <span class="badge badge-warning text-[10px]">Auto Closed</span>
                                 @elseif($rec->closing_km)
@@ -152,3 +166,65 @@
 
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    let ledgerTable = null;
+
+    function getDT() {
+        return window.DataTable || (typeof DataTable !== 'undefined' ? DataTable : null);
+    }
+
+    function initLedgerTable() {
+        const tableEl = document.getElementById('daily-ledger-table');
+        if (!tableEl) return;
+        const DT = getDT();
+        if (!DT) return;
+
+        const hasEmpty = tableEl.querySelector('tbody tr td[colspan]') !== null;
+        if (hasEmpty) return;
+
+        ledgerTable = new DT('#daily-ledger-table', {
+            paging: false,
+            order: [[0, 'desc']], // Sort by Date descending
+            columnDefs: [
+                { targets: [8], orderable: false, searchable: false }
+            ],
+            dom: 'rt<"flex items-center justify-between px-6 py-3 border-t border-surface-border"<"text-caption text-ink-500 font-medium"i>>',
+            language: {
+                info: "Showing _TOTAL_ ledger entries on this page",
+                infoEmpty: "Showing 0 entries",
+                emptyTable: "No shift records found for this period."
+            }
+        });
+
+        document.getElementById('ledger-search-input')?.addEventListener('input', function () {
+            if (ledgerTable) {
+                ledgerTable.search(this.value).draw();
+            }
+        });
+    }
+
+    function ensureLedgerDT() {
+        if (getDT()) {
+            initLedgerTable();
+        } else {
+            let tries = 0;
+            const timer = setInterval(() => {
+                tries++;
+                if (getDT()) {
+                    clearInterval(timer);
+                    initLedgerTable();
+                } else if (tries > 50) {
+                    clearInterval(timer);
+                }
+            }, 50);
+        }
+    }
+
+    ensureLedgerDT();
+});
+</script>
+@endpush
+

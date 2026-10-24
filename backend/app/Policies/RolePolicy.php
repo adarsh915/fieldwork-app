@@ -16,7 +16,9 @@ class RolePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('Super Admin');
+        return $user->hasRole('Super Admin')
+            || $user->hasPermissionTo('roles.view')
+            || $user->hasPermissionTo('roles.manage');
     }
 
     /**
@@ -24,7 +26,9 @@ class RolePolicy
      */
     public function view(User $user, Role $role): bool
     {
-        return $user->hasRole('Super Admin');
+        return $user->hasRole('Super Admin')
+            || $user->hasPermissionTo('roles.view')
+            || $user->hasPermissionTo('roles.manage');
     }
 
     /**
@@ -32,7 +36,9 @@ class RolePolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('Super Admin');
+        return $user->hasRole('Super Admin')
+            || $user->hasPermissionTo('roles.create')
+            || $user->hasPermissionTo('roles.manage');
     }
 
     /**
@@ -40,7 +46,14 @@ class RolePolicy
      */
     public function update(User $user, Role $role): bool
     {
-        return $user->hasRole('Super Admin');
+        // Only Super Admin can edit Super Admin or Admin roles
+        if (in_array($role->name, ['Super Admin', 'Admin']) && !$user->hasRole('Super Admin')) {
+            return false;
+        }
+
+        return $user->hasRole('Super Admin')
+            || $user->hasPermissionTo('roles.edit')
+            || $user->hasPermissionTo('roles.manage');
     }
 
     /**
@@ -48,16 +61,13 @@ class RolePolicy
      */
     public function delete(User $user, Role $role): bool
     {
-        // Only Super Admin can delete roles
-        if (!$user->hasRole('Super Admin')) {
-            return false;
-        }
-
         // Cannot delete system roles
         if (in_array($role->name, ['Admin', 'Super Admin'])) {
             return false;
         }
 
-        return true;
+        return $user->hasRole('Super Admin')
+            || $user->hasPermissionTo('roles.delete')
+            || $user->hasPermissionTo('roles.manage');
     }
 }

@@ -27,11 +27,16 @@ class TourPlanSubmitted extends Notification
         $purpose = $this->dayStart->tourPurpose->name;
 
         return [
+            'title' => 'Tour Plan Submitted',
+            'category' => 'day_start',
+            'icon' => 'play-circle',
+            'url' => route('admin.day-starts.show', $this->dayStart->id),
             'message' => "{$employeeName} submitted a tour plan for {$date} — {$purpose}",
             'day_start_id' => $this->dayStart->id,
             'employee_name' => $employeeName,
             'date' => $this->dayStart->date->toDateString(),
             'tour_purpose' => $purpose,
+            'created_at' => now()->toISOString(),
         ];
     }
 }

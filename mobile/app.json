@@ -2,6 +2,15 @@
   "expo": {
     "name": "AMPL Fieldwork",
     "slug": "ampl-fieldwork-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#7367F0"
+    },
     "extra": {
       "eas": {
         "projectId": "3e4f7a64-cc21-45fc-a0c5-a9075728c836"
@@ -11,7 +20,11 @@
       "package": "com.adarsh55.amplfieldworkmobile",
       "googleServicesFile": "./google-services.json",
       "usesCleartextTraffic": true,
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#7367F0"
+      }
     },
     "plugins": [
       "expo-secure-store",

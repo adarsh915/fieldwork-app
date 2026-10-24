@@ -1,20 +1,21 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useState, useCallback } from "react";
-import AppBottomBar from "../components/AppBottomBar";
+import { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getDayStatus } from "../api/day";
+import { fetchUnreadCount, subscribeUnreadCount } from "../api/notifications";
 import { useAuth } from "../auth/AuthContext";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -29,17 +30,35 @@ type MenuItem = {
 
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
 
   const { user, logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const [dayActive, setDayActive] = useState(false);
   const [dayCompleted, setDayCompleted] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
-  // Fetch day status when screen comes into focus
+  // Sync real-time count updates
+  useEffect(() => {
+    const unsubscribe = subscribeUnreadCount((count) => {
+      setUnreadNotifCount(count);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Fetch day status & unread notification count when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
+      
+      // Fetch unread notifications
+      fetchUnreadCount()
+        .then((count) => {
+          if (isActive) setUnreadNotifCount(count);
+        })
+        .catch(() => {});
+
       getDayStatus()
         .then((res) => {
           if (isActive && res.success) {
@@ -106,7 +125,11 @@ export default function DashboardScreen() {
       icon: "cash-multiple",
       onPress: () => navigation.navigate("PaymentRegister"),
     },
-    { label: "Visit", icon: "map-marker-outline" },
+    {
+      label: "Visit",
+      icon: "map-marker-outline",
+      onPress: () => navigation.navigate("Report"),
+    },
     { label: "Product\nDemo", icon: "package-variant-closed" },
     { label: "My\nMeeting", icon: "calendar-account-outline" },
     { label: "Customers", icon: "account-tie-outline" },
@@ -115,58 +138,81 @@ export default function DashboardScreen() {
 
   // ── Employee (Hr/Reporting) grid ────────────────────────────────────────────
   const employeeMenu: MenuItem[] = [
-    { label: "Activities", icon: "run-fast" },
+    {
+      label: "Activities",
+      icon: "run-fast",
+      onPress: () => navigation.navigate("Report"),
+    },
     { label: "My Expense\nBill", icon: "receipt", onPress: () => navigation.navigate("ExpenseList") },
     { label: "Expense\nSummary", icon: "chart-bar-stacked", onPress: () => navigation.navigate("ExpenseMonthlySummary") },
     { label: "Attendance", icon: "calendar-check-outline", onPress: () => navigation.navigate("AttendanceCalendar") },
     { label: "My Leaves", icon: "calendar-remove-outline", onPress: () => navigation.navigate("MyLeaves") },
     { label: "Product\nPlaning", icon: "chart-bar" },
     { label: "Coll.\nPlaning", icon: "briefcase-outline" },
-    { label: "My Report", icon: "file-chart-outline" },
+    { label: "My Report", icon: "file-chart-outline", onPress: () => navigation.navigate("Report") },
   ];
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon}>
-          <MaterialCommunityIcons name="menu" size={26} color="#fff" />
-        </TouchableOpacity>
+    <View style={styles.safe}>
+      {/* ── Header with Seamless Purple Top Bar ── */}
+      <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: PURPLE }}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>AMPL SOLUTION</Text>
 
-        <Text style={styles.headerTitle}>AMPL SOLUTION</Text>
+          <View style={styles.headerActions}>
+            {/* Notification Bell */}
+            <TouchableOpacity
+              style={styles.headerIcon}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate("Notifications")}
+            >
+              <MaterialIcons name="notifications-none" size={24} color="#fff" />
+              {unreadNotifCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerIcon}>
-            <MaterialCommunityIcons
-              name="barcode-scan"
-              size={22}
-              color="#fff"
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon}>
-            <MaterialIcons name="notifications-none" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon}>
-            <MaterialIcons name="access-time" size={22} color="#fff" />
-          </TouchableOpacity>
-          {/* Logout */}
-          <TouchableOpacity
-            style={[styles.headerIcon, styles.logoutIcon]}
-            onPress={handleLogout}
-            disabled={loggingOut}
-          >
-            {loggingOut ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <MaterialIcons name="logout" size={22} color="#fff" />
-            )}
-          </TouchableOpacity>
+            {/* Profile Rounded Avatar (Opens User Profile) */}
+            <TouchableOpacity
+              style={styles.profileAvatarBtn}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate("UserProfile")}
+              accessibilityLabel="View user profile"
+            >
+              {user?.profile_image_url ? (
+                <Image
+                  source={{ uri: user.profile_image_url }}
+                  style={styles.profileAvatarImg}
+                />
+              ) : (
+                <View style={styles.profileAvatarFallback}>
+                  <Text style={styles.profileAvatarInitial}>
+                    {user?.name
+                      ? user.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase()
+                      : "U"}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 10) + 75 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* ── User Info Card ──────────────────────────────────────────────── */}
@@ -292,17 +338,9 @@ export default function DashboardScreen() {
           ))}
         </View>
 
-        <View style={{ height: 80 }} />
+        <View style={{ height: 20 }} />
       </ScrollView>
-
-      {/* ── Bottom Navigation ───────────────────────────────────────────────── */}
-      <AppBottomBar
-        activeKey="Home"
-        onTabPress={(key) => {
-          if (key === "Calendar") navigation.navigate("AttendanceCalendar");
-        }}
-      />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -320,16 +358,15 @@ const styles = StyleSheet.create({
     backgroundColor: PURPLE,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   headerTitle: {
     flex: 1,
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "800",
     letterSpacing: 0.5,
-    marginLeft: 6,
   },
   headerActions: {
     flexDirection: "row",
@@ -341,10 +378,55 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
+    position: "relative",
   },
-  logoutIcon: {
-    backgroundColor: "rgba(255,255,255,0.18)",
-    marginLeft: 2,
+  notifBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: "#EF4444",
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: PURPLE,
+  },
+  notifBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  profileAvatarBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.85)",
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+  },
+  profileAvatarImg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  profileAvatarFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileAvatarInitial: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
   },
 
   // Scroll

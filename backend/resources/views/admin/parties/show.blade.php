@@ -9,6 +9,14 @@
 @endpush
 
 @section('content')
+    <!-- Lightbox Modal -->
+    <div id="imageLightboxModal" onclick="if(event.target === this) this.style.display='none'" style="display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 9999; align-items: center; justify-content: center; background-color: rgba(15, 23, 42, 0.9); backdrop-filter: blur(4px);">
+        <button type="button" onclick="document.getElementById('imageLightboxModal').style.display='none'" style="position: absolute; top: 2rem; right: 2rem; color: white; background: none; border: none; cursor: pointer; z-index: 10000;">
+            <svg style="width: 32px; height: 32px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <img id="imageLightboxImg" src="" style="max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); margin: auto; display: block;" onclick="event.stopPropagation()">
+    </div>
+
     {{-- ═══ Top Bar ═══ --}}
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
@@ -179,12 +187,12 @@
                 <table class="data-table" id="visits-table">
                     <thead>
                         <tr>
-                            <th>#</th><th>Check-In Date</th><th>Fieldworker</th>
+                            <th>#</th><th>Check-In Date</th><th>Fieldworker</th><th>Photo</th>
                             <th>Check-In Location</th><th>Check-Out</th><th>Remarks</th><th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="visits-tbody">
-                        <tr><td colspan="7" class="py-10 text-center text-slate-400 text-sm">
+                        <tr><td colspan="8" class="py-10 text-center text-slate-400 text-sm">
                             <span class="animate-pulse">Loading visits…</span>
                         </td></tr>
                     </tbody>
@@ -291,7 +299,7 @@
         function renderVisits(data) {
             const tbody = document.getElementById('visits-tbody');
             if (!data.data.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="py-10 text-center text-slate-400">No visits found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="py-10 text-center text-slate-400">No visits found.</td></tr>';
                 return;
             }
             tbody.innerHTML = data.data.map((v, i) => `
@@ -299,9 +307,10 @@
                     <td class="text-slate-400 text-xs">${data.from + i}</td>
                     <td class="whitespace-nowrap font-medium">${v.check_in_time ? new Date(v.check_in_time).toLocaleString('en-IN') : '—'}</td>
                     <td>${v.user ? v.user.name : 'Unknown'}</td>
+                    <td>${v.check_in_photo_url ? `<button type="button" onclick="openImageLightbox('${v.check_in_photo_url}')" class="inline-block relative group cursor-pointer focus:outline-none" title="View Check-In Photo"><img src="${v.check_in_photo_url}" class="w-10 h-10 object-cover rounded-lg border border-slate-200 hover:scale-105 transition shadow-sm" alt="Visit Photo"></button>` : '<span class="text-slate-300 text-xs">—</span>'}</td>
                     <td class="text-xs">${v.check_in_lat ? `<a href="https://maps.google.com/?q=${v.check_in_lat},${v.check_in_lng}" target="_blank" class="text-blue-600 hover:underline">${Number(v.check_in_lat).toFixed(4)},${Number(v.check_in_lng).toFixed(4)}</a>` : '—'}</td>
                     <td class="whitespace-nowrap text-xs">${v.check_out_time ? new Date(v.check_out_time).toLocaleString('en-IN') : '—'}</td>
-                    <td class="max-w-[200px] truncate text-slate-500">${v.remarks ?? '—'}</td>
+                    <td class="max-w-[200px] truncate text-slate-500">${v.notes ?? v.remarks ?? '—'}</td>
                     <td><span class="badge badge-${v.status === 'completed' ? 'success' : 'muted'}">${v.status ?? 'pending'}</span></td>
                 </tr>`).join('');
             renderPager('visits', data);
@@ -375,6 +384,23 @@
                     loadTab(tab, 1);
                 }
             });
+        });
+
+        // Lightbox helper
+        window.openImageLightbox = function(url) {
+            const m = document.getElementById('imageLightboxModal');
+            const img = document.getElementById('imageLightboxImg');
+            if (m && img) {
+                img.src = url;
+                m.style.display = 'flex';
+            }
+        };
+
+        window.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const m = document.getElementById('imageLightboxModal');
+                if (m) m.style.display = 'none';
+            }
         });
 
         // Auto-load first tab

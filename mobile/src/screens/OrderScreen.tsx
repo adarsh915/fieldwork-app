@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 import DatePickerModal from "../components/DatePickerModal";
@@ -43,6 +44,7 @@ export interface CartItem {
 export default function OrderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const route = useRoute<OrderScreenRouteProp>();
+  const insets = useSafeAreaInsets();
   const {
     visitId,
     partyId,
@@ -150,6 +152,10 @@ export default function OrderScreen() {
   };
 
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalPrice = cart.reduce(
+    (sum, item) => sum + item.quantity * (Number(item.unit.price) || 0),
+    0,
+  );
 
   // Validate and Submit Report
   const handleSubmit = async () => {
@@ -229,7 +235,10 @@ export default function OrderScreen() {
       />
 
       <KeyboardAwareScreen
-        contentStyle={styles.container}
+        contentStyle={[
+          styles.container,
+          { paddingBottom: Math.max(insets.bottom, 12) + 90 },
+        ]}
         extraScrollHeight={120}
       >
         {/* Source Badge (Visit vs Direct) */}
@@ -363,77 +372,99 @@ export default function OrderScreen() {
             </TouchableOpacity>
           ) : (
             <View style={styles.productList}>
-              {cart.map((item, index) => (
-                <View key={`${item.product.id}-${item.unit.id}`} style={styles.productRowCard}>
-                  <View style={styles.productRowMain}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.productRowName}>{item.product.name}</Text>
-                      <View style={styles.productRowMeta}>
-                        <Text style={styles.productUnitBadge}>
-                          {item.unit.unit_name || "Standard Unit"}
-                        </Text>
-                        {item.product.code ? (
-                          <Text style={styles.productSkuText}>
-                            SKU: {item.product.code}
+              {cart.map((item, index) => {
+                const itemRate = Number(item.unit.price) || 0;
+                const itemTotal = item.quantity * itemRate;
+                return (
+                  <View key={`${item.product.id}-${item.unit.id}`} style={styles.productRowCard}>
+                    <View style={styles.productRowMain}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.productRowName}>{item.product.name}</Text>
+                        <View style={styles.productRowMeta}>
+                          <Text style={styles.productUnitBadge}>
+                            {item.unit.unit_name || "Standard Unit"}
                           </Text>
-                        ) : null}
+                          {item.product.code ? (
+                            <Text style={styles.productSkuText}>
+                              SKU: {item.product.code}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      {/* Delete Item */}
+                      <TouchableOpacity
+                        onPress={() => handleRemoveItem(index)}
+                        style={styles.deleteItemBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MaterialIcons name="delete-outline" size={22} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Quantity Stepper & Manual Input */}
+                    <View style={styles.qtyControlRow}>
+                      <Text style={styles.qtyLabel}>Quantity:</Text>
+                      <View style={styles.stepperContainer}>
+                        <TouchableOpacity
+                          style={styles.stepBtn}
+                          onPress={() => handleUpdateQuantity(index, item.quantity - 1)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <MaterialIcons name="remove" size={18} color="#4B5563" />
+                        </TouchableOpacity>
+
+                        <TextInput
+                          style={styles.qtyInput}
+                          keyboardType="numeric"
+                          value={String(item.quantity)}
+                          onChangeText={(txt) => {
+                            const val = parseInt(txt, 10);
+                            if (!isNaN(val)) {
+                              handleUpdateQuantity(index, val);
+                            } else if (txt === "") {
+                              handleUpdateQuantity(index, 0);
+                            }
+                          }}
+                        />
+
+                        <TouchableOpacity
+                          style={[styles.stepBtn, styles.stepBtnAdd]}
+                          onPress={() => handleUpdateQuantity(index, item.quantity + 1)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <MaterialIcons name="add" size={18} color="#FFFFFF" />
+                        </TouchableOpacity>
                       </View>
                     </View>
 
-                    {/* Delete Item */}
-                    <TouchableOpacity
-                      onPress={() => handleRemoveItem(index)}
-                      style={styles.deleteItemBtn}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <MaterialIcons name="delete-outline" size={22} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Quantity Stepper & Manual Input */}
-                  <View style={styles.qtyControlRow}>
-                    <Text style={styles.qtyLabel}>Quantity:</Text>
-                    <View style={styles.stepperContainer}>
-                      <TouchableOpacity
-                        style={styles.stepBtn}
-                        onPress={() => handleUpdateQuantity(index, item.quantity - 1)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <MaterialIcons name="remove" size={18} color="#4B5563" />
-                      </TouchableOpacity>
-
-                      <TextInput
-                        style={styles.qtyInput}
-                        keyboardType="numeric"
-                        value={String(item.quantity)}
-                        onChangeText={(txt) => {
-                          const val = parseInt(txt, 10);
-                          if (!isNaN(val)) {
-                            handleUpdateQuantity(index, val);
-                          } else if (txt === "") {
-                            handleUpdateQuantity(index, 0);
-                          }
-                        }}
-                      />
-
-                      <TouchableOpacity
-                        style={[styles.stepBtn, styles.stepBtnAdd]}
-                        onPress={() => handleUpdateQuantity(index, item.quantity + 1)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <MaterialIcons name="add" size={18} color="#FFFFFF" />
-                      </TouchableOpacity>
+                    {/* Line item rate & total price */}
+                    <View style={styles.itemPriceRow}>
+                      <View style={styles.itemRateWrap}>
+                        <Text style={styles.itemRateLabel}>Rate:</Text>
+                        <Text style={styles.itemRateVal}>₹{itemRate.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.itemTotalWrap}>
+                        <Text style={styles.itemTotalLabel}>Total:</Text>
+                        <Text style={styles.itemTotalVal}>₹{itemTotal.toFixed(2)}</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
 
-              {/* Summary of quantities */}
+              {/* Summary of quantities & total amount */}
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Total Items: {cart.length}</Text>
-                <Text style={styles.summaryValue}>
-                  Total Quantity: <Text style={{ color: "#7367F0", fontWeight: "700" }}>{totalQuantity}</Text>
-                </Text>
+                <View style={styles.summaryCol}>
+                  <Text style={styles.summaryLabel}>Total Items: {cart.length}</Text>
+                  <Text style={styles.summaryValue}>
+                    Total Quantity: <Text style={{ color: "#7367F0", fontWeight: "700" }}>{totalQuantity}</Text>
+                  </Text>
+                </View>
+                <View style={[styles.summaryCol, { alignItems: "flex-end" }]}>
+                  <Text style={styles.summaryLabel}>Total Amount</Text>
+                  <Text style={styles.summaryTotalPrice}>₹{totalPrice.toFixed(2)}</Text>
+                </View>
               </View>
             </View>
           )}
@@ -462,10 +493,17 @@ export default function OrderScreen() {
       </KeyboardAwareScreen>
 
       {/* Floating Bottom Submit Button */}
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, 12) + 8 },
+        ]}
+      >
         <View style={styles.bottomBarInfo}>
-          <Text style={styles.bottomBarQtyLabel}>Total Quantity</Text>
-          <Text style={styles.bottomBarQtyVal}>{totalQuantity} units</Text>
+          <Text style={styles.bottomBarPriceVal}>₹{totalPrice.toFixed(2)}</Text>
+          <Text style={styles.bottomBarQtyVal}>
+            {totalQuantity} units • {cart.length} items
+          </Text>
         </View>
 
         <TouchableOpacity
@@ -785,17 +823,59 @@ const styles = StyleSheet.create({
     color: "#111827",
     padding: 0,
   },
+  itemPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  itemRateWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  itemRateLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  itemRateVal: {
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: "700",
+  },
+  itemTotalWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  itemTotalLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  itemTotalVal: {
+    fontSize: 14,
+    color: "#7367F0",
+    fontWeight: "800",
+  },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 8,
-    marginTop: 4,
+    paddingTop: 10,
+    marginTop: 6,
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
   },
+  summaryCol: {
+    justifyContent: "center",
+  },
   summaryLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#6B7280",
     fontWeight: "600",
   },
@@ -803,6 +883,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#374151",
     fontWeight: "600",
+    marginTop: 2,
+  },
+  summaryTotalPrice: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#7367F0",
+    marginTop: 2,
   },
   textArea: {
     backgroundColor: "#F9FAFB",
@@ -837,6 +924,11 @@ const styles = StyleSheet.create({
   bottomBarInfo: {
     justifyContent: "center",
   },
+  bottomBarPriceVal: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#7367F0",
+  },
   bottomBarQtyLabel: {
     fontSize: 11,
     color: "#6B7280",
@@ -844,9 +936,10 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   bottomBarQtyVal: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#111827",
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginTop: 1,
   },
   submitBtn: {
     flexDirection: "row",

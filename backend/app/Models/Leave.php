@@ -5,9 +5,12 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 class Leave extends Model
 {
+    use Auditable;
+
     protected $fillable = [
         'user_id',
         'leave_type_id',
@@ -35,6 +38,10 @@ class Leave extends Model
         'has_conflict'  => 'boolean',
         'conflict_date' => 'date',
         'resolved_at'   => 'datetime',
+    ];
+
+    protected $appends = [
+        'days_count',
     ];
 
     // ─── Relationships ────────────────────────────────────────────────────────
@@ -71,13 +78,19 @@ class Leave extends Model
             return 0.5;
         }
 
+        if (!$this->from_date || !$this->to_date) {
+            return 1.0;
+        }
+
         $start = $this->from_date->copy();
         $end   = $this->to_date->copy();
 
-        $holidayDates = Holiday::whereBetween('date', [$start->toDateString(), $end->toDateString()])
-            ->get()
-            ->map(fn ($h) => Carbon::parse($h->date)->toDateString())
-            ->toArray();
+        static $holidayDates = null;
+        if ($holidayDates === null) {
+            $holidayDates = Holiday::all()
+                ->map(fn ($h) => Carbon::parse($h->date)->toDateString())
+                ->toArray();
+        }
 
         $count = 0.0;
         $current = $start->copy();

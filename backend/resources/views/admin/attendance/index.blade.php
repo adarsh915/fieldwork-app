@@ -75,11 +75,13 @@
                     — <span class="font-bold text-indigo-600" x-text="monthName"></span>
                 </div>
 
+                @can('audit-logs.view')
                 <a href="{{ route('admin.audit-logs.index') }}"
                    class="btn-secondary text-xs py-2 px-3 inline-flex items-center gap-1.5">
                     <x-lucide-history class="w-3.5 h-3.5 text-ink-500" />
                     Audit Logs
                 </a>
+                @endcan
             </div>
 
         </div>
