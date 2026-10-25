@@ -100,12 +100,6 @@ class PartyController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        if (!$user->can('customers.create') && !$user->can('parties.create') && !$user->hasRole(['Super Admin', 'Admin'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You do not have permission to register new parties.',
-            ], 403);
-        }
 
         $validator = Validator::make($request->all(), [
             'name'        => 'required|string|max:255',

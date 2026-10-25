@@ -124,9 +124,9 @@ class DataScope
      * @param  string $module  e.g. 'visits', 'day-start', 'parties', 'expenses', 'reports', 'leaves'
      * @return array|null     null = unrestricted / see ALL, array = scoped user IDs
      */
-    public static function visibleUserIds(string $module = 'visits'): ?array
+    public static function visibleUserIds(string $module = 'visits', ?User $user = null): ?array
     {
-        $user = auth()->user();
+        $user = $user ?? auth('sanctum')->user() ?? auth()->user() ?? request()?->user();
         if (!$user) return [];
 
         // Super Admin / Admin bypass — always see all
@@ -182,9 +182,9 @@ class DataScope
      * @param  string $module
      * @return array|null  null = Super Admin/unrestricted, array = allowed subordinate IDs
      */
-    public static function actionableSubordinateIds(string $module = 'expenses'): ?array
+    public static function actionableSubordinateIds(string $module = 'expenses', ?User $user = null): ?array
     {
-        $user = auth()->user();
+        $user = $user ?? auth('sanctum')->user() ?? auth()->user() ?? request()?->user();
         if (!$user) return [];
 
         // Super Admin bypass — top authority can action all
@@ -194,25 +194,28 @@ class DataScope
 
         $modulesToCheck = static::$aliasGroups[$module] ?? [$module];
 
-        // Check if user has view-all or is Admin
+        // Check if user has view-all or is top Admin
         $hasAll = false;
         if ($user->hasRole(['Admin', 'admin'])) {
             $hasAll = true;
         } else {
+            // ONLY explicit view-all grants company-wide action scope (e.g., HR/Finance for expenses)
+            // .manage permission grants management of their OWN team, NOT their superiors!
             foreach ($modulesToCheck as $m) {
-                if ($user->can("{$m}.view-all") || $user->can("{$m}.manage")) {
+                if ($user->can("{$m}.view-all")) {
                     $hasAll = true;
                     break;
                 }
             }
         }
 
-        if ($hasAll) {
+        // Managers and team leaders must ONLY action their team subordinates (never superiors or peers)
+        if ($hasAll && !$user->hasRole(['Manager', 'manager'])) {
             // Can action all employees EXCEPT themselves (preventing self-approval)
             return User::where('id', '!=', $user->id)->pluck('id')->toArray();
         }
 
-        // For Team: returns ONLY subordinates strictly below this user in the reporting_to tree
+        // For Team / Managers: returns ONLY subordinates strictly below this user in the reporting_to tree
         return static::subtreeIds($user->id);
     }
 

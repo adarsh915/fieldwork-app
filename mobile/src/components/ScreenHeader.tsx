@@ -12,6 +12,7 @@ type ScreenHeaderProps = {
   rightElement?: React.ReactNode;
   bgColor?: string;
   showNotification?: boolean;
+  edges?: ("top" | "left" | "right" | "bottom")[];
 };
 
 export default function ScreenHeader({
@@ -20,6 +21,7 @@ export default function ScreenHeader({
   rightElement,
   bgColor = "#7367F0",
   showNotification = true,
+  edges = ["top", "left", "right"],
 }: ScreenHeaderProps) {
   const navigation = useNavigation<any>();
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -62,7 +64,7 @@ export default function ScreenHeader({
   );
 
   return (
-    <SafeAreaView style={{ backgroundColor: bgColor }} edges={["top", "left", "right"]}>
+    <SafeAreaView style={{ backgroundColor: bgColor }} edges={edges}>
       <View style={styles.header}>
         {onBack ? (
           <TouchableOpacity

@@ -92,12 +92,6 @@ class OrderController extends Controller
     public function store(Request $request, SettingsService $settings)
     {
         $user = $request->user();
-        if (!$user->can('orders.create') && !$user->hasRole(['Super Admin', 'Admin'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You do not have permission to place orders.',
-            ], 403);
-        }
 
         $request->validate([
             'visit_id' => 'nullable|exists:visits,id',

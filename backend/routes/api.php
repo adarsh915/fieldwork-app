@@ -159,5 +159,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/fuel-rates',            [\App\Http\Controllers\Admin\FuelRateController::class, 'store'])->name('fuel-rates.store');
         Route::delete('/fuel-rates/{id}',     [\App\Http\Controllers\Admin\FuelRateController::class, 'destroy'])->name('fuel-rates.destroy');
         Route::post('/fuel-rates/resolve',    [\App\Http\Controllers\Admin\FuelRateController::class, 'resolve'])->name('fuel-rates.resolve');
+
+        // Manager & VP Approvals Hub
+        Route::get('/approvals/counts',                  [\App\Http\Controllers\Api\AdminApprovalController::class, 'counts'])->name('approvals.counts');
+        Route::get('/approvals/team',                    [\App\Http\Controllers\Api\AdminApprovalController::class, 'teamMembers'])->name('approvals.team');
+        Route::get('/approvals/day-starts',              [\App\Http\Controllers\Api\AdminApprovalController::class, 'dayStarts'])->name('approvals.day-starts');
+        Route::patch('/approvals/day-starts/{id}',       [\App\Http\Controllers\Api\AdminApprovalController::class, 'updateDayStart'])->name('approvals.day-starts.update');
+        Route::post('/approvals/day-starts/{id}/action', [\App\Http\Controllers\Api\AdminApprovalController::class, 'actOnDayStart'])->name('approvals.day-starts.action');
+        Route::get('/approvals/expenses',                [\App\Http\Controllers\Api\AdminApprovalController::class, 'expenses'])->name('approvals.expenses');
+        Route::patch('/approvals/expenses/{id}',         [\App\Http\Controllers\Api\AdminApprovalController::class, 'updateExpense'])->name('approvals.expenses.update');
+        Route::post('/approvals/expenses/{id}/action',   [\App\Http\Controllers\Api\AdminApprovalController::class, 'actOnExpense'])->name('approvals.expenses.action');
     });
 });

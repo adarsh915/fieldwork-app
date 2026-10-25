@@ -139,9 +139,6 @@ class VisitController extends Controller
         ]);
 
         $user = $request->user();
-        if (!$user->can('visits.create') && !$user->hasRole(['Super Admin', 'Admin'])) {
-            return response()->json(['success' => false, 'message' => 'You do not have permission to check in for visits.'], 403);
-        }
         
         $dayStart = DayStart::where('user_id', $user->id)
             ->whereDate('date', Carbon::today())

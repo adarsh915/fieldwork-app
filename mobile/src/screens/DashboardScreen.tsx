@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { getDayStatus } from "../api/day";
 import { fetchUnreadCount, subscribeUnreadCount } from "../api/notifications";
+import { getApprovalCounts, type ApprovalCounts } from "../api/approvals";
 import { useAuth } from "../auth/AuthContext";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -38,6 +39,7 @@ export default function DashboardScreen() {
   const [dayActive, setDayActive] = useState(false);
   const [dayCompleted, setDayCompleted] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [approvalCounts, setApprovalCounts] = useState<ApprovalCounts | null>(null);
 
   // Sync real-time count updates
   useEffect(() => {
@@ -47,7 +49,7 @@ export default function DashboardScreen() {
     return unsubscribe;
   }, []);
 
-  // Fetch day status & unread notification count when screen comes into focus
+  // Fetch day status & unread notification count & approval counts when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
@@ -56,6 +58,15 @@ export default function DashboardScreen() {
       fetchUnreadCount()
         .then((count) => {
           if (isActive) setUnreadNotifCount(count);
+        })
+        .catch(() => {});
+
+      // Fetch approval counts for managers / VPs
+      getApprovalCounts()
+        .then((res) => {
+          if (isActive && res.success && res.data) {
+            setApprovalCounts(res.data);
+          }
         })
         .catch(() => {});
 
@@ -147,6 +158,15 @@ export default function DashboardScreen() {
     { label: "Expense\nSummary", icon: "chart-bar-stacked", onPress: () => navigation.navigate("ExpenseMonthlySummary") },
     { label: "Attendance", icon: "calendar-check-outline", onPress: () => navigation.navigate("AttendanceCalendar") },
     { label: "My Leaves", icon: "calendar-remove-outline", onPress: () => navigation.navigate("MyLeaves") },
+    ...(approvalCounts?.can_approve
+      ? [
+          {
+            label: "Approvals\nHub",
+            icon: "clipboard-check-outline" as const,
+            onPress: () => (navigation as any).navigate("ApprovalsHub"),
+          },
+        ]
+      : []),
     { label: "Product\nPlaning", icon: "chart-bar" },
     { label: "Coll.\nPlaning", icon: "briefcase-outline" },
     { label: "My Report", icon: "file-chart-outline", onPress: () => navigation.navigate("Report") },
@@ -281,6 +301,73 @@ export default function DashboardScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── Team Approvals Hero Card (Managers / VPs / Admins) ── */}
+        {approvalCounts?.can_approve && (
+          <TouchableOpacity
+            style={styles.approvalsCard}
+            activeOpacity={0.88}
+            onPress={() => (navigation as any).navigate("ApprovalsHub")}
+          >
+            <View style={styles.approvalsCardHeader}>
+              <View style={styles.approvalsTitleWrap}>
+                <View style={styles.approvalsIconBadge}>
+                  <MaterialCommunityIcons name="shield-check" size={20} color="#7367F0" />
+                </View>
+                <View>
+                  <Text style={styles.approvalsTitle}>Team Approvals Hub</Text>
+                  <Text style={styles.approvalsSubtitle}>Authorize Tour Plans & Expense Claims</Text>
+                </View>
+              </View>
+
+              {approvalCounts.total_pending > 0 ? (
+                <View style={styles.pendingBadge}>
+                  <Text style={styles.pendingBadgeText}>
+                    {approvalCounts.total_pending} Pending
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.pendingBadge, { backgroundColor: "#DCFCE7" }]}>
+                  <Text style={[styles.pendingBadgeText, { color: "#16A34A" }]}>All Clear</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.approvalsStatsRow}>
+              <View style={styles.approvalStatItem}>
+                <MaterialCommunityIcons name="map-marker-path" size={16} color="#4B5563" />
+                <Text style={styles.approvalStatLabel}>Tour Plans:</Text>
+                <Text
+                  style={[
+                    styles.approvalStatValue,
+                    approvalCounts.pending_day_starts > 0 && { color: "#D97706" },
+                  ]}
+                >
+                  {approvalCounts.pending_day_starts} pending
+                </Text>
+              </View>
+
+              <View style={styles.approvalStatDivider} />
+
+              <View style={styles.approvalStatItem}>
+                <MaterialCommunityIcons name="receipt" size={16} color="#4B5563" />
+                <Text style={styles.approvalStatLabel}>Expenses:</Text>
+                <Text
+                  style={[
+                    styles.approvalStatValue,
+                    approvalCounts.pending_expenses_l1 + approvalCounts.pending_expenses_l2 > 0 && {
+                      color: "#D97706",
+                    },
+                  ]}
+                >
+                  {approvalCounts.pending_expenses_l1 + approvalCounts.pending_expenses_l2} pending
+                </Text>
+              </View>
+
+              <MaterialIcons name="chevron-right" size={20} color="#7367F0" />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* ── Section: Parties (Customers) ────────────────────────────────── */}
         <View style={styles.sectionHeader}>
@@ -583,5 +670,89 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "600",
+  },
+  // ── Team Approvals Card ──
+  approvalsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: "#EDE9FE",
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  approvalsCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  approvalsTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  approvalsIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#EDE9FE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  approvalsTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  approvalsSubtitle: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 1,
+  },
+  pendingBadge: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pendingBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#D97706",
+  },
+  approvalsStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    padding: 10,
+    borderRadius: 10,
+    gap: 8,
+  },
+  approvalStatItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  approvalStatLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  approvalStatValue: {
+    fontSize: 11,
+    color: "#111827",
+    fontWeight: "700",
+  },
+  approvalStatDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "#E5E7EB",
   },
 });

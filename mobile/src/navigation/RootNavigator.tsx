@@ -48,8 +48,10 @@ import LeaveApplicationScreen from "../screens/LeaveApplicationScreen";
 import ReportScreen from "../screens/ReportScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import UserProfileScreen from "../screens/UserProfileScreen";
+import ApprovalsHubScreen from "../screens/admin/ApprovalsHubScreen";
 
 export type RootStackParamList = {
+  ApprovalsHub: undefined;
   // App screens
   Dashboard: undefined;
   Report: undefined;
@@ -150,6 +152,7 @@ export type AppStackParamList = {
   MyLeaves: undefined;
   LeaveApplication: undefined;
   UserProfile: undefined;
+  ApprovalsHub: undefined;
 };
 
 // ─── Stacks ────────────────────────────────────────────────────────────────────
@@ -199,6 +202,7 @@ function AppNavigator() {
           <AppStack.Screen name="MyLeaves" component={MyLeavesScreen} />
           <AppStack.Screen name="LeaveApplication" component={LeaveApplicationScreen} />
           <AppStack.Screen name="UserProfile" component={UserProfileScreen} />
+          <AppStack.Screen name="ApprovalsHub" component={ApprovalsHubScreen} />
         </AppStack.Navigator>
       </View>
       <AppBottomBar />

@@ -210,12 +210,6 @@ class ExpenseController extends Controller
     public function store(Request $request, SettingsService $settings): JsonResponse
     {
         $user = $request->user();
-        if (!$user->can('expenses.create') && !$user->hasRole(['Super Admin', 'Admin'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You do not have permission to submit expenses.',
-            ], 403);
-        }
 
         $today = Carbon::today()->toDateString();
 
