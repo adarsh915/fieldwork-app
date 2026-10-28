@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Route;
 
 // ─── Public Routes ─────────────────────────────────────────────────────────────
 Route::prefix('auth')->name('api.auth.')->group(function () {
-    Route::post('login', [AuthController::class, 'login'])->name('login');
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login');
 });
 
 // ─── Protected Routes ──────────────────────────────────────────────────────────

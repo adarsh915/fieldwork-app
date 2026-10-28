@@ -43,6 +43,18 @@ export interface ExpenseBill {
   approved_at?: string | null;
   final_note?: string | null;
   created_at: string;
+  day_start?: {
+    id: number;
+    opening_km: number | null;
+    closing_km: number | null;
+    opening_km_photo_url?: string | null;
+    closing_km_photo_url?: string | null;
+    vehicle_type?: { id: number; name: string } | null;
+    vehicle_no?: string | null;
+    visit_place?: string | null;
+    tour_purpose?: { id: number; name: string } | null;
+    applied_rate_per_km?: number | null;
+  } | null;
 }
 
 export interface GetExpensesParams {

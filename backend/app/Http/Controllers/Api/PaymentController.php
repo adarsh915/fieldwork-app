@@ -154,11 +154,27 @@ class PaymentController extends Controller
             $query->whereDate('collection_datetime', '<=', $request->to_date);
         }
 
-        $payments = $query->get();
+        if ($request->has('page') || $request->has('per_page')) {
+            $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+            $paginated = $query->paginate($perPage);
+
+            return response()->json([
+                'success'      => true,
+                'data'         => $paginated->items(),
+                'current_page' => $paginated->currentPage(),
+                'last_page'    => $paginated->lastPage(),
+                'per_page'     => $paginated->perPage(),
+                'total'        => $paginated->total(),
+                'has_more'     => $paginated->hasMorePages(),
+            ]);
+        }
+
+        $payments = $query->limit(100)->get();
 
         return response()->json([
             'success' => true,
             'data'    => $payments,
+            'total'   => $payments->count(),
         ]);
     }
 
@@ -271,7 +287,22 @@ class PaymentController extends Controller
 
         DataScope::apply($query, 'payments', 'collected_by');
 
-        $payments = $query->orderBy('created_at', 'asc')->get();
+        if ($request->has('page') || $request->has('per_page')) {
+            $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+            $paginated = $query->orderBy('created_at', 'asc')->paginate($perPage);
+
+            return response()->json([
+                'success'      => true,
+                'count'        => $paginated->total(),
+                'data'         => $paginated->items(),
+                'current_page' => $paginated->currentPage(),
+                'last_page'    => $paginated->lastPage(),
+                'per_page'     => $paginated->perPage(),
+                'has_more'     => $paginated->hasMorePages(),
+            ]);
+        }
+
+        $payments = $query->orderBy('created_at', 'asc')->limit(100)->get();
 
         return response()->json([
             'success' => true,
@@ -368,6 +399,13 @@ class PaymentController extends Controller
                 'success' => false,
                 'message' => "This payment has already been processed (Current status: {$payment->status}).",
             ], 422);
+        }
+
+        if ($payment->collected_by === $request->user()->id && !$request->user()->hasRole(['Super Admin', 'super_admin'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Conflict of Interest: You cannot confirm a payment you collected yourself.',
+            ], 403);
         }
 
         try {

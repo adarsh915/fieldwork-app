@@ -262,6 +262,7 @@ class VisitController extends Controller
         $visit = Visit::where('id', $id)->where('user_id', $user->id)->firstOrFail();
 
         $oldNotes = $visit->notes;
+        $notes = $request->input('notes') ?? $request->input('remarks');
 
         $visit->update([
             'notes' => $notes,

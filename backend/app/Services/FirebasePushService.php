@@ -108,9 +108,162 @@ class FirebasePushService
     }
 
     /**
+     * Broadcast notification to a Firebase Topic in 1 single API call.
+     */
+    public static function sendToTopic(string $topic, string $title, string $body, array $data = []): array
+    {
+        $cleanTopic = ltrim($topic, '/topics/');
+        return static::sendViaFcmV1Target(['topic' => $cleanTopic], $title, $body, $data);
+    }
+
+    /**
+     * Subscribe device token(s) to a Firebase Topic.
+     *
+     * @param string|array $tokens Single FCM token or array of tokens
+     * @param string $topic Topic name without '/topics/' prefix (e.g. 'all_employees')
+     * @return array
+     */
+    public static function subscribeToTopic(string|array $tokens, string $topic = 'all_employees'): array
+    {
+        $tokenList = is_array($tokens) ? $tokens : [$tokens];
+        $fcmTokens = array_values(array_filter($tokenList, function ($t) {
+            return !empty($t) && !str_starts_with($t, 'ExponentPushToken') && !str_starts_with($t, 'ExpoPushToken');
+        }));
+
+        if (empty($fcmTokens)) {
+            return ['success' => true, 'message' => 'No native FCM tokens to subscribe.'];
+        }
+
+        try {
+            $credentialsPath = static::getCredentialsPath();
+            if (!$credentialsPath || !file_exists($credentialsPath)) {
+                return ['success' => false, 'message' => 'Firebase credentials file not found.'];
+            }
+
+            $credentials = json_decode(file_get_contents($credentialsPath), true);
+            $accessToken = static::getGoogleOAuth2Token($credentials);
+            if (!$accessToken) {
+                return ['success' => false, 'message' => 'Failed to generate Google OAuth2 token.'];
+            }
+
+            $cleanTopic = ltrim($topic, '/topics/');
+            $response = Http::withoutVerifying()
+                ->withToken($accessToken)
+                ->withHeaders([
+                    'access_token_auth' => 'true',
+                    'Content-Type'      => 'application/json',
+                ])
+                ->post('https://iid.googleapis.com/iid/v1:batchAdd', [
+                    'to'                  => '/topics/' . $cleanTopic,
+                    'registration_tokens' => $fcmTokens,
+                ]);
+
+            if ($response->successful()) {
+                return ['success' => true, 'results' => $response->json()];
+            }
+
+            Log::error('FCM topic subscription error', ['status' => $response->status(), 'body' => $response->body()]);
+            return ['success' => false, 'message' => 'FCM subscription failed: ' . $response->body()];
+        } catch (\Throwable $e) {
+            Log::error('FCM topic subscription exception: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Unsubscribe device token(s) from a Firebase Topic.
+     */
+    public static function unsubscribeFromTopic(string|array $tokens, string $topic = 'all_employees'): array
+    {
+        $tokenList = is_array($tokens) ? $tokens : [$tokens];
+        $fcmTokens = array_values(array_filter($tokenList, function ($t) {
+            return !empty($t) && !str_starts_with($t, 'ExponentPushToken') && !str_starts_with($t, 'ExpoPushToken');
+        }));
+
+        if (empty($fcmTokens)) {
+            return ['success' => true, 'message' => 'No native FCM tokens to unsubscribe.'];
+        }
+
+        try {
+            $credentialsPath = static::getCredentialsPath();
+            if (!$credentialsPath || !file_exists($credentialsPath)) {
+                return ['success' => false, 'message' => 'Firebase credentials file not found.'];
+            }
+
+            $credentials = json_decode(file_get_contents($credentialsPath), true);
+            $accessToken = static::getGoogleOAuth2Token($credentials);
+            if (!$accessToken) {
+                return ['success' => false, 'message' => 'Failed to generate Google OAuth2 token.'];
+            }
+
+            $cleanTopic = ltrim($topic, '/topics/');
+            $response = Http::withoutVerifying()
+                ->withToken($accessToken)
+                ->withHeaders([
+                    'access_token_auth' => 'true',
+                    'Content-Type'      => 'application/json',
+                ])
+                ->post('https://iid.googleapis.com/iid/v1:batchRemove', [
+                    'to'                  => '/topics/' . $cleanTopic,
+                    'registration_tokens' => $fcmTokens,
+                ]);
+
+            return ['success' => $response->successful(), 'results' => $response->json()];
+        } catch (\Throwable $e) {
+            Log::error('FCM topic unsubscribe exception: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Send notification to multiple Expo push tokens in one single batch HTTP request (up to 100).
+     */
+    public static function sendViaExpoBatch(array $tokens, string $title, string $body, array $data = []): array
+    {
+        $expoTokens = array_values(array_filter($tokens, function ($t) {
+            return !empty($t) && (str_starts_with($t, 'ExponentPushToken') || str_starts_with($t, 'ExpoPushToken'));
+        }));
+
+        if (empty($expoTokens)) {
+            return ['success' => true, 'sent_count' => 0];
+        }
+
+        try {
+            $response = Http::withoutVerifying()
+                ->timeout(10)
+                ->withHeaders([
+                    'Accept'       => 'application/json',
+                    'Content-Type' => 'application/json',
+                ])
+                ->post('https://exp.host/--/api/v2/push/send', [
+                    'to'        => $expoTokens,
+                    'title'     => $title,
+                    'body'      => $body,
+                    'sound'     => 'default',
+                    'priority'  => 'high',
+                    'channelId' => 'default',
+                    'data'      => $data,
+                ]);
+
+            return ['success' => $response->successful(), 'response' => $response->json()];
+        } catch (\Throwable $e) {
+            Log::error('Expo Batch Push error: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Send notification using Firebase Cloud Messaging HTTP v1 API
      */
     protected static function sendViaFcmV1(string $token, string $title, string $body, array $data = []): array
+    {
+        return static::sendViaFcmV1Target(['token' => $token], $title, $body, $data);
+    }
+
+    /**
+     * Common FCM v1 dispatcher supporting both individual 'token' and broadcast 'topic'.
+     */
+    protected static function sendViaFcmV1Target(array $target, string $title, string $body, array $data = []): array
     {
         try {
             $credentialsPath = static::getCredentialsPath();
@@ -137,26 +290,25 @@ class FirebasePushService
 
             $url = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
 
-            $payload = [
-                'message' => [
-                    'token' => $token,
+            $messagePayload = array_merge($target, [
+                'notification' => [
+                    'title' => $title,
+                    'body'  => $body,
+                ],
+                'android' => [
+                    'priority' => 'HIGH',
                     'notification' => [
-                        'title' => $title,
-                        'body'  => $body,
-                    ],
-                    'android' => [
-                        'priority' => 'HIGH',
-                        'notification' => [
-                            'sound' => 'default',
-                            'channel_id' => 'default',
-                        ],
+                        'sound' => 'default',
+                        'channel_id' => 'default',
                     ],
                 ],
-            ];
+            ]);
 
             if (!empty($formattedData)) {
-                $payload['message']['data'] = $formattedData;
+                $messagePayload['data'] = $formattedData;
             }
+
+            $payload = ['message' => $messagePayload];
 
             $response = Http::withoutVerifying()
                 ->withToken($accessToken)

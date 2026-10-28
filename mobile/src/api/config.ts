@@ -25,7 +25,7 @@ import { Platform } from "react-native";
  *  - Mobile Device → EXPO_PUBLIC_API_URL or LAN IP (http://192.168.1.14:8000)
  */
 // --- LOCAL WI-FI (Same Wi-Fi network: Laptop + Phone Expo Go) ---
-// export const API_BASE_URL = "http://192.168.1.82:8000";
+// export const API_BASE_URL = "http://192.168.1.78:8000";
 
 // --- PRODUCTION SERVER (Live APK / Cloud Backend) ---
 export const API_BASE_URL =

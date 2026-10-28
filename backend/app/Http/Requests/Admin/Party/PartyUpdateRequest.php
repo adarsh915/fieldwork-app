@@ -31,6 +31,12 @@ class PartyUpdateRequest extends FormRequest
         $partyId = $this->route('id');
 
         return [
+            'party_code'      => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('customers', 'party_code')->ignore($partyId),
+            ],
             'name'            => ['required', 'string', 'max:255'],
             'owner_name'      => ['nullable', 'string', 'max:255'],
             'mobile'          => [

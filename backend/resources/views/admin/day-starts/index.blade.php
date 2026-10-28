@@ -176,10 +176,21 @@
                                 locBadge = `<div class="mt-1"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">📍 ${locText}</span></div>`;
                             }
 
+                            let tourPlanBadge = '';
+                            if (data.remarks) {
+                                tourPlanBadge = `
+                                    <div class="mt-1.5 flex items-start gap-1.5 text-xs text-amber-900 bg-amber-50/90 border border-amber-200 rounded-md px-2 py-1 leading-snug max-w-sm">
+                                        <span class="font-semibold text-amber-700 shrink-0">📋 Tour Plan:</span>
+                                        <span class="text-ink-700 break-words">${data.remarks}</span>
+                                    </div>
+                                `;
+                            }
+
                             return `
                                 <div class="text-body font-medium">${data.purpose}</div>
                                 ${sub.length ? `<div class="text-caption">${sub.join(' • ')}</div>` : ''}
                                 ${locBadge}
+                                ${tourPlanBadge}
                             `;
                         }
                     },

@@ -37,7 +37,10 @@ class ExpenseController extends Controller
                 'items:id,expense_bill_id,item_name,quantity,unit_price,total_price',
                 'rejectedBy:id,name',
                 'approvedBy:id,name',
-                'tempApprovedBy:id,name'
+                'tempApprovedBy:id,name',
+                'dayStart:id,opening_km,closing_km,opening_km_photo,closing_km_photo,applied_rate_per_km,vehicle_no,vehicle_type_id,visit_place,tour_purpose_id',
+                'dayStart.vehicleType:id,name',
+                'dayStart.tourPurpose:id,name'
             ]);
 
         // Status filtering matching mobile UI tab categories
@@ -103,7 +106,7 @@ class ExpenseController extends Controller
             ]);
         }
 
-        $expenses = $query->get();
+        $expenses = $query->limit(100)->get();
 
         return response()->json([
             'success' => true,

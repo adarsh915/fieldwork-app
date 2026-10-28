@@ -48,21 +48,27 @@ class FuelAllowanceSystemTest extends TestCase
         $this->user->assignRole($this->salesRole);
 
         // Create Vehicle Types
-        $this->bike = VehicleType::create([
-            'name' => 'Bike',
-            'slug' => 'bike',
-            'requires_vehicle_no' => true,
-            'is_active' => true,
-            'rate_per_km' => 3.50,
-        ]);
+        $this->bike = VehicleType::firstOrCreate(
+            ['slug' => 'bike'],
+            [
+                'name' => 'Bike',
+                'requires_vehicle_no' => true,
+                'is_active' => true,
+                'rate_per_km' => 3.50,
+            ]
+        );
+        $this->bike->update(['rate_per_km' => 3.50, 'is_active' => true]);
 
-        $this->car = VehicleType::create([
-            'name' => 'Car',
-            'slug' => 'car',
-            'requires_vehicle_no' => true,
-            'is_active' => true,
-            'rate_per_km' => 8.00,
-        ]);
+        $this->car = VehicleType::firstOrCreate(
+            ['slug' => 'car'],
+            [
+                'name' => 'Car',
+                'requires_vehicle_no' => true,
+                'is_active' => true,
+                'rate_per_km' => 8.00,
+            ]
+        );
+        $this->car->update(['rate_per_km' => 8.00, 'is_active' => true]);
 
         \App\Models\ExpenseCategory::firstOrCreate(
             ['name' => 'Travel'],

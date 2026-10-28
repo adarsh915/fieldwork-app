@@ -272,7 +272,7 @@ class DayController extends Controller
         $dayStart->update([
             'closing_km' => $request->closing_km,
             'closing_km_photo' => $closingImagePath,
-            'remarks' => $request->remarks,
+            'end_remarks' => $request->remarks,
             'end_time' => Carbon::now()->toTimeString(),
             // status can remain pending until approved by admin
         ]);
@@ -285,6 +285,7 @@ class DayController extends Controller
             // Calculate GPS Distance
             $logs = GpsTrackingLog::where('user_id', $user->id)
                 ->whereDate('created_at', $today)
+                ->select(['id', 'latitude', 'longitude'])
                 ->orderBy('created_at', 'asc')
                 ->get();
 

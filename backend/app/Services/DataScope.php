@@ -143,6 +143,10 @@ class DataScope
             }
         }
 
+        if ($user->hasRole(['HR', 'hr', 'Finance', 'finance'])) {
+            return null;
+        }
+
         // 2. Check for view-team and view-own
         $hasTeam = false;
         $hasOwn = false;
@@ -194,15 +198,13 @@ class DataScope
 
         $modulesToCheck = static::$aliasGroups[$module] ?? [$module];
 
-        // Check if user has view-all or is top Admin
+        // Check if user has view-all, final_approve, or is Admin/HR/Finance
         $hasAll = false;
-        if ($user->hasRole(['Admin', 'admin'])) {
+        if ($user->hasRole(['Admin', 'admin', 'HR', 'hr', 'Finance', 'finance'])) {
             $hasAll = true;
         } else {
-            // ONLY explicit view-all grants company-wide action scope (e.g., HR/Finance for expenses)
-            // .manage permission grants management of their OWN team, NOT their superiors!
             foreach ($modulesToCheck as $m) {
-                if ($user->can("{$m}.view-all")) {
+                if ($user->can("{$m}.view-all") || $user->can("{$m}.final_approve")) {
                     $hasAll = true;
                     break;
                 }
@@ -236,6 +238,11 @@ class DataScope
      */
     public static function applyParties(Builder $query): Builder
     {
+        $user = auth()->user();
+        if ($user && $user->hasRole(['Super Admin', 'super_admin', 'Admin', 'admin'])) {
+            return $query;
+        }
+
         $visibleIds = static::visibleUserIds('parties');
         if ($visibleIds !== null) {
             $query->whereHas('assignments', function ($sq) use ($visibleIds) {

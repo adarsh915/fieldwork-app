@@ -11,6 +11,18 @@ export interface ApprovalCounts {
   total_pending: number;
 }
 
+export interface LinkedDayExpense {
+  id: number;
+  amount: number;
+  amount_formatted: string;
+  category_name: string;
+  is_system_generated: boolean;
+  status: "pending" | "temp_approved" | "approved" | "rejected" | "manager_rejected";
+  bill_photo_url: string | null;
+  is_after_day_end: boolean;
+  items_count: number;
+}
+
 export interface DayStartApprovalItem {
   id: number;
   user_id: number;
@@ -33,10 +45,17 @@ export interface DayStartApprovalItem {
   opening_km_photo_url: string | null;
   closing_km: number | null;
   closing_km_photo_url: string | null;
+  distance_km?: number | null;
+  applied_rate_per_km?: number | null;
+  travel_allowance_amount?: number | null;
+  day_expenses?: LinkedDayExpense[];
+  total_day_expenses_amount?: number;
   status: "pending" | "submitted" | "approved" | "rejected";
   approved_by_name: string | null;
   remarks: string | null;
+  end_remarks?: string | null;
   can_action: boolean;
+  can_edit: boolean;
   created_at: string;
 }
 
@@ -57,6 +76,18 @@ export interface ExpenseApprovalItem {
   amount_formatted: string;
   category_name: string;
   is_system_generated: boolean;
+  day_start_id?: number | null;
+  opening_km?: number | null;
+  opening_km_photo_url?: string | null;
+  closing_km?: number | null;
+  closing_km_photo_url?: string | null;
+  distance_km?: number | null;
+  applied_rate_per_km?: number | null;
+  vehicle_type?: string | null;
+  vehicle_no?: string | null;
+  tour_purpose?: string | null;
+  visit_place?: string | null;
+  party_name?: string | null;
   date: string | null;
   date_formatted: string;
   bill_photo_url: string | null;
@@ -76,6 +107,7 @@ export interface ExpenseApprovalItem {
   can_manager_reject: boolean;
   can_final_approve: boolean;
   can_final_reject: boolean;
+  can_edit: boolean;
   created_at: string;
 }
 

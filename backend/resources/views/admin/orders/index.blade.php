@@ -301,6 +301,7 @@
                                             <span>View Order Details</span>
                                         </a>
 
+                                        ${data.can_manage ? `
                                         {{-- Change Status Section --}}
                                         <div class="my-1.5 border-t border-surface-border"></div>
                                         <div class="px-3.5 py-1 text-[10px] font-bold text-ink-400 uppercase tracking-wider">Change Status</div>
@@ -339,6 +340,7 @@
                                             <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                             <span>Cancel Order</span>
                                         </button>
+                                        ` : ''}
                                         ` : ''}
                                     </div>
                                 </div>

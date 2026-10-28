@@ -103,7 +103,8 @@ class DayStartController extends Controller
                     $aq->where('name', 'like', "%{$search}%");
                 })->orWhere('area_name_custom', 'like', "%{$search}%")
                   ->orWhere('visit_place', 'like', "%{$search}%")
-                  ->orWhere('vehicle_no', 'like', "%{$search}%");
+                  ->orWhere('vehicle_no', 'like', "%{$search}%")
+                  ->orWhere('remarks', 'like', "%{$search}%");
             });
         }
 
@@ -133,6 +134,7 @@ class DayStartController extends Controller
                     'district' => $ds->district?->name,
                     'area' => $ds->area?->name ?? $ds->area_name_custom,
                     'party' => $ds->party?->name,
+                    'remarks' => $ds->remarks,
                 ];
             })
             ->addColumn('opening_km', function ($ds) {
@@ -278,9 +280,10 @@ class DayStartController extends Controller
             ->get();
 
         $authUser = auth()->user();
-        $canFinalApprove = $authUser ? ($authUser->can('expenses.final_approve') || $authUser->hasRole(['Super Admin', 'Admin', 'Finance'])) : false;
-        $canTempApprove = $authUser ? ($authUser->can('expenses.approve') || $authUser->can('expenses.manage') || $canFinalApprove || $authUser->hasRole(['Manager', 'VP'])) : false;
-        $canEditExpense = $authUser ? ($authUser->can('expenses.edit') || $authUser->can('expenses.manage') || $authUser->hasRole(['Super Admin', 'Admin'])) : false;
+        $isSuperAdmin = $authUser ? $authUser->hasRole(['Super Admin', 'super_admin']) : false;
+        $canFinalApprove = $authUser ? ($authUser->can('expenses.final_approve') || $isSuperAdmin) : false;
+        $canTempApprove = $authUser ? ($authUser->can('expenses.approve') || $isSuperAdmin) : false;
+        $canEditExpense = $authUser ? ($authUser->can('expenses.edit') || $authUser->can('expenses.manage') || $isSuperAdmin) : false;
         $canEditDay = $authUser ? ($authUser->can('day-start.approve') || $authUser->hasRole(['Super Admin', 'Admin', 'Manager'])) : false;
         $canEditClosing = $canEditDay;
         $categories = \App\Models\ExpenseCategory::where('is_active', true)->orderBy('name')->get();
@@ -346,6 +349,7 @@ class DayStartController extends Controller
             'is_auto_closed' => $dayStart->is_auto_closed,
             'flagged_reason' => $dayStart->flagged_reason,
             'remarks' => $dayStart->remarks,
+            'end_remarks' => $dayStart->end_remarks,
         ];
 
         DB::transaction(function () use ($request, $dayStart, $user, $oldValues) {
@@ -369,7 +373,7 @@ class DayStartController extends Controller
                 'closing_km' => $newClosingKm,
                 'closing_km_photo' => $closingImagePath,
                 'end_time' => $endTime,
-                'remarks' => $request->remarks,
+                'end_remarks' => $request->remarks,
                 'is_auto_closed' => false,
                 'flagged_reason' => null, // Clear auto-close flag as admin manually corrected it
             ]);
@@ -462,6 +466,7 @@ class DayStartController extends Controller
                     'distance_km' => $distance,
                     'closing_km_photo_url' => $dayStart->closing_km_photo ? asset('storage/' . $dayStart->closing_km_photo) : null,
                     'remarks' => $dayStart->remarks ?? '',
+                    'end_remarks' => $dayStart->end_remarks ?? '',
                     'is_auto_closed' => $dayStart->is_auto_closed,
                     'total_amount' => $dayStart->total_amount,
                 ],
@@ -697,13 +702,18 @@ class DayStartController extends Controller
             'approved_by' => $user->id,
         ]);
 
-        // Auto-update system-generated travel expenses linked to this day start
-        $dayStart->expenses()
-            ->where('is_system_generated', true)
-            ->update([
-                'status' => $request->status,
-                'approved_by' => $user->id,
-            ]);
+        // If day start is rejected, reject any linked pending system-generated travel expense
+        if ($request->status === 'rejected') {
+            $dayStart->expenses()
+                ->where('is_system_generated', true)
+                ->whereIn('status', ['pending', 'temp_approved'])
+                ->update([
+                    'status' => 'rejected',
+                    'rejected_by' => $user->id,
+                    'rejected_at' => now(),
+                    'rejection_reason' => 'Day Start was rejected by ' . $user->name,
+                ]);
+        }
 
         \App\Models\AuditLog::logEvent(
             event: 'daystart.' . $request->status,

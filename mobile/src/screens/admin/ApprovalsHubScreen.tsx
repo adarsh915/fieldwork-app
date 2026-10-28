@@ -579,7 +579,7 @@ export default function ApprovalsHubScreen() {
     const to = Math.min(currentPage * perPage, totalRecords);
 
     return (
-      <View style={styles.paginationContainer}>
+      <View style={[styles.paginationContainer, { paddingBottom: Math.max(insets.bottom > 0 ? 10 : 8, 8) }]}>
         {/* Record count info & rows-per-page */}
         <View style={styles.paginationTopRow}>
           <Text style={styles.paginationInfoText}>
@@ -928,7 +928,7 @@ export default function ApprovalsHubScreen() {
       </View>
 
       {/* ── DATA TABLE SECTION (Horizontal Scrolling Table) ── */}
-      <View style={[styles.tableCardContainer, { marginBottom: Math.max(insets.bottom, 12) + 70 }]}>
+      <View style={[styles.tableCardContainer, { marginBottom: Math.max(insets.bottom, 10) }]}>
         {activeTab === "day_start" ? (
           /* ──────── Tour Plans Data Table ──────── */
           dsLoading ? (
@@ -947,6 +947,7 @@ export default function ApprovalsHubScreen() {
           ) : (
             <ScrollView
               style={styles.tableVerticalScroll}
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 10 }}
               refreshControl={
                 <RefreshControl
                   refreshing={dsRefreshing}
@@ -965,7 +966,7 @@ export default function ApprovalsHubScreen() {
                   <View style={styles.tableHeaderRow}>
                     <Text style={[styles.thCell, { width: 140 }]}>EMPLOYEE</Text>
                     <Text style={[styles.thCell, { width: 95 }]}>DATE</Text>
-                    <Text style={[styles.thCell, { width: 150 }]}>VISIT / PURPOSE</Text>
+                    <Text style={[styles.thCell, { width: 175 }]}>VISIT / TOUR PLAN</Text>
                     <Text style={[styles.thCell, { width: 120 }]}>VEHICLE</Text>
                     <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>DISTANCE</Text>
                     <Text style={[styles.thCell, { width: 100, textAlign: "center" }]}>STATUS</Text>
@@ -1002,14 +1003,27 @@ export default function ApprovalsHubScreen() {
                           <Text style={styles.tdSecondaryText}>{item.start_time || "—"}</Text>
                         </View>
 
-                        {/* Visit / Purpose Cell */}
-                        <View style={[styles.tdCell, { width: 150 }]}>
+                        {/* Visit / Purpose & Tour Plan Cell */}
+                        <View style={[styles.tdCell, { width: 175 }]}>
                           <Text style={styles.tdPrimaryText} numberOfLines={1}>
                             {item.tour_purpose}
                           </Text>
                           <Text style={styles.tdSecondaryText} numberOfLines={1}>
                             {item.visit_place || item.area || item.party_name || "—"}
                           </Text>
+                          {Boolean(item.remarks) && (
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: "#B45309",
+                                fontWeight: "600",
+                                marginTop: 2,
+                              }}
+                              numberOfLines={1}
+                            >
+                              📋 {item.remarks}
+                            </Text>
+                          )}
                         </View>
 
                         {/* Vehicle Cell */}
@@ -1060,13 +1074,15 @@ export default function ApprovalsHubScreen() {
                           ) : null}
 
                           {/* Edit / Adjust Button */}
-                          <TouchableOpacity
-                            style={[styles.actionMiniBtn, styles.actionMiniEdit]}
-                            activeOpacity={0.8}
-                            onPress={() => openEditDayStart(item)}
-                          >
-                            <MaterialIcons name="edit" size={15} color="#7367F0" />
-                          </TouchableOpacity>
+                          {item.can_edit && (
+                            <TouchableOpacity
+                              style={[styles.actionMiniBtn, styles.actionMiniEdit]}
+                              activeOpacity={0.8}
+                              onPress={() => openEditDayStart(item)}
+                            >
+                              <MaterialIcons name="edit" size={15} color="#7367F0" />
+                            </TouchableOpacity>
+                          )}
 
                           {/* Info/View Details Button */}
                           <TouchableOpacity
@@ -1102,6 +1118,7 @@ export default function ApprovalsHubScreen() {
           ) : (
             <ScrollView
               style={styles.tableVerticalScroll}
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 10 }}
               refreshControl={
                 <RefreshControl
                   refreshing={expRefreshing}
@@ -1230,13 +1247,15 @@ export default function ApprovalsHubScreen() {
                           )}
 
                           {/* Edit / Adjust Button */}
-                          <TouchableOpacity
-                            style={[styles.actionMiniBtn, styles.actionMiniEdit]}
-                            activeOpacity={0.8}
-                            onPress={() => openEditExpense(item)}
-                          >
-                            <MaterialIcons name="edit" size={15} color="#7367F0" />
-                          </TouchableOpacity>
+                          {item.can_edit && (
+                            <TouchableOpacity
+                              style={[styles.actionMiniBtn, styles.actionMiniEdit]}
+                              activeOpacity={0.8}
+                              onPress={() => openEditExpense(item)}
+                            >
+                              <MaterialIcons name="edit" size={15} color="#7367F0" />
+                            </TouchableOpacity>
+                          )}
 
                           {/* Info/View Details Button */}
                           <TouchableOpacity
@@ -1375,11 +1394,106 @@ export default function ApprovalsHubScreen() {
                     </View>
                   </View>
 
-                  {/* Remarks */}
+                  {/* Remarks / Tour Plan */}
                   {selectedDayStart.remarks && (
                     <View style={styles.remarksBox}>
-                      <Text style={styles.remarksTitle}>Employee Remarks:</Text>
+                      <Text style={styles.remarksTitle}>📋 Tour Plan / Start Notes:</Text>
                       <Text style={styles.remarksContent}>{selectedDayStart.remarks}</Text>
+                    </View>
+                  )}
+
+                  {/* Day End Remarks / Summary */}
+                  {selectedDayStart.end_remarks && (
+                    <View style={[styles.remarksBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                      <Text style={[styles.remarksTitle, { color: "#92400E" }]}>🏁 Day End Summary / Closing Notes:</Text>
+                      <Text style={[styles.remarksContent, { color: "#78350F" }]}>{selectedDayStart.end_remarks}</Text>
+                    </View>
+                  )}
+
+                  {/* Travel & Fuel Allowance Calculation Card */}
+                  <View style={styles.travelCalcCard}>
+                    <View style={styles.travelCalcCol}>
+                      <Text style={styles.travelCalcLabel}>Distance</Text>
+                      <Text style={styles.travelCalcVal}>
+                        {selectedDayStart.distance_km !== null && selectedDayStart.distance_km !== undefined
+                          ? `${selectedDayStart.distance_km} KM`
+                          : (selectedDayStart.closing_km !== null && selectedDayStart.opening_km !== null
+                            ? `${Math.max(0, Math.round(selectedDayStart.closing_km - selectedDayStart.opening_km))} KM`
+                            : "—")}
+                      </Text>
+                    </View>
+                    <View style={styles.travelCalcDivider} />
+                    <View style={styles.travelCalcCol}>
+                      <Text style={styles.travelCalcLabel}>Fuel Rate</Text>
+                      <Text style={styles.travelCalcVal}>
+                        {selectedDayStart.applied_rate_per_km
+                          ? `₹${selectedDayStart.applied_rate_per_km.toFixed(2)}/km`
+                          : "Standard"}
+                      </Text>
+                    </View>
+                    <View style={styles.travelCalcDivider} />
+                    <View style={styles.travelCalcCol}>
+                      <Text style={styles.travelCalcLabel}>Travel Claim</Text>
+                      <Text style={[styles.travelCalcVal, { color: "#059669", fontWeight: "800" }]}>
+                        {selectedDayStart.travel_allowance_amount
+                          ? `₹${selectedDayStart.travel_allowance_amount.toFixed(2)}`
+                          : "—"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Expenses Claimed on this Day Section (Matching Admin Panel) */}
+                  <View style={styles.dayExpensesHeaderWrap}>
+                    <Text style={styles.drawerSectionHeader}>Expenses Claimed Today</Text>
+                    {selectedDayStart.total_day_expenses_amount !== undefined && selectedDayStart.total_day_expenses_amount > 0 && (
+                      <View style={styles.dayExpensesTotalBadge}>
+                        <Text style={styles.dayExpensesTotalText}>
+                          Total: ₹{selectedDayStart.total_day_expenses_amount.toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {selectedDayStart.day_expenses && selectedDayStart.day_expenses.length > 0 ? (
+                    <View style={styles.dayExpensesListWrap}>
+                      {selectedDayStart.day_expenses.map((exp) => (
+                        <View key={exp.id} style={styles.dayExpenseCard}>
+                          <View style={styles.dayExpenseIconWrap}>
+                            <MaterialIcons
+                              name={exp.is_system_generated ? "directions-car" : "receipt"}
+                              size={20}
+                              color={exp.is_system_generated ? PURPLE : "#059669"}
+                            />
+                          </View>
+                          <View style={styles.dayExpenseInfo}>
+                            <View style={styles.dayExpenseTopRow}>
+                              <Text style={styles.dayExpenseCatName} numberOfLines={1}>
+                                {exp.category_name}
+                                {exp.items_count > 0 ? ` (${exp.items_count} items)` : ""}
+                              </Text>
+                              <Text style={styles.dayExpenseAmount}>₹{exp.amount_formatted}</Text>
+                            </View>
+                            <View style={styles.dayExpenseBtmRow}>
+                              <Text style={styles.dayExpenseTiming}>
+                                {exp.is_after_day_end ? "⚠️ After Day End" : "✓ During Shift"}
+                              </Text>
+                              {renderStatusPill(exp.status)}
+                            </View>
+                          </View>
+                          {exp.bill_photo_url && (
+                            <TouchableOpacity
+                              style={styles.dayExpenseThumbBtn}
+                              onPress={() => openPhotoViewer(exp.bill_photo_url, `${exp.category_name} Bill`)}
+                            >
+                              <Image source={{ uri: exp.bill_photo_url }} style={styles.dayExpenseThumbImg} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.dayExpensesEmptyBox}>
+                      <Text style={styles.dayExpensesEmptyText}>No expenses recorded for this day yet.</Text>
                     </View>
                   )}
                 </>
@@ -1401,17 +1515,19 @@ export default function ApprovalsHubScreen() {
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
-                  style={[styles.modalActionBtn, styles.modalEditBtnLarge]}
-                  onPress={() => {
-                    const ds = selectedDayStart;
-                    setSelectedDayStart(null);
-                    openEditDayStart(ds);
-                  }}
-                >
-                  <MaterialIcons name="edit" size={18} color="#7367F0" />
-                  <Text style={styles.modalEditTextLarge}>Edit Tour Plan</Text>
-                </TouchableOpacity>
+                {selectedDayStart.can_edit && (
+                  <TouchableOpacity
+                    style={[styles.modalActionBtn, styles.modalEditBtnLarge]}
+                    onPress={() => {
+                      const ds = selectedDayStart;
+                      setSelectedDayStart(null);
+                      openEditDayStart(ds);
+                    }}
+                  >
+                    <MaterialIcons name="edit" size={18} color="#7367F0" />
+                    <Text style={styles.modalEditTextLarge}>Edit Tour Plan</Text>
+                  </TouchableOpacity>
+                )}
 
                 {selectedDayStart.can_action && (
                   <TouchableOpacity
@@ -1482,23 +1598,151 @@ export default function ApprovalsHubScreen() {
                     )}
                   </View>
 
-                  {/* Bill Receipt Photo */}
-                  {selectedExpense.bill_photo_url && (
-                    <>
-                      <Text style={styles.drawerSectionHeader}>Receipt Voucher / Bill</Text>
-                      <TouchableOpacity
-                        style={styles.expBillViewer}
-                        onPress={() =>
-                          openPhotoViewer(selectedExpense.bill_photo_url, "Expense Receipt")
-                        }
-                      >
-                        <Image source={{ uri: selectedExpense.bill_photo_url }} style={styles.expBillImg} />
-                        <View style={styles.billZoomBanner}>
-                          <MaterialIcons name="zoom-in" size={14} color="#fff" />
-                          <Text style={styles.billZoomText}>Tap to Zoom Full Receipt</Text>
+                  {/* Automated Travel Allowance Meter Verification (When system generated) */}
+                  {selectedExpense.is_system_generated ? (
+                    <View style={styles.systemTravelCard}>
+                      <View style={styles.systemTravelHeader}>
+                        <MaterialIcons name="directions-car" size={18} color={PURPLE} />
+                        <Text style={styles.systemTravelTitle}>Trip & Meter Verification</Text>
+                      </View>
+
+                      {/* Vehicle & Route info */}
+                      <View style={styles.systemTravelInfoGrid}>
+                        {selectedExpense.vehicle_type ? (
+                          <View style={styles.systemTravelInfoItem}>
+                            <Text style={styles.systemTravelInfoLabel}>Vehicle</Text>
+                            <Text style={styles.systemTravelInfoVal}>
+                              {selectedExpense.vehicle_type} {selectedExpense.vehicle_no ? `(${selectedExpense.vehicle_no})` : ""}
+                            </Text>
+                          </View>
+                        ) : null}
+                        {selectedExpense.tour_purpose ? (
+                          <View style={styles.systemTravelInfoItem}>
+                            <Text style={styles.systemTravelInfoLabel}>Tour Purpose</Text>
+                            <Text style={styles.systemTravelInfoVal}>{selectedExpense.tour_purpose}</Text>
+                          </View>
+                        ) : null}
+                        {selectedExpense.visit_place ? (
+                          <View style={styles.systemTravelInfoItem}>
+                            <Text style={styles.systemTravelInfoLabel}>Destination</Text>
+                            <Text style={styles.systemTravelInfoVal}>{selectedExpense.visit_place}</Text>
+                          </View>
+                        ) : null}
+                        {selectedExpense.party_name ? (
+                          <View style={styles.systemTravelInfoItem}>
+                            <Text style={styles.systemTravelInfoLabel}>Client/Party</Text>
+                            <Text style={styles.systemTravelInfoVal}>{selectedExpense.party_name}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {/* Dual Meter Photos (Start & End) */}
+                      <Text style={[styles.drawerSectionHeader, { marginTop: 12, marginBottom: 8 }]}>
+                        Odometer Meter Proofs
+                      </Text>
+                      <View style={styles.drawerKmWrap}>
+                        <View style={styles.drawerKmCol}>
+                          <Text style={styles.drawerKmLabel}>Start Meter</Text>
+                          <Text style={styles.drawerKmVal}>
+                            {selectedExpense.opening_km !== null && selectedExpense.opening_km !== undefined
+                              ? `${selectedExpense.opening_km} KM`
+                              : "—"}
+                          </Text>
+                          {selectedExpense.opening_km_photo_url ? (
+                            <TouchableOpacity
+                              style={styles.drawerThumbBtn}
+                              onPress={() =>
+                                openPhotoViewer(selectedExpense.opening_km_photo_url || null, "Opening Meter Photo")
+                              }
+                            >
+                              <Image
+                                source={{ uri: selectedExpense.opening_km_photo_url }}
+                                style={styles.drawerThumbImg}
+                              />
+                              <View style={styles.zoomBadge}>
+                                <MaterialIcons name="zoom-in" size={12} color="#fff" />
+                              </View>
+                            </TouchableOpacity>
+                          ) : (
+                            <Text style={styles.noImgText}>No photo</Text>
+                          )}
                         </View>
-                      </TouchableOpacity>
-                    </>
+
+                        <View style={styles.drawerKmCol}>
+                          <Text style={styles.drawerKmLabel}>End Meter</Text>
+                          <Text style={styles.drawerKmVal}>
+                            {selectedExpense.closing_km !== null && selectedExpense.closing_km !== undefined
+                              ? `${selectedExpense.closing_km} KM`
+                              : "—"}
+                          </Text>
+                          {selectedExpense.closing_km_photo_url ? (
+                            <TouchableOpacity
+                              style={styles.drawerThumbBtn}
+                              onPress={() =>
+                                openPhotoViewer(selectedExpense.closing_km_photo_url || null, "Closing Meter Photo")
+                              }
+                            >
+                              <Image
+                                source={{ uri: selectedExpense.closing_km_photo_url }}
+                                style={styles.drawerThumbImg}
+                              />
+                              <View style={styles.zoomBadge}>
+                                <MaterialIcons name="zoom-in" size={12} color="#fff" />
+                              </View>
+                            </TouchableOpacity>
+                          ) : (
+                            <Text style={styles.noImgText}>No photo</Text>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Calculation Breakdown Banner */}
+                      <View style={styles.travelCalcCard}>
+                        <View style={styles.travelCalcCol}>
+                          <Text style={styles.travelCalcLabel}>Distance</Text>
+                          <Text style={styles.travelCalcVal}>
+                            {selectedExpense.distance_km !== null && selectedExpense.distance_km !== undefined
+                              ? `${selectedExpense.distance_km} KM`
+                              : "—"}
+                          </Text>
+                        </View>
+                        <View style={styles.travelCalcDivider} />
+                        <View style={styles.travelCalcCol}>
+                          <Text style={styles.travelCalcLabel}>Rate</Text>
+                          <Text style={styles.travelCalcVal}>
+                            {selectedExpense.applied_rate_per_km
+                              ? `₹${selectedExpense.applied_rate_per_km.toFixed(2)}/km`
+                              : "Standard"}
+                          </Text>
+                        </View>
+                        <View style={styles.travelCalcDivider} />
+                        <View style={styles.travelCalcCol}>
+                          <Text style={styles.travelCalcLabel}>Claimed Amount</Text>
+                          <Text style={[styles.travelCalcVal, { color: "#059669", fontWeight: "800" }]}>
+                            ₹{selectedExpense.amount_formatted}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : (
+                    /* Regular Manual Bill Photo */
+                    selectedExpense.bill_photo_url ? (
+                      <>
+                        <Text style={styles.drawerSectionHeader}>Receipt Voucher / Bill</Text>
+                        <TouchableOpacity
+                          style={styles.expBillViewer}
+                          onPress={() =>
+                            openPhotoViewer(selectedExpense.bill_photo_url, "Expense Receipt")
+                          }
+                        >
+                          <Image source={{ uri: selectedExpense.bill_photo_url }} style={styles.expBillImg} />
+                          <View style={styles.billZoomBanner}>
+                            <MaterialIcons name="zoom-in" size={14} color="#fff" />
+                            <Text style={styles.billZoomText}>Tap to Zoom Full Receipt</Text>
+                          </View>
+                        </TouchableOpacity>
+                      </>
+                    ) : null
                   )}
 
                   {/* Itemized Table */}
@@ -1561,17 +1805,19 @@ export default function ApprovalsHubScreen() {
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
-                  style={[styles.modalActionBtn, styles.modalEditBtnLarge]}
-                  onPress={() => {
-                    const exp = selectedExpense;
-                    setSelectedExpense(null);
-                    openEditExpense(exp);
-                  }}
-                >
-                  <MaterialIcons name="edit" size={18} color="#7367F0" />
-                  <Text style={styles.modalEditTextLarge}>Edit Claim</Text>
-                </TouchableOpacity>
+                {selectedExpense.can_edit && (
+                  <TouchableOpacity
+                    style={[styles.modalActionBtn, styles.modalEditBtnLarge]}
+                    onPress={() => {
+                      const exp = selectedExpense;
+                      setSelectedExpense(null);
+                      openEditExpense(exp);
+                    }}
+                  >
+                    <MaterialIcons name="edit" size={18} color="#7367F0" />
+                    <Text style={styles.modalEditTextLarge}>Edit Claim</Text>
+                  </TouchableOpacity>
+                )}
 
                 {selectedExpense.can_temp_approve && (
                   <TouchableOpacity
@@ -2158,8 +2404,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 6,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === "ios" ? 10 : 6,
     borderRadius: 12,
@@ -2178,7 +2424,7 @@ const styles = StyleSheet.create({
 
   // ── Filter Chips ──
   filterScrollContainer: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   filterScroll: {
     paddingHorizontal: 16,
@@ -3107,5 +3353,194 @@ const styles = StyleSheet.create({
   emptyEmployeeText: {
     fontSize: 12,
     color: "#9CA3AF",
+  },
+
+  // Travel calculation highlight card
+  travelCalcCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  travelCalcCol: {
+    alignItems: "center",
+    flex: 1,
+  },
+  travelCalcLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  travelCalcVal: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1E1B4B",
+  },
+  travelCalcDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: "#CBD5E1",
+  },
+
+  // Day Expenses Claimed Section
+  dayExpensesHeaderWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  dayExpensesTotalBadge: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  dayExpensesTotalText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#059669",
+  },
+  dayExpensesListWrap: {
+    gap: 8,
+    marginTop: 4,
+  },
+  dayExpenseCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    padding: 10,
+    gap: 10,
+  },
+  dayExpenseIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayExpenseInfo: {
+    flex: 1,
+  },
+  dayExpenseTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  dayExpenseCatName: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1F2937",
+    flex: 1,
+    marginRight: 6,
+  },
+  dayExpenseAmount: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#059669",
+  },
+  dayExpenseBtmRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  dayExpenseTiming: {
+    fontSize: 10,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  dayExpenseThumbBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  dayExpenseThumbImg: {
+    width: "100%",
+    height: "100%",
+  },
+  dayExpensesEmptyBox: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderStyle: "dashed",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  dayExpensesEmptyText: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+  },
+
+  // System Travel Card inside Expense Modal
+  systemTravelCard: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  systemTravelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingBottom: 6,
+  },
+  systemTravelTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  systemTravelInfoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 6,
+  },
+  systemTravelInfoItem: {
+    width: "48%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  systemTravelInfoLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  systemTravelInfoVal: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#111827",
   },
 });

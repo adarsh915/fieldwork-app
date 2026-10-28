@@ -29,9 +29,9 @@ class AdminApprovalController extends Controller
         // 1. Check if user is eligible to approve
         $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
         $isAdmin = $user->hasRole(['Admin', 'admin']);
-        $canApproveDay = $user->can('day-start.approve') || $isSuperAdmin || $isAdmin || $user->hasRole(['Manager', 'VP']);
-        $canFinalApproveExp = $user->can('expenses.final_approve') || $user->hasRole(['Super Admin', 'Admin', 'Finance', 'HR', 'VP']);
-        $canTempApproveExp = $user->can('expenses.approve') || $user->can('expenses.manage') || $canFinalApproveExp || $user->hasRole(['Manager', 'VP']);
+        $canApproveDay = $user->can('day-start.approve') || $isSuperAdmin || $isAdmin;
+        $canFinalApproveExp = $user->can('expenses.final_approve') || $isSuperAdmin;
+        $canTempApproveExp = $user->can('expenses.approve') || $isSuperAdmin;
 
         // Check if user has subordinates
         $hasSubordinates = User::where('reporting_to', $user->id)->exists();
@@ -167,10 +167,11 @@ class AdminApprovalController extends Controller
     {
         $user = $request->user();
         $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
-        $canApprove = $user->can('day-start.approve') || $isSuperAdmin || $user->hasRole(['Admin', 'admin', 'Manager', 'VP']);
+        $canApprove = $user->can('day-start.approve') || $isSuperAdmin;
+        $canEditDay = $user->can('day-start.manage') || $isSuperAdmin;
 
-        if (!$canApprove) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized: Only Managers and Admins can view approval requests.'], 403);
+        if (!$canApprove && !$canEditDay) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized: You do not have permission to view tour plan approvals.'], 403);
         }
 
         $query = DayStart::with([
@@ -182,6 +183,8 @@ class AdminApprovalController extends Controller
             'district:id,name',
             'area:id,name',
             'approvedBy:id,name',
+            'expenses.category:id,name',
+            'expenses.items',
         ]);
 
         // Data scoping — using the exact same visibleUserIds as the admin panel
@@ -228,11 +231,33 @@ class AdminApprovalController extends Controller
 
         $actionableIds = DataScope::actionableSubordinateIds('day-start', $user);
 
-        $formattedItems = collect($paginated->items())->map(function ($ds) use ($user, $isSuperAdmin, $canApprove, $actionableIds) {
+        $formattedItems = collect($paginated->items())->map(function ($ds) use ($user, $isSuperAdmin, $canApprove, $canEditDay, $actionableIds) {
             $isSubordinateEligible = $actionableIds === null || in_array($ds->user_id, $actionableIds, true);
             $notSelf = ($ds->user_id !== $user->id) || $isSuperAdmin;
             $isPending = in_array($ds->status, ['pending', 'submitted'], true);
             $canAction = $canApprove && $isPending && $notSelf && $isSubordinateEligible;
+            $canEdit = $canEditDay && $notSelf && $isSubordinateEligible;
+
+            $distanceKm = ($ds->closing_km !== null && $ds->opening_km !== null)
+                ? max(0, round($ds->closing_km - $ds->opening_km, 2))
+                : null;
+            $appliedRate = $ds->applied_rate_per_km !== null ? (float) $ds->applied_rate_per_km : null;
+            $travelAmount = $ds->total_amount !== null ? (float) $ds->total_amount : null;
+
+            $linkedExpenses = $ds->expenses->map(function ($exp) {
+                return [
+                    'id' => $exp->id,
+                    'amount' => (float) $exp->amount,
+                    'amount_formatted' => number_format((float) $exp->amount, 2),
+                    'category_name' => $exp->is_system_generated ? 'System Travel' : ($exp->category?->name ?? 'General'),
+                    'is_system_generated' => (bool) $exp->is_system_generated,
+                    'status' => $exp->status,
+                    'bill_photo_url' => $exp->bill_photo ? asset('storage/' . $exp->bill_photo) : null,
+                    'is_after_day_end' => (bool) $exp->is_after_day_end,
+                    'items_count' => $exp->items->count(),
+                ];
+            });
+            $totalDayExpenses = (float) $ds->expenses->sum('amount');
 
             return [
                 'id' => $ds->id,
@@ -256,10 +281,17 @@ class AdminApprovalController extends Controller
                 'opening_km_photo_url' => $ds->opening_km_photo ? asset('storage/' . $ds->opening_km_photo) : null,
                 'closing_km' => $ds->closing_km !== null ? (float) $ds->closing_km : null,
                 'closing_km_photo_url' => $ds->closing_km_photo ? asset('storage/' . $ds->closing_km_photo) : null,
+                'distance_km' => $distanceKm,
+                'applied_rate_per_km' => $appliedRate,
+                'travel_allowance_amount' => $travelAmount,
+                'day_expenses' => $linkedExpenses,
+                'total_day_expenses_amount' => $totalDayExpenses,
                 'status' => $ds->status ?? 'pending',
                 'approved_by_name' => $ds->approvedBy?->name,
                 'remarks' => $ds->remarks,
+                'end_remarks' => $ds->end_remarks,
                 'can_action' => $canAction,
+                'can_edit' => $canEdit,
                 'created_at' => $ds->created_at?->diffForHumans(),
             ];
         });
@@ -283,7 +315,7 @@ class AdminApprovalController extends Controller
         $user = $request->user();
         $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
 
-        if (!$user->can('day-start.approve') && !$isSuperAdmin && !$user->hasRole(['Admin', 'admin', 'Manager', 'VP'])) {
+        if (!$user->can('day-start.approve') && !$isSuperAdmin) {
             return response()->json(['success' => false, 'message' => 'Unauthorized: You do not have permission to approve tour plans.'], 403);
         }
 
@@ -312,13 +344,18 @@ class AdminApprovalController extends Controller
             'approved_by' => $user->id,
         ]);
 
-        // Auto-update system-generated travel expenses linked to this day start
-        $dayStart->expenses()
-            ->where('is_system_generated', true)
-            ->update([
-                'status' => $newStatus,
-                'approved_by' => $user->id,
-            ]);
+        // If day start is rejected, reject any linked pending system-generated travel expense
+        if ($newStatus === 'rejected') {
+            $dayStart->expenses()
+                ->where('is_system_generated', true)
+                ->whereIn('status', ['pending', 'temp_approved'])
+                ->update([
+                    'status' => 'rejected',
+                    'rejected_by' => $user->id,
+                    'rejected_at' => now(),
+                    'rejection_reason' => $request->input('reason') ?: ('Day Start was rejected by ' . $user->name),
+                ]);
+        }
 
         AuditLog::logEvent(
             event: 'daystart.' . $newStatus,
@@ -344,7 +381,7 @@ class AdminApprovalController extends Controller
     {
         $user = $request->user();
         $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
-        $canEdit = $user->can('day-start.approve') || $user->can('day-start.manage') || $isSuperAdmin || $user->hasRole(['Admin', 'admin', 'Manager', 'VP']);
+        $canEdit = $user->can('day-start.manage') || $isSuperAdmin;
 
         if (!$canEdit) {
             return response()->json(['success' => false, 'message' => 'Unauthorized to edit tour plan.'], 403);
@@ -478,11 +515,12 @@ class AdminApprovalController extends Controller
         $user = $request->user();
         $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
         $isAdmin = $user->hasRole(['Admin', 'admin']);
-        $canFinalApprove = $user->can('expenses.final_approve') || $user->hasRole(['Super Admin', 'Admin', 'Finance', 'HR', 'VP']);
-        $canTempApprove = $user->can('expenses.approve') || $user->can('expenses.manage') || $canFinalApprove || $user->hasRole(['Manager', 'VP']);
+        $canFinalApprove = $user->can('expenses.final_approve') || $isSuperAdmin;
+        $canTempApprove = $user->can('expenses.approve') || $isSuperAdmin;
+        $canEditExp = $user ? ($user->can('expenses.edit') || $user->can('expenses.manage') || $isSuperAdmin) : false;
 
-        if (!$canTempApprove && !$canFinalApprove) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized to approve expenses.'], 403);
+        if (!$canTempApprove && !$canFinalApprove && !$canEditExp) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized to view expense approvals.'], 403);
         }
 
         $query = ExpenseBill::with([
@@ -492,6 +530,9 @@ class AdminApprovalController extends Controller
             'tempApprovedBy:id,name',
             'approvedBy:id,name',
             'rejectedBy:id,name',
+            'dayStart.vehicleType:id,name',
+            'dayStart.tourPurpose:id,name',
+            'dayStart.party:id,name',
         ]);
 
         // Data scoping — using the exact same visibleUserIds as the admin panel
@@ -540,22 +581,37 @@ class AdminApprovalController extends Controller
 
         $actionableIds = DataScope::actionableSubordinateIds('expenses', $user);
 
-        $formattedItems = collect($paginated->items())->map(function ($expense) use ($user, $isSuperAdmin, $isAdmin, $canTempApprove, $canFinalApprove, $actionableIds) {
+        $formattedItems = collect($paginated->items())->map(function ($expense) use ($user, $isSuperAdmin, $isAdmin, $canTempApprove, $canFinalApprove, $canEditExp, $actionableIds) {
             $notSelf = ($expense->user_id !== $user->id) || $isSuperAdmin;
             $isSubordinate = ($actionableIds === null || in_array($expense->user_id, $actionableIds, true));
 
             $isDirectManager = ($expense->user && $expense->user->reporting_to === $user->id)
                 || $isSuperAdmin
-                || $isAdmin
-                || $user->can('expenses.manage')
                 || (empty($expense->user?->reporting_to) && $user->can('expenses.view-all'));
 
             $canL1 = $notSelf && $canTempApprove && $isDirectManager && ($expense->status === 'pending');
-            $canL2 = $notSelf && $canFinalApprove && ($expense->status === 'temp_approved');
 
-            if ($isSuperAdmin && in_array($expense->status, ['pending', 'manager_rejected'], true)) {
-                $canL2 = true;
-            }
+            // Level 2 Final Approval:
+            // If expense has a direct reporting manager and is pending, Level 1 verification is required first.
+            $hasNoManager = empty($expense->user?->reporting_to);
+            $isEligibleForL2 = ($expense->status === 'temp_approved')
+                || ($expense->status === 'manager_rejected')
+                || ($expense->status === 'pending' && ($hasNoManager || $isSuperAdmin));
+
+            $canL2 = $notSelf && $canFinalApprove && $isEligibleForL2;
+            $canEdit = $canEditExp && $notSelf && $isSubordinate;
+
+            $ds = $expense->dayStart;
+            $dsDistance = ($ds && $ds->closing_km !== null && $ds->opening_km !== null)
+                ? max(0, round($ds->closing_km - $ds->opening_km, 2))
+                : null;
+
+            // For system generated expenses, fallback bill_photo_url to meter photos if direct bill photo is empty
+            $billPhotoUrl = $expense->bill_photo
+                ? asset('storage/' . $expense->bill_photo)
+                : ($expense->is_system_generated && $ds
+                    ? ($ds->closing_km_photo ? asset('storage/' . $ds->closing_km_photo) : ($ds->opening_km_photo ? asset('storage/' . $ds->opening_km_photo) : null))
+                    : null);
 
             return [
                 'id' => $expense->id,
@@ -567,9 +623,21 @@ class AdminApprovalController extends Controller
                 'amount_formatted' => number_format((float) $expense->amount, 2),
                 'category_name' => $expense->is_system_generated ? 'System Travel Allowance' : ($expense->category?->name ?? 'General'),
                 'is_system_generated' => (bool) $expense->is_system_generated,
+                'day_start_id' => $expense->day_start_id,
+                'opening_km' => $ds?->opening_km !== null ? (float) $ds->opening_km : null,
+                'opening_km_photo_url' => $ds?->opening_km_photo ? asset('storage/' . $ds->opening_km_photo) : null,
+                'closing_km' => $ds?->closing_km !== null ? (float) $ds->closing_km : null,
+                'closing_km_photo_url' => $ds?->closing_km_photo ? asset('storage/' . $ds->closing_km_photo) : null,
+                'distance_km' => $dsDistance,
+                'applied_rate_per_km' => $ds?->applied_rate_per_km !== null ? (float) $ds->applied_rate_per_km : null,
+                'vehicle_type' => $ds?->vehicleType?->name,
+                'vehicle_no' => $ds?->vehicle_no,
+                'tour_purpose' => $ds?->tourPurpose?->name,
+                'visit_place' => $ds?->visit_place,
+                'party_name' => $ds?->party?->name,
                 'date' => $expense->date ? $expense->date->format('Y-m-d') : null,
                 'date_formatted' => $expense->date ? $expense->date->format('d M Y') : '—',
-                'bill_photo_url' => $expense->bill_photo ? asset('storage/' . $expense->bill_photo) : null,
+                'bill_photo_url' => $billPhotoUrl,
                 'is_after_day_end' => (bool) $expense->is_after_day_end,
                 'status' => $expense->status,
                 'temp_approved_by' => $expense->tempApprovedBy?->name,
@@ -593,6 +661,7 @@ class AdminApprovalController extends Controller
                 'can_manager_reject' => $canL1,
                 'can_final_approve' => $canL2,
                 'can_final_reject' => $notSelf && $canFinalApprove && in_array($expense->status, ['temp_approved', 'manager_rejected'], true),
+                'can_edit' => $canEdit,
                 'created_at' => $expense->created_at?->diffForHumans(),
             ];
         });
@@ -616,8 +685,8 @@ class AdminApprovalController extends Controller
         $user = $request->user();
         $isSuperAdmin = $user && $user->hasRole(['Super Admin', 'super_admin']);
         $isAdmin = $user && $user->hasRole(['Admin', 'admin']);
-        $canFinalApprove = $user ? ($user->can('expenses.final_approve') || $user->hasRole(['Super Admin', 'Admin', 'Finance', 'HR', 'VP'])) : false;
-        $canTempApprove = $user ? ($user->can('expenses.approve') || $user->can('expenses.manage') || $canFinalApprove || $user->hasRole(['Manager', 'VP'])) : false;
+        $canFinalApprove = $user ? ($user->can('expenses.final_approve') || $isSuperAdmin) : false;
+        $canTempApprove = $user ? ($user->can('expenses.approve') || $isSuperAdmin) : false;
 
         $expense = ExpenseBill::with('user')->findOrFail($id);
 
@@ -635,8 +704,6 @@ class AdminApprovalController extends Controller
 
         $isDirectManager = ($expense->user && $expense->user->reporting_to === $user->id)
             || $isSuperAdmin
-            || $isAdmin
-            || $user->can('expenses.manage')
             || (empty($expense->user?->reporting_to) && $user->can('expenses.view-all'));
 
         if ($action === 'temp_approve') {
@@ -675,10 +742,12 @@ class AdminApprovalController extends Controller
             ]);
         } elseif ($action === 'final_approve' || $action === 'approved') {
             if (!$canFinalApprove) {
-                return response()->json(['success' => false, 'message' => 'Unauthorized: Final approval requires VP, HR, or Finance role.'], 403);
+                return response()->json(['success' => false, 'message' => 'Unauthorized: Final approval requires final approval permission.'], 403);
             }
 
-            if ($expense->status === 'pending' && !$isSuperAdmin) {
+            // Strict Gatekeeping: Cannot final-approve while pending if employee has a reporting manager who hasn't verified yet
+            $hasReportingManager = !empty($expense->user?->reporting_to);
+            if ($expense->status === 'pending' && $hasReportingManager && !$isSuperAdmin) {
                 return response()->json(['success' => false, 'message' => 'Cannot Final Approve: Level 1 manager verification is required first.'], 422);
             }
 
@@ -783,7 +852,7 @@ class AdminApprovalController extends Controller
         $user = $request->user();
         $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
         $isAdmin = $user->hasRole(['Admin', 'admin']);
-        $canManage = $user->can('expenses.manage') || $user->can('expenses.approve') || $user->can('expenses.final_approve') || $user->hasRole(['Manager', 'VP', 'Finance', 'HR', 'Admin', 'Super Admin']);
+        $canManage = $user ? ($user->can('expenses.edit') || $user->can('expenses.manage') || $isSuperAdmin) : false;
 
         if (!$canManage) {
             return response()->json(['success' => false, 'message' => 'Unauthorized to edit expenses.'], 403);

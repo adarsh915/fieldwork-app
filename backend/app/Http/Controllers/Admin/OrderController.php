@@ -116,6 +116,8 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
+        $canManage = $request->user()->can('orders.manage') || $request->user()->can('orders.edit') || $request->user()->hasRole(['Super Admin', 'Admin']);
+
         return DataTables::of($query)
             ->addColumn('order_no', function ($order) {
                 return $order->order_no;
@@ -150,11 +152,12 @@ class OrderController extends Controller
             ->addColumn('status', function ($order) {
                 return $order->status;
             })
-            ->addColumn('actions', function ($order) {
+            ->addColumn('actions', function ($order) use ($canManage) {
                 return [
                     'id' => $order->id,
                     'order_no' => $order->order_no,
                     'status' => $order->status,
+                    'can_manage' => $canManage,
                     'show_url' => route('admin.orders.show', $order->id),
                     'update_status_url' => route('admin.orders.update-status', $order->id),
                 ];
@@ -177,6 +180,11 @@ class OrderController extends Controller
 
     public function updateStatus(Request $request, Order $order)
     {
+        $user = $request->user();
+        if (!$user->can('orders.manage') && !$user->can('orders.edit') && !$user->hasRole(['Super Admin', 'Admin'])) {
+            abort(403, 'Unauthorized: You do not have permission to change order statuses.');
+        }
+
         $scopedUserIds = DataScope::visibleUserIds('orders');
         if ($scopedUserIds !== null && !in_array($order->user_id, $scopedUserIds, true)) {
             abort(403, 'Unauthorized to update status for this order.');

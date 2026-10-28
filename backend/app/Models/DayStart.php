@@ -34,6 +34,7 @@ class DayStart extends Model
         'status',
         'approved_by',
         'remarks',
+        'end_remarks',
         'party_id',
         'district_id',
         'area_id',
@@ -51,6 +52,21 @@ class DayStart extends Model
         'start_lat'           => 'decimal:7',
         'start_lng'           => 'decimal:7',
     ];
+
+    protected $appends = [
+        'opening_km_photo_url',
+        'closing_km_photo_url',
+    ];
+
+    public function getOpeningKmPhotoUrlAttribute(): ?string
+    {
+        return $this->opening_km_photo ? asset('storage/' . $this->opening_km_photo) : null;
+    }
+
+    public function getClosingKmPhotoUrlAttribute(): ?string
+    {
+        return $this->closing_km_photo ? asset('storage/' . $this->closing_km_photo) : null;
+    }
 
     public function trips()
     {

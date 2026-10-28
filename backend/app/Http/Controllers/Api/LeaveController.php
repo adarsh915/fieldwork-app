@@ -102,7 +102,7 @@ class LeaveController extends Controller
             ]);
         }
 
-        $leaves = $query->get();
+        $leaves = $query->limit(100)->get();
 
         return response()->json([
             'success' => true,
@@ -422,46 +422,60 @@ class LeaveController extends Controller
             ->when($status === 'resolved', fn ($q) => $q->where('conflict_status', 'resolved'))
             ->when($status !== 'resolved', fn ($q) => $q->where('conflict_status', 'pending_review'))
             ->orderBy('conflict_date', 'desc')
-            ->get()
-            ->map(function ($leave) {
-                $dayStart = DayStart::where('user_id', $leave->user_id)
-                    ->where('date', $leave->conflict_date)
-                    ->first();
+            ->get();
 
-                $hoursWorked = 0.0;
-                if ($dayStart && $dayStart->start_time && $dayStart->end_time) {
-                    $hoursWorked = round(Carbon::parse($dayStart->end_time)->diffInMinutes(Carbon::parse($dayStart->start_time)) / 60, 2);
-                } elseif ($dayStart && $dayStart->start_time) {
-                    $hoursWorked = round(Carbon::now()->diffInMinutes(Carbon::parse($dayStart->start_time)) / 60, 2);
-                }
+        // Bulk fetch all corresponding day_starts in 1 single query (Zero N+1)
+        $userIds = $conflicts->pluck('user_id')->unique()->filter()->values();
+        $conflictDates = $conflicts->map(fn ($l) => $l->conflict_date?->format('Y-m-d'))->unique()->filter()->values();
 
-                return [
-                    'id'               => $leave->id,
-                    'user_id'          => $leave->user_id,
-                    'employee_name'    => $leave->user?->name,
-                    'leave_type'       => $leave->leaveType?->code,
-                    'leave_type_name'  => $leave->leaveType?->name,
-                    'from_date'        => $leave->from_date?->format('Y-m-d'),
-                    'to_date'          => $leave->to_date?->format('Y-m-d'),
-                    'duration'         => $leave->duration,
-                    'days_count'       => $leave->days_count,
-                    'conflict_date'    => $leave->conflict_date?->format('Y-m-d'),
-                    'hours_worked'     => $hoursWorked,
-                    'day_start_status' => $dayStart?->status ?? 'active',
-                    'conflict_status'  => $leave->conflict_status,
-                    'resolved_action'  => $leave->resolved_action,
-                    'resolution_note'  => $leave->resolution_note,
-                    'resolved_by'      => $leave->resolvedBy?->name,
-                    'resolved_at'      => $leave->resolved_at?->toIso8601String(),
-                ];
-            });
+        $dayStarts = ($userIds->isNotEmpty() && $conflictDates->isNotEmpty())
+            ? DayStart::whereIn('user_id', $userIds)
+                ->whereIn('date', $conflictDates)
+                ->get()
+                ->keyBy(function ($ds) {
+                    $dateStr = $ds->date instanceof Carbon ? $ds->date->format('Y-m-d') : substr((string) $ds->date, 0, 10);
+                    return $ds->user_id . '_' . $dateStr;
+                })
+            : collect();
+
+        $mappedConflicts = $conflicts->map(function ($leave) use ($dayStarts) {
+            $conflictDateStr = $leave->conflict_date?->format('Y-m-d');
+            $dayStart = $conflictDateStr ? $dayStarts->get($leave->user_id . '_' . $conflictDateStr) : null;
+
+            $hoursWorked = 0.0;
+            if ($dayStart && $dayStart->start_time && $dayStart->end_time) {
+                $hoursWorked = round(Carbon::parse($dayStart->end_time)->diffInMinutes(Carbon::parse($dayStart->start_time)) / 60, 2);
+            } elseif ($dayStart && $dayStart->start_time) {
+                $hoursWorked = round(Carbon::now()->diffInMinutes(Carbon::parse($dayStart->start_time)) / 60, 2);
+            }
+
+            return [
+                'id'               => $leave->id,
+                'user_id'          => $leave->user_id,
+                'employee_name'    => $leave->user?->name,
+                'leave_type'       => $leave->leaveType?->code,
+                'leave_type_name'  => $leave->leaveType?->name,
+                'from_date'        => $leave->from_date?->format('Y-m-d'),
+                'to_date'          => $leave->to_date?->format('Y-m-d'),
+                'duration'         => $leave->duration,
+                'days_count'       => $leave->days_count,
+                'conflict_date'    => $leave->conflict_date?->format('Y-m-d'),
+                'hours_worked'     => $hoursWorked,
+                'day_start_status' => $dayStart?->status ?? 'active',
+                'conflict_status'  => $leave->conflict_status,
+                'resolved_action'  => $leave->resolved_action,
+                'resolution_note'  => $leave->resolution_note,
+                'resolved_by'      => $leave->resolvedBy?->name,
+                'resolved_at'      => $leave->resolved_at?->toIso8601String(),
+            ];
+        });
 
         $pendingCount  = Leave::where('has_conflict', true)->where('conflict_status', 'pending_review')->count();
         $resolvedCount = Leave::where('has_conflict', true)->where('conflict_status', 'resolved')->count();
 
         return response()->json([
             'success' => true,
-            'data'    => $conflicts,
+            'data'    => $mappedConflicts,
             'meta'    => [
                 'pending_count'  => $pendingCount,
                 'resolved_count' => $resolvedCount,

@@ -122,7 +122,7 @@
             openingKm: {{ (float) ($dayStart->opening_km ?? 0) }},
             endTime: '{{ $dayStart->end_time ? \Carbon\Carbon::parse($dayStart->end_time)->format('H:i') : '' }}',
             endTimeFormatted: '{{ $dayStart->end_time ? \Carbon\Carbon::parse($dayStart->end_time)->format('h:i A') : '—' }}',
-            remarks: '{{ addslashes($dayStart->remarks ?? '') }}',
+            remarks: '{{ addslashes($dayStart->end_remarks ?? '') }}',
             reason: '',
             closingPhotoUrl: '{{ $dayStart->closing_km_photo ? asset('storage/' . $dayStart->closing_km_photo) : '' }}',
             newPhotoPreview: null,
@@ -203,8 +203,8 @@
                     if (data.record.closing_km_photo_url) {
                         this.dayEndData.closingPhotoUrl = data.record.closing_km_photo_url;
                     }
-                    if (data.record.remarks) {
-                        this.dayEndData.remarks = data.record.remarks;
+                    if (data.record.end_remarks !== undefined) {
+                        this.dayEndData.remarks = data.record.end_remarks;
                     }
                     window.toast ? window.toast(data.message || 'Closing details updated successfully.', 'success') : null;
                     this.closeEditDayEnd();
@@ -524,11 +524,21 @@
                     </div>
                     <div>
                         <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Tour Purpose</div>
-                        <div class="mt-1 text-slate-900" x-text="dayStartData.tourPurposeName">{{ $dayStart->tourPurpose->name }}</div>
+                        <div class="mt-1 text-slate-900 font-medium" x-text="dayStartData.tourPurposeName">{{ $dayStart->tourPurpose?->name ?? '—' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Tour Plan / Plan Notes</div>
+                        <div class="mt-1 text-slate-900 bg-amber-50/80 border border-amber-200/80 rounded-lg p-2.5 text-sm">
+                            @if (!empty($dayStart->remarks))
+                                <span class="text-amber-950 font-medium">📋 {{ $dayStart->remarks }}</span>
+                            @else
+                                <span class="text-slate-400 italic">No tour plan notes provided</span>
+                            @endif
+                        </div>
                     </div>
                     <div>
                         <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Tour Type</div>
-                        <div class="mt-1 text-slate-900" x-text="dayStartData.tourTypeName">{{ $dayStart->tourType->name }}</div>
+                        <div class="mt-1 text-slate-900" x-text="dayStartData.tourTypeName">{{ $dayStart->tourType?->name ?? '—' }}</div>
                     </div>
                     <div>
                         <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Vehicle Type</div>
@@ -714,8 +724,8 @@
                                 </div>
                             </div>
                             <div>
-                                <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Remarks</div>
-                                <div class="mt-1 text-slate-900" x-text="dayEndData.remarks || '—'">{{ $dayStart->remarks ?? '—' }}</div>
+                                <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Closing Remarks / Day Summary</div>
+                                <div class="mt-1 text-slate-900" x-text="dayEndData.remarks || '—'">{{ $dayStart->end_remarks ?? '—' }}</div>
                             </div>
                         </div>
                         <div class="space-y-4">
@@ -1128,24 +1138,56 @@
                                             </div>
                                         @endif
 
-                                        {{-- Admin / HR Level 2 (Final Approve on pending, temp_approved, or manager_rejected)
-                                        --}}
+                                        @php
+                                            $hasReportingManager = !empty($dayStart->user?->reporting_to);
+                                            $isSuperAdminUser = auth()->user()?->hasRole(['Super Admin', 'super_admin']);
+                                        @endphp
+
+                                        {{-- Admin / HR Level 2 (Final Approve) --}}
                                         @if($canFinalApprove)
-                                            <div x-show="['pending', 'temp_approved', 'manager_rejected'].includes(status)"
-                                                class="flex gap-1.5 items-center">
+                                            {{-- When pending: requires Level 1 verification first unless Super Admin or unassigned --}}
+                                            <div x-show="status === 'pending'" class="flex gap-1.5 items-center">
+                                                @if($canTempApprove)
+                                                    <button type="button"
+                                                        @click="updateExpenseStatus('temp_approve', 'Verify this expense (Level 1)?')"
+                                                        :disabled="loading"
+                                                        class="px-2.5 py-1 text-xs font-bold rounded shadow-sm transition hover:opacity-90 inline-flex items-center gap-1"
+                                                        style="background-color: #2563eb !important; color: #ffffff !important;">
+                                                        ✓ Verify (L1)
+                                                    </button>
+                                                @endif
+                                                @if($isSuperAdminUser || !$hasReportingManager)
+                                                    <button type="button"
+                                                        @click="updateExpenseStatus('final_approve', 'Final approve this expense?')"
+                                                        :disabled="loading"
+                                                        class="px-2.5 py-1 text-xs font-bold rounded shadow-sm transition hover:opacity-90 inline-flex items-center gap-1"
+                                                        style="background-color: #16a34a !important; color: #ffffff !important;">
+                                                        ★ Final Approve
+                                                    </button>
+                                                @else
+                                                    @if(!$canTempApprove)
+                                                        <span class="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-medium">
+                                                            ⏳ Awaiting Manager L1
+                                                        </span>
+                                                    @endif
+                                                @endif
+                                                <button type="button"
+                                                    @click="updateExpenseStatus('final_reject', 'Permanently reject this expense?')"
+                                                    :disabled="loading"
+                                                    class="px-2.5 py-1 text-xs font-bold rounded shadow-sm transition hover:opacity-90 inline-flex items-center gap-1"
+                                                    style="background-color: #dc2626 !important; color: #ffffff !important;">
+                                                    ✕ Reject
+                                                </button>
+                                            </div>
+
+                                            {{-- When temp_approved or manager_rejected: Ready for Final Decision --}}
+                                            <div x-show="['temp_approved', 'manager_rejected'].includes(status)" class="flex gap-1.5 items-center">
                                                 <button type="button"
                                                     @click="updateExpenseStatus('final_approve', 'Final approve this expense?')"
                                                     :disabled="loading"
                                                     class="px-2.5 py-1 text-xs font-bold rounded shadow-sm transition hover:opacity-90 inline-flex items-center gap-1"
                                                     style="background-color: #16a34a !important; color: #ffffff !important;">
                                                     ★ Final Approve
-                                                </button>
-                                                <button x-show="status === 'pending'" type="button"
-                                                    @click="updateExpenseStatus('temp_approve', 'Verify this expense (Level 1 only)?')"
-                                                    :disabled="loading"
-                                                    class="px-2 py-1 text-xs font-semibold rounded shadow-sm transition hover:opacity-90 inline-flex items-center gap-1"
-                                                    style="background-color: #eff6ff !important; color: #1d4ed8 !important; border: 1px solid #bfdbfe !important;">
-                                                    ✓ Temp
                                                 </button>
                                                 <button type="button"
                                                     @click="updateExpenseStatus('final_reject', 'Permanently reject this expense?')"
@@ -1155,6 +1197,7 @@
                                                     ✕ Reject
                                                 </button>
                                             </div>
+
                                             <div x-show="['approved', 'rejected'].includes(status)">
                                                 <span class="text-xs text-slate-500 font-medium">Processed</span>
                                             </div>

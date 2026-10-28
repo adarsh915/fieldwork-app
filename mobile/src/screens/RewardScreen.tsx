@@ -30,16 +30,6 @@ export default function RewardScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#EDEDED" },
-  header: {
-    backgroundColor: "#7367F0",
-    paddingVertical: 18,
-    alignItems: "center",
-  },
-  headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "800",
-  },
   body: {
     flex: 1,
     alignItems: "center",

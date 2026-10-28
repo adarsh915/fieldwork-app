@@ -13,6 +13,7 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function () {
     // Create permissions
     Permission::create(['name' => 'customers.view']);
+    Permission::create(['name' => 'customers.manage']);
     Permission::create(['name' => 'customers.create']);
     Permission::create(['name' => 'customers.edit']);
     Permission::create(['name' => 'customers.delete']);
@@ -24,7 +25,7 @@ beforeEach(function () {
     $this->fieldWorkerRole = Role::create(['name' => 'Field Worker']);
 
     // Assign permissions
-    $this->superAdminRole->givePermissionTo(['customers.view', 'customers.create', 'customers.edit', 'customers.delete', 'parties.assign']);
+    $this->superAdminRole->givePermissionTo(['customers.view', 'customers.manage', 'customers.create', 'customers.edit', 'customers.delete', 'parties.assign']);
     $this->managerRole->givePermissionTo(['customers.view', 'parties.assign']);
     
     // Create users
@@ -55,7 +56,7 @@ test('unauthorized user cannot view party list', function () {
     $unauthorizedUser = User::factory()->create();
     
     $this->actingAs($unauthorizedUser)
-        ->get(route('admin.parties.index'))
+        ->getJson(route('admin.parties.index'))
         ->assertForbidden();
 });
 
@@ -180,7 +181,6 @@ test('authorized user can update party details', function () {
             'category' => 'A',
             'credit_limit' => 50000,
             'credit_days' => 30,
-            'opening_balance' => 10000,
             'is_active' => true,
         ])
         ->assertOk()
@@ -224,6 +224,7 @@ test('party update validates party code uniqueness', function () {
         ->putJson(route('admin.parties.update', $party2->id), [
             'party_code' => 'PTY001', // Already exists
             'name' => $party2->name,
+            'mobile' => '9876543210',
         ])
         ->assertStatus(422)
         ->assertJsonValidationErrors(['party_code']);
@@ -232,12 +233,13 @@ test('party update validates party code uniqueness', function () {
 test('party update creates audit log', function () {
     Event::fake([PartyUpdated::class]);
 
-    $party = Customer::factory()->create(['name' => 'Old Name']);
+    $party = Customer::factory()->create(['name' => 'Old Name', 'mobile' => '9876543210']);
 
     $this->actingAs($this->superAdmin)
         ->putJson(route('admin.parties.update', $party->id), [
             'party_code' => $party->party_code,
             'name' => 'New Name',
+            'mobile' => '9876543210',
             'is_active' => true,
         ]);
 
@@ -529,7 +531,7 @@ test('unauthorized user cannot delete party', function () {
     $unauthorizedUser = User::factory()->create();
 
     $this->actingAs($unauthorizedUser)
-        ->delete(route('admin.parties.destroy', $party->id))
+        ->deleteJson(route('admin.parties.destroy', $party->id))
         ->assertForbidden();
 
     $this->assertDatabaseHas('customers', ['id' => $party->id]);
@@ -552,7 +554,7 @@ test('party assigned event is dispatched on assignment', function () {
 
     Event::assertDispatched(PartyAssigned::class, function ($event) use ($party, $fieldWorker) {
         return $event->party->id === $party->id
-            && $event->employee->id === $fieldWorker->id
+            && $event->assignment->employee_id === $fieldWorker->id
             && $event->assignedBy->id === $this->superAdmin->id;
     });
 });
@@ -560,14 +562,16 @@ test('party assigned event is dispatched on assignment', function () {
 test('party updated event is dispatched on update', function () {
     Event::fake([PartyUpdated::class]);
 
-    $party = Customer::factory()->create(['name' => 'Old Name']);
+    $party = Customer::factory()->create(['name' => 'Old Name', 'mobile' => '9876543210']);
 
     $this->actingAs($this->superAdmin)
         ->putJson(route('admin.parties.update', $party->id), [
             'party_code' => $party->party_code,
             'name' => 'New Name',
+            'mobile' => '9876543210',
             'is_active' => true,
-        ]);
+        ])
+        ->assertOk();
 
     Event::assertDispatched(PartyUpdated::class);
 });

@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -14,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ScreenHeader from "../components/ScreenHeader";
 import { getExpenses, type ExpenseBill } from "../api/expense";
@@ -36,6 +39,19 @@ const FILTER_OPTIONS: {
 
 export default function ExpenseListScreen() {
   const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
+
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseBill | null>(null);
+  const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
+  const [selectedPhotoTitle, setSelectedPhotoTitle] = useState("");
+
+  const openPhotoViewer = (url: string | null | undefined, title: string) => {
+    if (!url) return;
+    setSelectedPhotoUrl(url);
+    setSelectedPhotoTitle(title);
+    setPhotoViewerVisible(true);
+  };
 
   const [expenses, setExpenses] = useState<ExpenseBill[]>([]);
   const [page, setPage] = useState(1);
@@ -206,7 +222,11 @@ export default function ExpenseListScreen() {
     }
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.88}
+        onPress={() => setSelectedExpense(item)}
+      >
         <View style={styles.cardHeader}>
           <View
             style={{
@@ -237,10 +257,10 @@ export default function ExpenseListScreen() {
         </View>
 
         <View style={styles.cardBody}>
-          <Text style={styles.amountText}>
-            ₹{Number(item.amount).toFixed(2)}
-          </Text>
-          <View style={{ alignItems: "flex-end" }}>
+          <View style={{ flex: 1, justifyContent: "center" }}>
+            <Text style={styles.amountText}>
+              ₹{Number(item.amount).toFixed(2)}
+            </Text>
             <Text style={styles.dateText}>
               {item.date
                 ? new Date(item.date).toLocaleDateString()
@@ -259,7 +279,40 @@ export default function ExpenseListScreen() {
               </Text>
             )}
           </View>
+
+          {/* Receipt / Meter Photo Thumbnail on Card */}
+          {item.bill_photo_url ? (
+            <TouchableOpacity
+              style={styles.cardThumbWrap}
+              activeOpacity={0.8}
+              onPress={() =>
+                openPhotoViewer(
+                  item.bill_photo_url,
+                  `${item.category?.name || (item.is_system_generated ? "Travel" : "Expense")} Receipt`
+                )
+              }
+            >
+              <Image source={{ uri: item.bill_photo_url }} style={styles.cardThumbImg} />
+              <View style={styles.thumbZoomBadge}>
+                <MaterialIcons name="zoom-in" size={12} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.noPhotoMiniBox}>
+              <MaterialIcons name="image-not-supported" size={16} color="#CBD5E1" />
+              <Text style={styles.noPhotoMiniText}>No Photo</Text>
+            </View>
+          )}
         </View>
+
+        {/* Quick Itemized Preview for Stationery / Multi-item Expenses */}
+        {item.items && item.items.length > 0 && (
+          <View style={styles.itemsQuickPreviewWrap}>
+            <Text style={styles.itemsQuickPreviewText} numberOfLines={1}>
+              📋 {item.items.map((it) => `${it.item_name} (x${it.quantity})`).join(", ")}
+            </Text>
+          </View>
+        )}
 
         {/* Rejection Box if rejected */}
         {isRejected && (
@@ -308,14 +361,24 @@ export default function ExpenseListScreen() {
           </View>
         )}
 
-        {/* Edit / Resubmit Action Button */}
-        {!item.is_system_generated && (isRejected || isPending) && (
-          <View style={styles.cardFooter}>
+        {/* Action Buttons: View Details (Always) & Edit Claim (Pending/Rejected) */}
+        <View style={styles.cardFooter}>
+          <TouchableOpacity
+            style={styles.viewDetailsBtn}
+            activeOpacity={0.8}
+            onPress={() => setSelectedExpense(item)}
+          >
+            <MaterialIcons name="visibility" size={14} color="#7367F0" />
+            <Text style={styles.viewDetailsBtnText}>View Details</Text>
+          </TouchableOpacity>
+
+          {!item.is_system_generated && (isRejected || isPending) && (
             <TouchableOpacity
               style={[
                 styles.editActionBtn,
                 isRejected && styles.editActionBtnRejected,
               ]}
+              activeOpacity={0.8}
               onPress={() =>
                 navigation.navigate("AddExpense", { expense: item })
               }
@@ -331,12 +394,12 @@ export default function ExpenseListScreen() {
                   isRejected && styles.editActionBtnTextRejected,
                 ]}
               >
-                {isRejected ? "Edit & Resubmit Claim" : "Edit Claim"}
+                {!item.bill_photo_url ? "Add Photo / Edit" : (isRejected ? "Edit & Resubmit" : "Edit Claim")}
               </Text>
             </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -489,6 +552,375 @@ export default function ExpenseListScreen() {
           }
         />
       )}
+
+      {/* ── EXPENSE DETAILS MODAL (FOR ALL STATUSES INCLUDING APPROVED) ── */}
+      <Modal
+        visible={!!selectedExpense}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedExpense(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 }}>
+                <MaterialCommunityIcons
+                  name={selectedExpense?.is_system_generated ? "car-connected" : "receipt"}
+                  size={24}
+                  color={selectedExpense?.is_system_generated ? "#7367F0" : "#F59E0B"}
+                />
+                <Text style={styles.modalHeaderTitle} numberOfLines={1}>
+                  {selectedExpense?.category?.name ||
+                    (selectedExpense?.is_system_generated ? "Auto Travel Allowance" : "Expense Details")}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseIconBtn}
+                onPress={() => setSelectedExpense(null)}
+              >
+                <MaterialIcons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {selectedExpense && (
+                <>
+                  {/* Amount & Status Top Banner */}
+                  <View style={styles.modalTopBanner}>
+                    <View>
+                      <Text style={styles.modalBannerAmountLabel}>Claim Amount</Text>
+                      <Text style={styles.modalBannerAmountVal}>
+                        ₹{Number(selectedExpense.amount).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text
+                        style={[
+                          styles.statusBadge,
+                          selectedExpense.status === "approved"
+                            ? styles.statusApproved
+                            : selectedExpense.status === "temp_approved"
+                            ? styles.statusVerified
+                            : selectedExpense.status === "rejected" ||
+                              selectedExpense.status === "manager_rejected"
+                            ? styles.statusRejected
+                            : styles.statusPending,
+                        ]}
+                      >
+                        {selectedExpense.status === "pending"
+                          ? "PENDING (L1)"
+                          : selectedExpense.status === "temp_approved"
+                          ? "VERIFIED (L1)"
+                          : selectedExpense.status.toUpperCase()}
+                      </Text>
+                      <Text style={styles.modalBannerDate}>
+                        Date:{" "}
+                        {selectedExpense.date
+                          ? new Date(selectedExpense.date).toLocaleDateString(undefined, {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : new Date(selectedExpense.created_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Shift Timing Tag */}
+                  {selectedExpense.is_after_day_end && (
+                    <View style={styles.afterDayEndBanner}>
+                      <MaterialIcons name="warning" size={16} color="#D97706" />
+                      <Text style={styles.afterDayEndText}>
+                        Submitted after day end or backdated for approval.
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Bill / Receipt Photo Proof */}
+                  <Text style={styles.modalSectionHeading}>🧾 Receipt Voucher / Photo Proof</Text>
+                  {selectedExpense.bill_photo_url ? (
+                    <TouchableOpacity
+                      style={styles.modalPhotoViewerBtn}
+                      activeOpacity={0.9}
+                      onPress={() =>
+                        openPhotoViewer(
+                          selectedExpense.bill_photo_url,
+                          `${selectedExpense.category?.name || "Expense"} Receipt`
+                        )
+                      }
+                    >
+                      <Image
+                        source={{ uri: selectedExpense.bill_photo_url }}
+                        style={styles.modalPhotoLarge}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.modalPhotoZoomBar}>
+                        <MaterialIcons name="zoom-in" size={16} color="#FFFFFF" />
+                        <Text style={styles.modalPhotoZoomBarText}>Tap to Zoom Full Screen Photo</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.noPhotoCard}>
+                      <MaterialCommunityIcons name="image-off-outline" size={32} color="#94A3B8" />
+                      <Text style={styles.noPhotoCardTitle}>No Receipt Photo Attached</Text>
+                      <Text style={styles.noPhotoCardSubtitle}>
+                        This expense claim was recorded without a photo proof.
+                      </Text>
+                      {!selectedExpense.is_system_generated &&
+                        (selectedExpense.status === "pending" ||
+                          selectedExpense.status === "rejected" ||
+                          selectedExpense.status === "manager_rejected") && (
+                          <TouchableOpacity
+                            style={styles.addPhotoNowBtn}
+                            onPress={() => {
+                              const exp = selectedExpense;
+                              setSelectedExpense(null);
+                              navigation.navigate("AddExpense", { expense: exp });
+                            }}
+                          >
+                            <MaterialIcons name="add-a-photo" size={16} color="#FFFFFF" />
+                            <Text style={styles.addPhotoNowBtnText}>Upload Receipt Photo</Text>
+                          </TouchableOpacity>
+                        )}
+                    </View>
+                  )}
+
+                  {/* Stationery / Itemized Breakdown */}
+                  {selectedExpense.items && selectedExpense.items.length > 0 && (
+                    <View style={styles.modalItemsSection}>
+                      <Text style={styles.modalSectionHeading}>
+                        📝 Itemized Breakdown ({selectedExpense.items.length} items)
+                      </Text>
+                      <View style={styles.itemsTable}>
+                        {selectedExpense.items.map((it, idx) => (
+                          <View key={idx} style={styles.itemsTableRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.itemsTableRowName}>{it.item_name}</Text>
+                              <Text style={styles.itemsTableRowSub}>
+                                {it.quantity} × ₹{Number(it.unit_price).toFixed(2)}
+                              </Text>
+                            </View>
+                            <Text style={styles.itemsTableRowTotal}>
+                              ₹{Number(it.total_price).toFixed(2)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* System Travel Details (if auto-travel claim) */}
+                  {selectedExpense.is_system_generated && selectedExpense.day_start && (
+                    <View style={styles.systemTravelDetailCard}>
+                      <Text style={styles.modalSectionHeading}>🚗 Travel & Route Verification</Text>
+                      <View style={styles.systemTravelGrid}>
+                        <View style={styles.systemTravelCol}>
+                          <Text style={styles.systemTravelLabel}>Vehicle</Text>
+                          <Text style={styles.systemTravelVal}>
+                            {selectedExpense.day_start.vehicle_type?.name || "Vehicle"}
+                            {selectedExpense.day_start.vehicle_no ? ` (${selectedExpense.day_start.vehicle_no})` : ""}
+                          </Text>
+                        </View>
+                        <View style={styles.systemTravelCol}>
+                          <Text style={styles.systemTravelLabel}>Distance</Text>
+                          <Text style={styles.systemTravelVal}>
+                            {selectedExpense.day_start.closing_km !== null && selectedExpense.day_start.opening_km !== null
+                              ? `${Math.max(0, Math.round(selectedExpense.day_start.closing_km - selectedExpense.day_start.opening_km))} KM`
+                              : "—"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Meter Photos */}
+                      <View style={styles.meterPhotosRow}>
+                        {selectedExpense.day_start.opening_km_photo_url && (
+                          <TouchableOpacity
+                            style={styles.meterThumbBtn}
+                            onPress={() =>
+                              openPhotoViewer(
+                                selectedExpense.day_start?.opening_km_photo_url,
+                                "Opening Meter Reading"
+                              )
+                            }
+                          >
+                            <Image
+                              source={{ uri: selectedExpense.day_start.opening_km_photo_url }}
+                              style={styles.meterThumbImg}
+                            />
+                            <Text style={styles.meterThumbLabel}>
+                              Start: {selectedExpense.day_start.opening_km ?? 0} KM
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        {selectedExpense.day_start.closing_km_photo_url && (
+                          <TouchableOpacity
+                            style={styles.meterThumbBtn}
+                            onPress={() =>
+                              openPhotoViewer(
+                                selectedExpense.day_start?.closing_km_photo_url,
+                                "Closing Meter Reading"
+                              )
+                            }
+                          >
+                            <Image
+                              source={{ uri: selectedExpense.day_start.closing_km_photo_url }}
+                              style={styles.meterThumbImg}
+                            />
+                            <Text style={styles.meterThumbLabel}>
+                              End: {selectedExpense.day_start.closing_km ?? 0} KM
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Verification & Approval History */}
+                  <View style={styles.auditSection}>
+                    <Text style={styles.modalSectionHeading}>🛡️ Approval Status & Audit Trail</Text>
+                    {selectedExpense.temp_approved_by ? (
+                      <View style={styles.auditCard}>
+                        <MaterialIcons name="verified" size={16} color="#2563EB" />
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <Text style={styles.auditCardTitle}>
+                            Verified (Level 1) by {selectedExpense.temp_approved_by.name}
+                          </Text>
+                          {selectedExpense.temp_approved_at && (
+                            <Text style={styles.auditCardDate}>
+                              {new Date(selectedExpense.temp_approved_at).toLocaleString()}
+                            </Text>
+                          )}
+                          {selectedExpense.temp_approved_note ? (
+                            <Text style={styles.auditCardNote}>
+                              “{selectedExpense.temp_approved_note}”
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {selectedExpense.approved_by ? (
+                      <View style={[styles.auditCard, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
+                        <MaterialIcons name="check-circle" size={16} color="#16A34A" />
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <Text style={[styles.auditCardTitle, { color: "#166534" }]}>
+                            Final Approved (Level 2) by {selectedExpense.approved_by.name}
+                          </Text>
+                          {selectedExpense.approved_at && (
+                            <Text style={styles.auditCardDate}>
+                              {new Date(selectedExpense.approved_at).toLocaleString()}
+                            </Text>
+                          )}
+                          {selectedExpense.final_note ? (
+                            <Text style={[styles.auditCardNote, { color: "#14532D" }]}>
+                              “{selectedExpense.final_note}”
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {selectedExpense.rejection_reason ? (
+                      <View style={[styles.auditCard, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
+                        <MaterialIcons name="error" size={16} color="#DC2626" />
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <Text style={[styles.auditCardTitle, { color: "#991B1B" }]}>
+                            Rejected
+                            {selectedExpense.rejected_by?.name ? ` by ${selectedExpense.rejected_by.name}` : ""}
+                          </Text>
+                          {selectedExpense.rejected_at && (
+                            <Text style={styles.auditCardDate}>
+                              {new Date(selectedExpense.rejected_at).toLocaleString()}
+                            </Text>
+                          )}
+                          <Text style={[styles.auditCardNote, { color: "#7F1D1D" }]}>
+                            Reason: {selectedExpense.rejection_reason}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {!selectedExpense.temp_approved_by &&
+                      !selectedExpense.approved_by &&
+                      !selectedExpense.rejection_reason && (
+                        <View style={styles.auditPendingBox}>
+                          <MaterialIcons name="hourglass-empty" size={16} color="#D97706" />
+                          <Text style={styles.auditPendingText}>
+                            Claim submitted and currently awaiting manager verification.
+                          </Text>
+                        </View>
+                      )}
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            {/* Modal Bottom Actions */}
+            <View style={[styles.modalBottomActions, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+              {selectedExpense &&
+                !selectedExpense.is_system_generated &&
+                (selectedExpense.status === "pending" ||
+                  selectedExpense.status === "rejected" ||
+                  selectedExpense.status === "manager_rejected") && (
+                  <TouchableOpacity
+                    style={styles.modalEditBtn}
+                    onPress={() => {
+                      const exp = selectedExpense;
+                      setSelectedExpense(null);
+                      navigation.navigate("AddExpense", { expense: exp });
+                    }}
+                  >
+                    <MaterialIcons name="edit" size={16} color="#FFFFFF" />
+                    <Text style={styles.modalEditBtnText}>Edit Claim Details</Text>
+                  </TouchableOpacity>
+                )}
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setSelectedExpense(null)}
+              >
+                <Text style={styles.modalCloseBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── HIGH-RES PHOTO LIGHTBOX MODAL ── */}
+      <Modal
+        visible={photoViewerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhotoViewerVisible(false)}
+      >
+        <View style={styles.photoViewerBackdrop}>
+          <SafeAreaView style={styles.photoViewerSafe}>
+            <View style={styles.photoViewerHeader}>
+              <Text style={styles.photoViewerTitle} numberOfLines={1}>
+                {selectedPhotoTitle || "Receipt Photo"}
+              </Text>
+              <TouchableOpacity
+                style={styles.photoCloseBtn}
+                onPress={() => setPhotoViewerVisible(false)}
+              >
+                <MaterialIcons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.photoViewerBody}>
+              {selectedPhotoUrl ? (
+                <Image
+                  source={{ uri: selectedPhotoUrl }}
+                  style={styles.photoViewerImage}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -764,5 +1196,461 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 6,
     lineHeight: 18,
+  },
+
+  // ── Card Thumbnails & Quick Preview ──
+  cardThumbWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 8,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#E2E8F0",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  cardThumbImg: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  thumbZoomBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noPhotoMiniBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noPhotoMiniText: {
+    fontSize: 9,
+    color: "#94A3B8",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  itemsQuickPreviewWrap: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  itemsQuickPreviewText: {
+    fontSize: 11,
+    color: "#475569",
+    fontWeight: "500",
+  },
+  viewDetailsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F3FF",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    marginRight: 8,
+  },
+  viewDetailsBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#7367F0",
+    marginLeft: 4,
+  },
+
+  // ── Details Modal ──
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "88%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  modalHeaderTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginLeft: 8,
+    flex: 1,
+  },
+  modalCloseIconBtn: {
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+  },
+  modalScroll: {
+    flexGrow: 0,
+  },
+  modalTopBanner: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 12,
+  },
+  modalBannerAmountLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  modalBannerAmountVal: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginTop: 2,
+  },
+  modalBannerDate: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 4,
+    fontWeight: "500",
+  },
+  afterDayEndBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 14,
+    gap: 6,
+  },
+  afterDayEndText: {
+    fontSize: 12,
+    color: "#92400E",
+    fontWeight: "600",
+    flex: 1,
+  },
+  modalSectionHeading: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#334155",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+
+  // ── Receipt Photo ──
+  modalPhotoViewerBtn: {
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    position: "relative",
+    marginBottom: 14,
+    backgroundColor: "#0F172A",
+  },
+  modalPhotoLarge: {
+    width: "100%",
+    height: 200,
+  },
+  modalPhotoZoomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  modalPhotoZoomBarText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  noPhotoCard: {
+    padding: 20,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  noPhotoCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#475569",
+    marginTop: 8,
+  },
+  noPhotoCardSubtitle: {
+    fontSize: 12,
+    color: "#94A3B8",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  addPhotoNowBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#7367F0",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 6,
+  },
+  addPhotoNowBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // ── Items Table ──
+  modalItemsSection: {
+    marginBottom: 14,
+  },
+  itemsTable: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+  },
+  itemsTableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EDF2F7",
+  },
+  itemsTableRowName: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  itemsTableRowSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  itemsTableRowTotal: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+
+  // ── System Travel ──
+  systemTravelDetailCard: {
+    marginBottom: 14,
+  },
+  systemTravelGrid: {
+    flexDirection: "row",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 12,
+    marginBottom: 8,
+    justifyContent: "space-between",
+  },
+  systemTravelCol: {
+    flex: 1,
+  },
+  systemTravelLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+  },
+  systemTravelVal: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginTop: 2,
+  },
+  meterPhotosRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  meterThumbBtn: {
+    flex: 1,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F1F5F9",
+  },
+  meterThumbImg: {
+    width: "100%",
+    height: 90,
+    resizeMode: "cover",
+  },
+  meterThumbLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#334155",
+    paddingVertical: 4,
+    textAlign: "center",
+    backgroundColor: "#F8FAFC",
+  },
+
+  // ── Audit Section ──
+  auditSection: {
+    marginBottom: 10,
+  },
+  auditCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  auditCardTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1E40AF",
+  },
+  auditCardDate: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  auditCardNote: {
+    fontSize: 11,
+    color: "#1E3A8A",
+    fontStyle: "italic",
+    marginTop: 3,
+  },
+  auditPendingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  auditPendingText: {
+    fontSize: 12,
+    color: "#92400E",
+    fontWeight: "500",
+    flex: 1,
+  },
+
+  // ── Modal Actions ──
+  modalBottomActions: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    gap: 10,
+  },
+  modalEditBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#7367F0",
+    borderRadius: 10,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  modalEditBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  modalCloseBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  modalCloseBtnText: {
+    color: "#475569",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  // ── High-Res Photo Viewer Lightbox ──
+  photoViewerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+  },
+  photoViewerSafe: {
+    flex: 1,
+  },
+  photoViewerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  photoViewerTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 10,
+  },
+  photoCloseBtn: {
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  photoViewerBody: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
+  },
+  photoViewerImage: {
+    width: "100%",
+    height: "100%",
   },
 });

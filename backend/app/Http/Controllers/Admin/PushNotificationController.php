@@ -52,28 +52,9 @@ class PushNotificationController extends Controller
                 return back()->with('error', 'No active users found.');
             }
 
-            foreach ($recipients as $u) {
-                \App\Models\UserNotification::create([
-                    'user_id' => $u->id,
-                    'title'   => $title,
-                    'body'    => $body,
-                    'screen'  => $data['screen'] ?? 'Home',
-                ]);
-            }
+            $this->dispatchBroadcastNotification($recipients, 'all_employees', $title, $body, $data);
 
-            $tokenRecipients = $recipients->whereNotNull('fcm_token');
-            if ($tokenRecipients->isNotEmpty()) {
-                $pushResult = FirebasePushService::sendToUsers($tokenRecipients, $title, $body, $data);
-                if (!$pushResult['success'] && !empty($pushResult['errors'])) {
-                    $errMsg = "Notification saved to DB, but push delivery failed: " . implode('; ', $pushResult['errors']);
-                    if ($request->ajax() || $request->wantsJson()) {
-                        return response()->json(['success' => false, 'message' => $errMsg], 422);
-                    }
-                    return back()->with('error', $errMsg);
-                }
-            }
-
-            $successMsg = "Notification sent to {$recipients->count()} user(s)!";
+            $successMsg = "Notification sent to all {$recipients->count()} user(s) via Firebase Topic (1 API call)!";
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true, 'message' => $successMsg]);
             }
@@ -92,28 +73,9 @@ class PushNotificationController extends Controller
                 return back()->with('error', 'No field workers found.');
             }
 
-            foreach ($recipients as $u) {
-                \App\Models\UserNotification::create([
-                    'user_id' => $u->id,
-                    'title'   => $title,
-                    'body'    => $body,
-                    'screen'  => $data['screen'] ?? 'Home',
-                ]);
-            }
+            $this->dispatchBroadcastNotification($recipients, 'field_workers', $title, $body, $data);
 
-            $tokenRecipients = $recipients->whereNotNull('fcm_token');
-            if ($tokenRecipients->isNotEmpty()) {
-                $pushResult = FirebasePushService::sendToUsers($tokenRecipients, $title, $body, $data);
-                if (!$pushResult['success'] && !empty($pushResult['errors'])) {
-                    $errMsg = "Notification saved to DB, but push delivery failed: " . implode('; ', $pushResult['errors']);
-                    if ($request->ajax() || $request->wantsJson()) {
-                        return response()->json(['success' => false, 'message' => $errMsg], 422);
-                    }
-                    return back()->with('error', $errMsg);
-                }
-            }
-
-            $successMsg = "Notification sent to {$recipients->count()} field worker(s)!";
+            $successMsg = "Notification sent to {$recipients->count()} field worker(s) via Firebase Topic (1 API call)!";
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true, 'message' => $successMsg]);
             }
@@ -154,4 +116,42 @@ class PushNotificationController extends Controller
         }
         return back()->with('status', $successMsg);
     }
+
+    /**
+     * Dispatch broadcast push notification and store in-app notifications in bulk.
+     */
+    protected function dispatchBroadcastNotification($recipients, string $topic, string $title, string $body, array $data): array
+    {
+        $now = now();
+        $notifications = $recipients->map(fn($u) => [
+            'user_id'    => $u->id,
+            'title'      => $title,
+            'body'       => $body,
+            'screen'     => $data['screen'] ?? 'Home',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->toArray();
+
+        foreach (array_chunk($notifications, 500) as $chunk) {
+            \App\Models\UserNotification::insert($chunk);
+        }
+
+        // 1. Single API broadcast to Firebase Topic (handles all Android FCM devices)
+        $topicResult = FirebasePushService::sendToTopic($topic, $title, $body, $data);
+
+        // 2. Batch call for any Expo tokens (up to 100 per request)
+        $expoTokens = $recipients->pluck('fcm_token')
+            ->filter(fn($t) => !empty($t) && (str_starts_with($t, 'ExponentPushToken') || str_starts_with($t, 'ExpoPushToken')))
+            ->values()
+            ->toArray();
+
+        if (!empty($expoTokens)) {
+            foreach (array_chunk($expoTokens, 100) as $expoChunk) {
+                FirebasePushService::sendViaExpoBatch($expoChunk, $title, $body, $data);
+            }
+        }
+
+        return $topicResult;
+    }
 }
+

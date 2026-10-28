@@ -820,8 +820,8 @@ class PartyController extends Controller
         ];
 
         $rows = [
-            ['party_code', 'name', 'owner_name', 'mobile', 'email', 'address', 'city', 'state', 'pincode', 'party_type', 'category', 'credit_limit', 'credit_days', 'opening_balance', 'is_active', 'land_area', 'latitude', 'longitude', 'employee_email'],
-            ['PTY-001', 'ABC Traders', 'John Doe', '9876543210', 'abc@example.com', '123 MG Road', 'Mumbai', 'Maharashtra', '400001', 'Retailer', 'A', '50000', '30', '1500', '1', '500 sqft', '19.0760', '72.8777', 'employee@company.com'],
+            ['party_code', 'name', 'owner_name', 'mobile', 'email', 'address', 'district', 'area', 'city', 'state', 'pincode', 'party_type', 'category', 'credit_limit', 'credit_days', 'opening_balance', 'is_active', 'land_area', 'latitude', 'longitude', 'employee_email'],
+            ['PTY-001', 'ABC Traders', 'John Doe', '9876543210', 'abc@example.com', '123 MG Road', 'Ahmedabad', 'Sanand GIDC', 'Sanand', 'Gujarat', '382110', 'Retailer', 'A', '50000', '30', '1500', '1', '500 sqft', '19.0760', '72.8777', 'employee@company.com'],
         ];
 
         $callback = function () use ($rows) {
@@ -854,6 +854,11 @@ class PartyController extends Controller
         $duplicateHandling = $request->input('duplicate_handling', 'skip');
 
         $emailToId = User::pluck('id', 'email')->toArray();
+        $districts = \App\Models\District::all();
+        $districtByName = $districts->keyBy(fn($d) => strtolower(trim($d->name)));
+        $districtByCode = $districts->whereNotNull('code')->keyBy(fn($d) => strtolower(trim($d->code)));
+        $allAreas = \App\Models\Area::all();
+
         $handle = fopen($file->getRealPath(), 'r');
         $rawHeader = fgetcsv($handle);
         if (!$rawHeader) {
@@ -885,6 +890,42 @@ class PartyController extends Controller
                 $name = $data['name'] ?? '';
                 if ($name === '') continue;
 
+                $districtInput = trim($data['district'] ?? '');
+                $cityInput     = trim($data['city'] ?? '');
+                $areaInput     = trim($data['area'] ?? '');
+
+                // Match District: Check explicit district column, fallback to city matching
+                $matchedDistrict = null;
+                if ($districtInput !== '') {
+                    $matchedDistrict = $districtByName->get(strtolower($districtInput))
+                        ?? $districtByCode->get(strtolower($districtInput));
+                }
+                if (!$matchedDistrict && $cityInput !== '') {
+                    $matchedDistrict = $districtByName->get(strtolower($cityInput));
+                }
+
+                $districtId = null;
+                $areaId = null;
+                $stateVal = ($data['state'] ?? '') !== '' ? $data['state'] : null;
+                $pincodeVal = ($data['pincode'] ?? '') !== '' ? $data['pincode'] : null;
+
+                if ($matchedDistrict) {
+                    $districtId = $matchedDistrict->id;
+                    if (empty($stateVal)) {
+                        $stateVal = $matchedDistrict->state;
+                    }
+                    if ($areaInput !== '') {
+                        $matchedArea = $allAreas->where('district_id', $matchedDistrict->id)
+                            ->first(fn($a) => strtolower(trim($a->name)) === strtolower($areaInput));
+                        if ($matchedArea) {
+                            $areaId = $matchedArea->id;
+                            if (empty($pincodeVal) && !empty($matchedArea->pincode)) {
+                                $pincodeVal = $matchedArea->pincode;
+                            }
+                        }
+                    }
+                }
+
                 $attributes = [
                     'party_code'      => ($data['party_code'] ?? '') !== '' ? $data['party_code'] : null,
                     'name'            => $name,
@@ -892,15 +933,19 @@ class PartyController extends Controller
                     'mobile'          => ($data['mobile'] ?? '') !== '' ? $data['mobile'] : null,
                     'email'           => ($data['email'] ?? '') !== '' ? $data['email'] : null,
                     'address'         => ($data['address'] ?? '') !== '' ? $data['address'] : null,
-                    'city'            => ($data['city'] ?? '') !== '' ? $data['city'] : null,
-                    'state'           => ($data['state'] ?? '') !== '' ? $data['state'] : null,
-                    'pincode'         => ($data['pincode'] ?? '') !== '' ? $data['pincode'] : null,
-                    'party_type'      => ($data['party_type'] ?? '') !== '' ? $data['party_type'] : null,
+                    'district_id'     => $districtId,
+                    'area_id'         => $areaId,
+                    'city'            => $cityInput !== '' ? $cityInput : ($matchedDistrict ? $matchedDistrict->name : null),
+                    'state'           => $stateVal,
+                    'pincode'         => $pincodeVal,
+                    'party_type'      => ($data['party_type'] ?? '') !== '' ? $data['party_type'] : 'Retailer',
                     'category'        => ($data['category'] ?? '') !== '' ? $data['category'] : null,
-                    'credit_limit'    => ($data['credit_limit'] ?? '') !== '' ? (float) $data['credit_limit'] : null,
-                    'credit_days'     => ($data['credit_days'] ?? '') !== '' ? (int) $data['credit_days'] : null,
-                    'opening_balance' => ($data['opening_balance'] ?? '') !== '' ? (float) $data['opening_balance'] : null,
+                    'credit_limit'    => ($data['credit_limit'] ?? '') !== '' ? (float) $data['credit_limit'] : 0,
+                    'credit_days'     => ($data['credit_days'] ?? '') !== '' ? (int) $data['credit_days'] : 0,
+                    'opening_balance' => ($data['opening_balance'] ?? '') !== '' ? (float) $data['opening_balance'] : 0,
                     'is_active'       => ($data['is_active'] ?? '') !== '' ? (bool) $data['is_active'] : true,
+                    'approval_status' => 'approved',
+                    'submitted_by'    => auth()->id() ?? 1,
                     'land_area'       => ($data['land_area'] ?? '') !== '' ? $data['land_area'] : null,
                     'latitude'        => ($data['latitude'] ?? '') !== '' ? (float) $data['latitude'] : null,
                     'longitude'       => ($data['longitude'] ?? '') !== '' ? (float) $data['longitude'] : null,

@@ -20,6 +20,9 @@ export type DayStartData = {
   district?: { id: number; name: string } | null;
   area?: { id: number; name: string } | null;
   area_name_custom?: string | null;
+  visit_place?: string | null;
+  remarks?: string | null;
+  start_time?: string | null;
   end_time: string | null;
 };
 
@@ -95,20 +98,36 @@ export async function submitDayStart(payload: {
     } as any);
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token ?? ""}`,
-      // Do NOT set Content-Type — let fetch set it for FormData
-    },
-    body: form,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token ?? ""}`,
+        // Do NOT set Content-Type — let fetch set it for FormData
+      },
+      body: form,
+    });
+  } catch (netErr: any) {
+    const error: any = new Error("Network error: Unable to connect to server. Please check your internet connection.");
+    error.status = 0;
+    throw error;
+  }
 
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const error: any = new Error(data?.message ?? `Request failed: ${res.status}`);
+    let msg = data?.message;
+    if (data?.errors && typeof data.errors === "object") {
+      const keys = Object.keys(data.errors);
+      if (keys.length > 0) {
+        const val = data.errors[keys[0]];
+        if (Array.isArray(val) && val.length > 0) msg = val[0];
+        else if (typeof val === "string") msg = val;
+      }
+    }
+    const error: any = new Error(msg ?? `Request failed: ${res.status}`);
     error.status = res.status;
     error.errors = data?.errors;
     throw error;
@@ -146,19 +165,35 @@ export async function submitDayEnd(payload: {
     } as any);
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token ?? ""}`,
-    },
-    body: form,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token ?? ""}`,
+      },
+      body: form,
+    });
+  } catch (netErr: any) {
+    const error: any = new Error("Network error: Unable to connect to server. Please check your internet connection.");
+    error.status = 0;
+    throw error;
+  }
 
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const error: any = new Error(data?.message ?? `Request failed: ${res.status}`);
+    let msg = data?.message;
+    if (data?.errors && typeof data.errors === "object") {
+      const keys = Object.keys(data.errors);
+      if (keys.length > 0) {
+        const val = data.errors[keys[0]];
+        if (Array.isArray(val) && val.length > 0) msg = val[0];
+        else if (typeof val === "string") msg = val;
+      }
+    }
+    const error: any = new Error(msg ?? `Request failed: ${res.status}`);
     error.status = res.status;
     error.errors = data?.errors;
     throw error;

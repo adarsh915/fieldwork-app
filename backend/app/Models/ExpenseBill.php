@@ -44,7 +44,13 @@ class ExpenseBill extends Model
 
     public function getBillPhotoUrlAttribute(): ?string
     {
-        return $this->bill_photo ? asset('storage/' . $this->bill_photo) : null;
+        if ($this->bill_photo) {
+            return asset('storage/' . $this->bill_photo);
+        }
+        if ($this->is_system_generated && $this->relationLoaded('dayStart') && $this->dayStart) {
+            return $this->dayStart->closing_km_photo_url ?: $this->dayStart->opening_km_photo_url;
+        }
+        return null;
     }
 
     public function user()

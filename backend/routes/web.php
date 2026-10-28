@@ -271,7 +271,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
 
         // ── Expenses ──────────────────────────────────────────────────────────
-        Route::middleware('permission:expenses.view|expenses.view-team|expenses.view-all|expenses.view-own|expenses.approve|expenses.manage')->group(function () {
+        Route::middleware('permission:expenses.view|expenses.view-team|expenses.view-all|expenses.view-own|expenses.approve|expenses.final_approve|expenses.manage')->group(function () {
             Route::get('/expenses/data', [\App\Http\Controllers\Admin\ExpenseController::class, 'data'])->name('expenses.data');
             Route::get('/expenses', [\App\Http\Controllers\Admin\ExpenseController::class, 'index'])->name('expenses.index');
             Route::get('/expenses/reports/monthly', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'monthlySummary'])->name('expenses.reports.monthly');

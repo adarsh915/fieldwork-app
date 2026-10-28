@@ -26,9 +26,10 @@ class ExpenseController extends Controller
         $categories = \App\Models\ExpenseCategory::where('is_active', true)->orderBy('name')->get();
 
         $authUser = auth()->user();
-        $canFinalApprove = $authUser ? ($authUser->can('expenses.final_approve') || $authUser->hasRole(['Super Admin', 'Admin', 'Finance', 'HR'])) : false;
-        $canTempApprove = $authUser ? ($authUser->can('expenses.approve') || $authUser->can('expenses.manage') || $authUser->hasRole(['Super Admin', 'Admin', 'Manager', 'VP'])) : false;
-        $canEdit = $authUser ? ($authUser->can('expenses.edit') || $authUser->can('expenses.manage') || $authUser->hasRole(['Super Admin', 'Admin'])) : false;
+        $isSuperAdmin = $authUser ? $authUser->hasRole(['Super Admin', 'super_admin']) : false;
+        $canFinalApprove = $authUser ? ($authUser->can('expenses.final_approve') || $isSuperAdmin) : false;
+        $canTempApprove = $authUser ? ($authUser->can('expenses.approve') || $isSuperAdmin) : false;
+        $canEdit = $authUser ? ($authUser->can('expenses.edit') || $authUser->can('expenses.manage') || $isSuperAdmin) : false;
 
         if ($request->wantsJson()) {
             $expensesQuery = ExpenseBill::with(['user.roles', 'category', 'items']);
@@ -113,9 +114,9 @@ class ExpenseController extends Controller
 
         $authUser = auth()->user();
         $isSuperAdmin = $authUser ? $authUser->hasRole(['Super Admin', 'super_admin']) : false;
-        $canFinalApprove = $authUser ? ($authUser->can('expenses.final_approve') || $authUser->hasRole(['Super Admin', 'Admin', 'Finance', 'HR'])) : false;
-        $canTempApprove = $authUser ? ($authUser->can('expenses.approve') || $authUser->can('expenses.manage') || $authUser->hasRole(['Super Admin', 'Admin', 'Manager', 'VP'])) : false;
-        $canEdit = $authUser ? ($authUser->can('expenses.edit') || $authUser->can('expenses.manage') || $isSuperAdmin || $authUser->hasRole(['Admin', 'admin'])) : false;
+        $canFinalApprove = $authUser ? ($authUser->can('expenses.final_approve') || $isSuperAdmin) : false;
+        $canTempApprove = $authUser ? ($authUser->can('expenses.approve') || $isSuperAdmin) : false;
+        $canEdit = $authUser ? ($authUser->can('expenses.edit') || $authUser->can('expenses.manage') || $isSuperAdmin) : false;
         $actionableIds = DataScope::actionableSubordinateIds('expenses');
 
         return DataTables::of($query)
@@ -178,17 +179,23 @@ class ExpenseController extends Controller
                 // OR employee has no reporting manager assigned and user is Super Admin/Admin.
                 $isDirectManager = ($expense->user && $expense->user->reporting_to === $authUser->id)
                     || ($isSuperAdmin)
-                    || $authUser->hasRole(['Admin', 'admin'])
-                    || $authUser->can('expenses.manage')
                     || (empty($expense->user?->reporting_to) && $authUser->can('expenses.view-all'));
 
                 $canL1 = $notSelf && $canTempApprove && $isDirectManager && ($expense->status === 'pending');
-                $canL2 = $notSelf && $canFinalApprove && ($expense->status === 'temp_approved');
 
-                // Super Admin emergency override can also final-approve pending or manager_rejected if required
-                if ($isSuperAdmin && in_array($expense->status, ['pending', 'manager_rejected'], true)) {
-                    $canL2 = true;
-                }
+                // Level 2 Final Approval:
+                // If expense has a direct reporting manager and is pending, Level 1 verification is required first.
+                // Available when:
+                // 1) Already verified by reporting manager (status === 'temp_approved')
+                // 2) Overriding a manager rejection (status === 'manager_rejected')
+                // 3) Employee has no reporting manager assigned (hasNoManager)
+                // 4) User is Super Admin (emergency direct approval override)
+                $hasNoManager = empty($expense->user?->reporting_to);
+                $isEligibleForL2 = ($expense->status === 'temp_approved')
+                    || ($expense->status === 'manager_rejected')
+                    || ($expense->status === 'pending' && ($hasNoManager || $isSuperAdmin));
+
+                $canL2 = $notSelf && $canFinalApprove && $isEligibleForL2;
 
                 return [
                     'id' => $expense->id,
@@ -222,7 +229,7 @@ class ExpenseController extends Controller
                     'can_temp_approve' => $canL1,
                     'can_manager_reject' => $canL1,
                     'can_final_approve' => $canL2,
-                    'can_final_reject' => $notSelf && $canFinalApprove && in_array($expense->status, ['temp_approved', 'manager_rejected'], true),
+                    'can_final_reject' => $notSelf && $canFinalApprove && in_array($expense->status, ['temp_approved', 'pending', 'manager_rejected'], true),
                 ];
             })
             ->rawColumns(['actions'])
@@ -249,13 +256,11 @@ class ExpenseController extends Controller
         $note = $request->input('note') ?? $request->input('reason');
 
         $isSuperAdmin = $user && $user->hasRole(['Super Admin', 'super_admin']);
-        $canFinalApprove = $user ? ($user->can('expenses.final_approve') || $user->hasRole(['Super Admin', 'Admin', 'Finance', 'HR'])) : false;
-        $canTempApprove = $user ? ($user->can('expenses.approve') || $user->can('expenses.manage') || $user->hasRole(['Super Admin', 'Admin', 'Manager', 'VP'])) : false;
+        $canFinalApprove = $user ? ($user->can('expenses.final_approve') || $isSuperAdmin) : false;
+        $canTempApprove = $user ? ($user->can('expenses.approve') || $isSuperAdmin) : false;
 
         $isDirectManager = ($expense->user && $expense->user->reporting_to === $user->id)
             || ($isSuperAdmin)
-            || $user->hasRole(['Admin', 'admin'])
-            || $user->can('expenses.manage')
             || (empty($expense->user?->reporting_to) && $user->can('expenses.view-all'));
 
         if ($action === 'temp_approve') {
@@ -287,11 +292,12 @@ class ExpenseController extends Controller
             $msg = 'Expense verified by reporting manager (Level 1). Forwarded to HR for final approval.';
         } elseif ($action === 'final_approve' || $action === 'approved') {
             if (!$canFinalApprove) {
-                return response()->json(['success' => false, 'message' => 'Unauthorized: Final approval requires HR or Finance role.'], 403);
+                return response()->json(['success' => false, 'message' => 'Unauthorized: Final approval requires final approval permission.'], 403);
             }
 
-            // Strict Gatekeeping: HR cannot final-approve if the reporting manager hasn't verified yet
-            if ($expense->status === 'pending' && !$isSuperAdmin) {
+            // Strict Gatekeeping: Cannot final-approve while pending if employee has a reporting manager who hasn't verified yet
+            $hasReportingManager = !empty($expense->user?->reporting_to);
+            if ($expense->status === 'pending' && $hasReportingManager && !$isSuperAdmin) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Cannot Final Approve: This claim requires Level 1 verification from the direct reporting manager first.',

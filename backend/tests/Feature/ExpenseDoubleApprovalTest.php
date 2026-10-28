@@ -19,12 +19,18 @@ class ExpenseDoubleApprovalTest extends TestCase
 
         // Ensure permissions exist
         Permission::findOrCreate('expenses.view', 'web');
+        Permission::findOrCreate('expenses.view-own', 'web');
         Permission::findOrCreate('expenses.view-all', 'web');
         Permission::findOrCreate('expenses.view-team', 'web');
         Permission::findOrCreate('expenses.approve', 'web');
         Permission::findOrCreate('expenses.final_approve', 'web');
         Permission::findOrCreate('expenses.edit', 'web');
+        Permission::findOrCreate('day-start.view-all', 'web');
         Role::findOrCreate('Admin', 'web');
+        Role::findOrCreate('Super Admin', 'web');
+        Role::findOrCreate('Manager', 'web');
+        Role::findOrCreate('VP', 'web');
+        Role::findOrCreate('HR', 'web');
     }
 
     public function test_manager_can_temp_approve_expense(): void
@@ -398,6 +404,7 @@ class ExpenseDoubleApprovalTest extends TestCase
         $worker = User::factory()->create();
         $category = \App\Models\ExpenseCategory::firstOrCreate(['name' => 'Travel'], ['is_active' => true]);
 
+        $rejectedByManager = User::factory()->create();
         $expense = ExpenseBill::create([
             'user_id'          => $worker->id,
             'category_id'      => $category->id,
@@ -406,7 +413,7 @@ class ExpenseDoubleApprovalTest extends TestCase
             'bill_photo'       => 'expenses/bad_photo.jpg',
             'status'           => 'rejected',
             'rejection_reason' => 'Image blurry and unreadable',
-            'rejected_by'      => 1,
+            'rejected_by'      => $rejectedByManager->id,
             'rejected_at'      => now(),
         ]);
 

@@ -42,6 +42,17 @@ class OrderController extends Controller
             $query->where('party_id', $request->party_id);
         }
 
+        if ($request->filled('status') && $request->status !== 'all') {
+            $status = strtolower(trim($request->status));
+            if ($status === 'completed') {
+                $query->whereIn('status', ['completed', 'approved', 'delivered']);
+            } elseif ($status === 'cancelled') {
+                $query->whereIn('status', ['cancelled', 'rejected']);
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
         if ($request->filled('search')) {
             $search = trim($request->search);
             $query->where('order_no', 'LIKE', "%{$search}%");
@@ -64,7 +75,7 @@ class OrderController extends Controller
             ]);
         }
 
-        $orders = $query->get();
+        $orders = $query->limit(100)->get();
 
         return response()->json([
             'success' => true,
@@ -76,9 +87,21 @@ class OrderController extends Controller
     /**
      * Get a single order detail
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $order = Order::with(['items.product', 'party'])->findOrFail($id);
+
+        $user = $request->user();
+        if ($order->user_id !== $user->id) {
+            $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
+            $scopedUserIds = DataScope::visibleUserIds('orders', $user);
+            if (!$isSuperAdmin && ($scopedUserIds === null || !in_array($order->user_id, $scopedUserIds, true))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access to this order.',
+                ], 403);
+            }
+        }
 
         return response()->json([
             'success' => true,

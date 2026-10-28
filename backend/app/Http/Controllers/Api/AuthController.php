@@ -91,9 +91,20 @@ class AuthController extends Controller
             'fcm_token' => 'required|string|max:1000',
         ]);
 
-        $request->user()->update([
+        $user = $request->user();
+        $user->update([
             'fcm_token' => $request->fcm_token,
         ]);
+
+        // Auto-subscribe native device token to Firebase broadcast topics
+        try {
+            \App\Services\FirebasePushService::subscribeToTopic($request->fcm_token, 'all_employees');
+            if ($user->hasAnyRole(['Field Worker', 'field_worker', 'Employee'])) {
+                \App\Services\FirebasePushService::subscribeToTopic($request->fcm_token, 'field_workers');
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("FCM topic auto-subscription failed: " . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

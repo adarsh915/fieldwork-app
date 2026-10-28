@@ -205,6 +205,7 @@ class ComprehensivePermissionsSeeder extends Seeder
                 ->where('name', 'not like', 'settings.manage')
                 ->where('name', '!=', 'employees.assign-roles')
                 ->where('name', 'not like', '%.view-all')
+                ->where('name', '!=', 'expenses.final_approve')
                 ->get();
             $manager->syncPermissions($managerPermissions);
             // Ensure team-scope permissions

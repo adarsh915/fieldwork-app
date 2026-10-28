@@ -9,14 +9,28 @@ use Tests\TestCase;
 
 class EmployeeProfileImageTest extends TestCase
 {
+    protected function getAdminUser(): User
+    {
+        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web']);
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'Employee', 'guard_name' => 'web']);
+        $admin = User::firstOrCreate(
+            ['email' => 'admin_test@ampl.com'],
+            ['name' => 'Admin Test', 'password' => bcrypt('password'), 'is_active' => true]
+        );
+        if (!$admin->hasRole('Super Admin')) {
+            $admin->assignRole($role);
+        }
+        return $admin;
+    }
+
     public function test_employee_update_with_image_and_empty_password_succeeds(): void
     {
         Storage::fake('public');
 
-        $admin = User::role('Super Admin')->first() ?? User::find(1);
+        $admin = $this->getAdminUser();
         $this->actingAs($admin);
 
-        $employee = User::where('id', '!=', $admin->id)->first() ?? $admin;
+        $employee = User::where('id', '!=', $admin->id)->first() ?? User::factory()->create();
 
         $image = UploadedFile::fake()->image('profile.jpg', 200, 200);
 
@@ -42,10 +56,10 @@ class EmployeeProfileImageTest extends TestCase
     {
         Storage::fake('public');
 
-        $admin = User::role('Super Admin')->first() ?? User::find(1);
+        $admin = $this->getAdminUser();
         $this->actingAs($admin);
 
-        $employee = User::where('id', '!=', $admin->id)->first() ?? $admin;
+        $employee = User::where('id', '!=', $admin->id)->first() ?? User::factory()->create();
 
         // Set existing image
         $imagePath = 'employees/avatars/existing.jpg';
@@ -69,10 +83,10 @@ class EmployeeProfileImageTest extends TestCase
 
     public function test_employee_update_with_string_is_active(): void
     {
-        $admin = User::role('Super Admin')->first() ?? User::find(1);
+        $admin = $this->getAdminUser();
         $this->actingAs($admin);
 
-        $employee = User::where('id', '!=', $admin->id)->first() ?? $admin;
+        $employee = User::where('id', '!=', $admin->id)->first() ?? User::factory()->create();
 
         // Test with string 'true' as FormData sends
         $response = $this->putJson(route('admin.employees.update', $employee->id), [

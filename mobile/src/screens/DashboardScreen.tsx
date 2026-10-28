@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { getDayStatus } from "../api/day";
+import { getDayStatus, type DayStartData } from "../api/day";
 import { fetchUnreadCount, subscribeUnreadCount } from "../api/notifications";
 import { getApprovalCounts, type ApprovalCounts } from "../api/approvals";
 import { useAuth } from "../auth/AuthContext";
@@ -38,6 +38,7 @@ export default function DashboardScreen() {
 
   const [dayActive, setDayActive] = useState(false);
   const [dayCompleted, setDayCompleted] = useState(false);
+  const [todayDayStart, setTodayDayStart] = useState<DayStartData | null>(null);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [approvalCounts, setApprovalCounts] = useState<ApprovalCounts | null>(null);
 
@@ -74,6 +75,7 @@ export default function DashboardScreen() {
         .then((res) => {
           if (isActive && res.success) {
             if (res.day_started && res.data) {
+              setTodayDayStart(res.data);
               // If end_time is set, the day is completed
               if (res.data.end_time) {
                 setDayCompleted(true);
@@ -83,6 +85,7 @@ export default function DashboardScreen() {
                 setDayCompleted(false);
               }
             } else {
+              setTodayDayStart(null);
               setDayActive(false);
               setDayCompleted(false);
             }
@@ -301,6 +304,66 @@ export default function DashboardScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── Active Tour Plan Summary Card ── */}
+        {todayDayStart && (
+          <View style={styles.activeTourCard}>
+            <View style={styles.activeTourHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <MaterialIcons name="navigation" size={16} color="#7367F0" />
+                <Text style={styles.activeTourTitle}>
+                  {dayCompleted ? "Today's Tour Summary" : "Today's Tour Plan"}
+                </Text>
+              </View>
+              <View style={[styles.activeStatusPill, dayCompleted ? styles.pillCompleted : styles.pillActive]}>
+                <Text style={[styles.activeStatusText, dayCompleted ? styles.pillTextCompleted : styles.pillTextActive]}>
+                  {dayCompleted ? "Day Ended" : "Day Started"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.activeTourBody}>
+              <View style={styles.activeTourRow}>
+                <Text style={styles.activeTourLabel}>Purpose:</Text>
+                <Text style={styles.activeTourVal}>
+                  {todayDayStart.tour_purpose?.name ?? "—"}
+                  {todayDayStart.tour_type ? ` • ${todayDayStart.tour_type.name}` : ""}
+                </Text>
+              </View>
+
+              {(todayDayStart.visit_place || todayDayStart.area?.name || todayDayStart.district?.name) && (
+                <View style={styles.activeTourRow}>
+                  <Text style={styles.activeTourLabel}>Location:</Text>
+                  <Text style={styles.activeTourVal}>
+                    {todayDayStart.visit_place || [todayDayStart.district?.name, todayDayStart.area?.name].filter(Boolean).join(" • ")}
+                  </Text>
+                </View>
+              )}
+
+              {Boolean(todayDayStart.remarks) && (
+                <View style={styles.tourPlanBox}>
+                  <Text style={styles.tourPlanBoxLabel}>📋 Tour Plan / Notes:</Text>
+                  <Text style={styles.tourPlanBoxText}>{todayDayStart.remarks}</Text>
+                </View>
+              )}
+
+              <View style={styles.activeStatsRow}>
+                {todayDayStart.opening_km !== null && (
+                  <View style={styles.activeStat}>
+                    <Text style={styles.activeStatLabel}>Opening KM:</Text>
+                    <Text style={styles.activeStatVal}>{todayDayStart.opening_km} KM</Text>
+                  </View>
+                )}
+                {Boolean(todayDayStart.vehicle_no) && (
+                  <View style={styles.activeStat}>
+                    <Text style={styles.activeStatLabel}>Vehicle:</Text>
+                    <Text style={styles.activeStatVal}>{todayDayStart.vehicle_no}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* ── Team Approvals Hero Card (Managers / VPs / Admins) ── */}
         {approvalCounts?.can_approve && (
@@ -754,5 +817,116 @@ const styles = StyleSheet.create({
     width: 1,
     height: 16,
     backgroundColor: "#E5E7EB",
+  },
+  activeTourCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: "hidden",
+  },
+  activeTourHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#F8FAFC",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F6",
+  },
+  activeTourTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  activeStatusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  pillActive: {
+    backgroundColor: "#EFF6FF",
+  },
+  pillCompleted: {
+    backgroundColor: "#ECFDF5",
+  },
+  activeStatusText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  pillTextActive: {
+    color: "#2563EB",
+  },
+  pillTextCompleted: {
+    color: "#059669",
+  },
+  activeTourBody: {
+    padding: 12,
+  },
+  activeTourRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  activeTourLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+    width: 72,
+  },
+  activeTourVal: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#0F172A",
+  },
+  tourPlanBox: {
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 8,
+    padding: 9,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  tourPlanBoxLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#92400E",
+    marginBottom: 2,
+  },
+  tourPlanBoxText: {
+    fontSize: 12,
+    color: "#78350F",
+    lineHeight: 16,
+  },
+  activeStatsRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 2,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  activeStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  activeStatLabel: {
+    fontSize: 11,
+    color: "#64748B",
+  },
+  activeStatVal: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0F172A",
   },
 });

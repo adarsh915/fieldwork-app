@@ -229,6 +229,30 @@
                             </div>
                         </div>
 
+                        <div class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                            <span class="mt-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">recommended</span>
+                            <div>
+                                <code class="text-xs font-bold text-emerald-800">district</code>
+                                <p class="mt-0.5 text-xs text-emerald-700">District name (e.g. Ahmedabad, Surat, Rajkot). Automatically links to territorial district and mobile filters.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                            <span class="mt-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">optional</span>
+                            <div>
+                                <code class="text-xs font-bold text-emerald-800">area</code>
+                                <p class="mt-0.5 text-xs text-emerald-700">Area / Beat name under the district (e.g. Sanand GIDC, Ring Road). Automatically links to territory area.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                            <span class="mt-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-500">optional</span>
+                            <div>
+                                <code class="text-xs font-bold text-slate-800">city</code>
+                                <p class="mt-0.5 text-xs text-slate-500">City name. If district column is blank, matching cities automatically resolve to the district.</p>
+                            </div>
+                        </div>
+
                         <div class="flex items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
                             <span class="mt-0.5 rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-semibold text-indigo-700">optional</span>
                             <div>

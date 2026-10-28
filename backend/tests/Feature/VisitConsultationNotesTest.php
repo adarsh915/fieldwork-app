@@ -16,15 +16,24 @@ class VisitConsultationNotesTest extends TestCase
         $user = User::first() ?? User::factory()->create();
         $party = Customer::first() ?? Customer::create(['name' => 'Test Party']);
 
+        $tourPurposeId = \Illuminate\Support\Facades\DB::table('tour_purposes')->value('id')
+            ?? \Illuminate\Support\Facades\DB::table('tour_purposes')->insertGetId(['name' => 'General Visit', 'created_at' => now(), 'updated_at' => now()]);
+
+        $tourTypeId = \Illuminate\Support\Facades\DB::table('tour_types')->value('id')
+            ?? \Illuminate\Support\Facades\DB::table('tour_types')->insertGetId(['name' => 'Local', 'created_at' => now(), 'updated_at' => now()]);
+
+        $vehicleTypeId = \Illuminate\Support\Facades\DB::table('vehicle_types')->value('id')
+            ?? \Illuminate\Support\Facades\DB::table('vehicle_types')->insertGetId(['name' => 'Bike', 'slug' => 'bike', 'rate_per_km' => 3.5, 'created_at' => now(), 'updated_at' => now()]);
+
         $dayStart = DayStart::where('user_id', $user->id)->whereDate('date', Carbon::today())->first();
         if (!$dayStart) {
             $dayStart = DayStart::create([
                 'user_id' => $user->id,
                 'date' => Carbon::today(),
                 'opening_km' => 100,
-                'tour_purpose_id' => \Illuminate\Support\Facades\DB::table('tour_purposes')->value('id') ?? 1,
-                'tour_type_id' => \Illuminate\Support\Facades\DB::table('tour_types')->value('id') ?? 1,
-                'vehicle_type_id' => \Illuminate\Support\Facades\DB::table('vehicle_types')->value('id') ?? 1,
+                'tour_purpose_id' => $tourPurposeId,
+                'tour_type_id' => $tourTypeId,
+                'vehicle_type_id' => $vehicleTypeId,
                 'vehicle_no' => 'DL01AB1234',
                 'start_time' => Carbon::now(),
             ]);
