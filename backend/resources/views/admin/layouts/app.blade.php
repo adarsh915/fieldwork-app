@@ -265,14 +265,18 @@
                         <x-lucide-database class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Master Data</span>
                     </a>
+                    @endcan
 
+                    @canany(['locations.view', 'locations.manage'])
                     <a href="{{ route('admin.locations.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.locations.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Districts & Areas' : ''">
                         <x-lucide-map-pin class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Districts & Areas</span>
                     </a>
+                    @endcanany
 
+                    @can('master-data.manage')
                     <a href="{{ route('admin.holidays.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.holidays.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Holidays' : ''">

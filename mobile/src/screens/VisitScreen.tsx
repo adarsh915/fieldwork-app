@@ -27,6 +27,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ScreenHeader from "../components/ScreenHeader";
+import { optimizeImageForUpload } from "../utils/imageOptimizer";
 import {
   checkIn,
   checkOut,
@@ -183,7 +184,7 @@ export default function VisitScreen() {
       return; // user cancelled camera
     }
 
-    const checkInPhotoUri = imageResult.assets[0].uri;
+    const checkInPhotoUri = await optimizeImageForUpload(imageResult.assets[0].uri);
 
     setSubmitting(true);
     try {
@@ -446,7 +447,7 @@ export default function VisitScreen() {
           </View>
         )}
 
-        {/* Order History */}
+        {/* Hidden: Order History card per request (hidden, not removed)
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -522,6 +523,7 @@ export default function VisitScreen() {
             </>
           )}
         </View>
+        */}
 
         {/* Visit / Consultation History */}
         <View style={styles.card}>
@@ -551,20 +553,33 @@ export default function VisitScreen() {
               {recentVisits.slice(0, 5).map((item, index) => (
                 <View key={item.id || index} style={styles.historyRow}>
                   <View style={styles.historyHeader}>
-                    <Text style={styles.historyDate}>
-                      {item.check_out_time || item.check_out_at || item.check_in_time || item.check_in_at
-                        ? new Date(
-                            (item.check_out_time ||
-                              item.check_out_at ||
-                              item.check_in_time ||
-                              item.check_in_at)!
-                          ).toLocaleDateString([], {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "Recent Visit"}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={styles.historyDate}>
+                        {item.check_out_time || item.check_out_at || item.check_in_time || item.check_in_at
+                          ? new Date(
+                              (item.check_out_time ||
+                                item.check_out_at ||
+                                item.check_in_time ||
+                                item.check_in_at)!
+                            ).toLocaleDateString([], {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "Recent"}
+                      </Text>
+                      {item.source === "phone" ? (
+                        <View style={styles.phoneSourceBadge}>
+                          <MaterialIcons name="phone" size={10} color="#4F46E5" />
+                          <Text style={styles.phoneSourceText}>Phone</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.visitSourceBadge}>
+                          <MaterialIcons name="location-on" size={10} color="#059669" />
+                          <Text style={styles.visitSourceText}>Visit</Text>
+                        </View>
+                      )}
+                    </View>
                     {item.user?.name && (
                       <Text style={styles.historyUser}>By {item.user.name}</Text>
                     )}
@@ -605,10 +620,10 @@ export default function VisitScreen() {
         <TouchableOpacity
           style={styles.bottomBtn}
           disabled={!isCheckedIn}
-          onPress={() => setShowTxMenu(!showTxMenu)}
+          onPress={() => handleTxOption("Order")}
         >
           <MaterialCommunityIcons
-            name="currency-inr"
+            name="cart-outline"
             size={24}
             color={isCheckedIn ? "#fff" : "rgba(255,255,255,0.5)"}
           />
@@ -618,23 +633,7 @@ export default function VisitScreen() {
               !isCheckedIn && { color: "rgba(255,255,255,0.5)" },
             ]}
           >
-            Transaction
-          </Text>
-        </TouchableOpacity>
-        <View style={styles.divider} />
-        <TouchableOpacity style={styles.bottomBtn} disabled={!isCheckedIn}>
-          <MaterialCommunityIcons
-            name="bank-transfer"
-            size={24}
-            color={isCheckedIn ? "#fff" : "rgba(255,255,255,0.5)"}
-          />
-          <Text
-            style={[
-              styles.bottomBtnText,
-              !isCheckedIn && { color: "rgba(255,255,255,0.5)" },
-            ]}
-          >
-            A/C Transaction
+            Order
           </Text>
         </TouchableOpacity>
       </View>
@@ -660,54 +659,10 @@ export default function VisitScreen() {
             >
               <MaterialCommunityIcons
                 name="cart-outline"
-                size={20}
-                color="#374151"
+                size={22}
+                color="#7367F0"
               />
               <Text style={styles.menuItemText}>Order</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleTxOption("Order Return")}
-            >
-              <MaterialCommunityIcons
-                name="cart-arrow-up"
-                size={20}
-                color="#374151"
-              />
-              <Text style={styles.menuItemText}>Order Return</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleTxOption("Payment")}
-            >
-              <MaterialCommunityIcons
-                name="cash-multiple"
-                size={20}
-                color="#374151"
-              />
-              <Text style={styles.menuItemText}>Payment</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleTxOption("Customer Profile")}
-            >
-              <MaterialCommunityIcons
-                name="account-details"
-                size={20}
-                color="#374151"
-              />
-              <Text style={styles.menuItemText}>Customer Profile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleTxOption("Location Tag")}
-            >
-              <MaterialCommunityIcons
-                name="map-marker-radius"
-                size={20}
-                color="#374151"
-              />
-              <Text style={styles.menuItemText}>Location Tag</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1237,6 +1192,38 @@ const styles = StyleSheet.create({
     color: "#1F2937",
     lineHeight: 18,
   },
+  phoneSourceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    gap: 3,
+  },
+  phoneSourceText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#4F46E5",
+  },
+  visitSourceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    gap: 3,
+  },
+  visitSourceText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#059669",
+  },
 
   sectionHeaderRow: {
     flexDirection: "row",
@@ -1664,20 +1651,33 @@ function AllConsultationsModal({
             renderItem={({ item }) => (
               <View style={styles.historyRow}>
                 <View style={styles.historyHeader}>
-                  <Text style={styles.historyDate}>
-                    {item.check_out_time || item.check_out_at || item.check_in_time || item.check_in_at
-                      ? new Date(
-                          (item.check_out_time ||
-                            item.check_out_at ||
-                            item.check_in_time ||
-                            item.check_in_at)!
-                        ).toLocaleDateString([], {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "Recent Visit"}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.historyDate}>
+                      {item.check_out_time || item.check_out_at || item.check_in_time || item.check_in_at
+                        ? new Date(
+                            (item.check_out_time ||
+                              item.check_out_at ||
+                              item.check_in_time ||
+                              item.check_in_at)!
+                          ).toLocaleDateString([], {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "Recent"}
+                    </Text>
+                    {item.source === "phone" ? (
+                      <View style={styles.phoneSourceBadge}>
+                        <MaterialIcons name="phone" size={10} color="#4F46E5" />
+                        <Text style={styles.phoneSourceText}>Phone</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.visitSourceBadge}>
+                        <MaterialIcons name="location-on" size={10} color="#059669" />
+                        <Text style={styles.visitSourceText}>Visit</Text>
+                      </View>
+                    )}
+                  </View>
                   {item.user?.name && (
                     <Text style={styles.historyUser}>By {item.user.name}</Text>
                   )}

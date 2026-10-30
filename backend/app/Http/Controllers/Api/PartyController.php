@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\PartyEmployeeMap;
+use App\Models\Visit;
 use App\Services\DataScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -74,23 +75,32 @@ class PartyController extends Controller
 
         $columns = ['id', 'name', 'mobile', 'address', 'city', 'district_id', 'area_id', 'approval_status', 'is_active'];
 
+        $completedVisitsCount = Visit::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->count();
+
         if ($request->has('page')) {
             $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
             $paginated = $query->orderBy('name')->paginate($perPage, $columns);
 
             return response()->json([
-                'success'      => true,
-                'data'         => $paginated->items(),
-                'current_page' => $paginated->currentPage(),
-                'last_page'    => $paginated->lastPage(),
-                'total'        => $paginated->total(),
-                'has_more'     => $paginated->hasMorePages(),
+                'success'                => true,
+                'data'                   => $paginated->items(),
+                'current_page'           => $paginated->currentPage(),
+                'last_page'              => $paginated->lastPage(),
+                'total'                  => $paginated->total(),
+                'has_more'               => $paginated->hasMorePages(),
+                'completed_visits_count' => $completedVisitsCount,
             ]);
         }
 
         $parties = $query->orderBy('name')->get($columns);
 
-        return response()->json(['success' => true, 'data' => $parties]);
+        return response()->json([
+            'success'                => true,
+            'data'                   => $parties,
+            'completed_visits_count' => $completedVisitsCount,
+        ]);
     }
 
     /**
@@ -106,11 +116,14 @@ class PartyController extends Controller
             'mobile'      => 'required|string|max:15',
             'party_type'  => 'nullable|string|max:50',
             'owner_name'  => 'nullable|string|max:255',
+            'state'       => 'nullable|string|max:100',
+            'district'    => 'nullable|string|max:100',
             'district_id' => 'nullable|exists:districts,id',
+            'area'        => 'nullable|string|max:150',
             'area_id'     => 'nullable|exists:areas,id',
+            'new_area'    => 'nullable|string|max:150',
             'address'     => 'nullable|string',
             'city'        => 'nullable|string|max:100',
-            'state'       => 'nullable|string|max:100',
             'pincode'     => 'nullable|string|max:10',
             'email'       => 'nullable|email|max:255',
             'gst_number'  => 'nullable|string|max:20',
@@ -123,27 +136,55 @@ class PartyController extends Controller
             ], 422);
         }
 
+        if (!$request->filled('district') && !$request->filled('district_id')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select a District.',
+            ], 422);
+        }
+
         $user = $request->user();
 
-        $city = $request->city;
-        $state = $request->state;
-        if ($request->filled('district_id')) {
-            $district = \App\Models\District::find($request->district_id);
-            if ($district && empty($state)) {
-                $state = $district->state;
+        $state = $request->input('state');
+        $districtId = $request->input('district_id');
+        $districtName = $request->input('district');
+
+        if ($districtId) {
+            $district = \App\Models\District::find($districtId);
+            if ($district) {
+                $districtName = $district->name;
+                $state = $state ?: $district->state;
             }
-            if ($district && empty($city)) {
-                $city = $district->name;
-            }
+        } elseif (!empty($districtName)) {
+            // Find or create district from JSON selection
+            $district = \App\Models\District::firstOrCreate(
+                ['name' => trim($districtName), 'state' => $state ?: 'Gujarat'],
+                ['is_active' => true]
+            );
+            $districtId = $district->id;
+            $state = $state ?: $district->state;
         }
-        if ($request->filled('area_id')) {
-            $area = \App\Models\Area::find($request->area_id);
-            if ($area && empty($city)) {
-                $city = $area->name;
+
+        $areaName = trim($request->input('area') ?: $request->input('new_area') ?: '');
+        $areaId = $request->input('area_id');
+        $city = $request->input('city') ?: $districtName;
+
+        if ($areaId) {
+            $area = \App\Models\Area::find($areaId);
+            if ($area) {
+                if (empty($city)) $city = $area->name;
+                if (empty($request->pincode) && !empty($area->pincode)) {
+                    $pincode = $area->pincode;
+                }
             }
-            if ($area && empty($request->pincode) && !empty($area->pincode)) {
-                $pincode = $area->pincode;
-            }
+        } elseif (!empty($areaName) && $districtId) {
+            // ponytail: auto-create area when manually entered; links to resolved district
+            $area = \App\Models\Area::firstOrCreate([
+                'name' => $areaName,
+                'district_id' => $districtId,
+            ]);
+            $areaId = $area->id;
+            if (empty($city)) $city = $area->name;
         }
 
         DB::beginTransaction();
@@ -153,8 +194,8 @@ class PartyController extends Controller
                 'mobile'          => $request->mobile,
                 'party_type'      => $request->party_type ?? 'Retailer',
                 'owner_name'      => $request->owner_name,
-                'district_id'     => $request->district_id,
-                'area_id'         => $request->area_id,
+                'district_id'     => $districtId,
+                'area_id'         => $areaId,
                 'address'         => $request->address,
                 'city'            => $city,
                 'state'           => $state,

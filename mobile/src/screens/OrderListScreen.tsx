@@ -105,7 +105,7 @@ export default function OrderListScreen() {
           : s === statusFilter.toLowerCase());
 
       return matchesSearch && matchesStatus;
-    });
+    }).sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
   }, [orders, searchQuery, statusFilter, partyName]);
 
   const totalAmount = useMemo(() => {

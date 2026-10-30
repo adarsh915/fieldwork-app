@@ -129,11 +129,12 @@ class OrderController extends Controller
             'order_type' => 'nullable|string',
             'payment_mode' => 'nullable|string',
             'order_date' => 'nullable|date',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.product_unit_id' => 'required|exists:product_units,id',
-            'items.*.quantity' => 'required|integer|min:1',
+            'items' => 'nullable|array',
+            'items.*.product_id' => 'required_with:items|exists:products,id',
+            'items.*.product_unit_id' => 'required_with:items|exists:product_units,id',
+            'items.*.quantity' => 'required_with:items|integer|min:1',
             'items.*.price' => 'nullable|numeric|min:0',
+            'total_amount' => 'nullable|numeric|min:0',
         ]);
 
         $isPhoneOrder = empty($request->visit_id) || $request->order_source === 'phone';
@@ -163,9 +164,13 @@ class OrderController extends Controller
             DB::beginTransaction();
 
             $totalAmount = 0;
-            foreach ($request->items as $item) {
-                $price = isset($item['price']) ? (float)$item['price'] : 0;
-                $totalAmount += ($item['quantity'] * $price);
+            if (!empty($request->items)) {
+                foreach ($request->items as $item) {
+                    $price = isset($item['price']) ? (float)$item['price'] : 0;
+                    $totalAmount += ($item['quantity'] * $price);
+                }
+            } elseif ($request->filled('total_amount')) {
+                $totalAmount = (float)$request->total_amount;
             }
 
             $orderDate = $request->order_date ? Carbon::parse($request->order_date) : Carbon::today();
@@ -183,23 +188,25 @@ class OrderController extends Controller
                 'dispatch_date' => $request->dispatch_date,
                 'remarks' => $request->remarks,
                 'schema' => $request->schema,
-                'order_type' => $request->order_type ?? 'Visit Report',
-                'payment_mode' => $request->payment_mode ?? 'Report',
+                'order_type' => $request->order_type ?? ($isPhoneOrder ? 'Phone Order' : 'Visit Report'),
+                'payment_mode' => $request->payment_mode ?? ($isPhoneOrder ? 'Phone' : 'Report'),
                 'total_amount' => $totalAmount,
                 'status' => 'pending',
                 'order_date' => $orderDate,
             ]);
 
-            foreach ($request->items as $item) {
-                $price = isset($item['price']) ? (float)$item['price'] : 0;
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $item['product_id'],
-                    'product_unit_id' => $item['product_unit_id'],
-                    'qty' => $item['quantity'],
-                    'rate' => $price,
-                    'total' => $item['quantity'] * $price,
-                ]);
+            if (!empty($request->items)) {
+                foreach ($request->items as $item) {
+                    $price = isset($item['price']) ? (float)$item['price'] : 0;
+                    OrderItem::create([
+                        'order_id' => $order->id,
+                        'product_id' => $item['product_id'],
+                        'product_unit_id' => $item['product_unit_id'],
+                        'qty' => $item['quantity'],
+                        'rate' => $price,
+                        'total' => $item['quantity'] * $price,
+                    ]);
+                }
             }
 
             DB::commit();

@@ -81,7 +81,7 @@ export default function PaymentRegisterScreen() {
         statusFilter === "all" || item.status.toLowerCase() === statusFilter.toLowerCase();
 
       return matchesSearch && matchesStatus;
-    });
+    }).sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
   }, [payments, searchQuery, statusFilter]);
 
   const counts = useMemo(() => {

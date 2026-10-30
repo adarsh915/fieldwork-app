@@ -18,6 +18,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
+import { optimizeImageForUpload } from "../utils/imageOptimizer";
 
 import { submitDayStart } from "../api/day";
 import {
@@ -123,7 +124,8 @@ export default function DayStartScreen() {
       allowsEditing: false,
     });
     if (!result.canceled && result.assets.length > 0) {
-      setKmPhotoUri(result.assets[0].uri);
+      const optimizedUri = await optimizeImageForUpload(result.assets[0].uri);
+      setKmPhotoUri(optimizedUri);
     }
   }
 

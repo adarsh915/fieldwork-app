@@ -289,7 +289,7 @@ class PaymentController extends Controller
 
         if ($request->has('page') || $request->has('per_page')) {
             $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
-            $paginated = $query->orderBy('created_at', 'asc')->paginate($perPage);
+            $paginated = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
             return response()->json([
                 'success'      => true,
@@ -302,7 +302,7 @@ class PaymentController extends Controller
             ]);
         }
 
-        $payments = $query->orderBy('created_at', 'asc')->limit(100)->get();
+        $payments = $query->orderBy('created_at', 'desc')->limit(100)->get();
 
         return response()->json([
             'success' => true,

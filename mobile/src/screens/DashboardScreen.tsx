@@ -5,7 +5,6 @@ import { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import CachedImage from "../components/CachedImage";
 
 import { getDayStatus, type DayStartData } from "../api/day";
 import { fetchUnreadCount, subscribeUnreadCount } from "../api/notifications";
@@ -124,6 +124,7 @@ export default function DashboardScreen() {
       icon: "account-group-outline",
       onPress: () => navigation.navigate("DealerList"),
     },
+    /* Hidden per request (hidden, not removed):
     {
       label: "Products",
       icon: "package-variant",
@@ -139,24 +140,29 @@ export default function DashboardScreen() {
       icon: "cash-multiple",
       onPress: () => navigation.navigate("PaymentRegister"),
     },
+    */
     {
       label: "Visit",
       icon: "map-marker-outline",
       onPress: () => navigation.navigate("Report"),
     },
+    /* Hidden per request (hidden, not removed):
     { label: "Product\nDemo", icon: "package-variant-closed" },
     { label: "My\nMeeting", icon: "calendar-account-outline" },
     { label: "Customers", icon: "account-tie-outline" },
     { label: "New Deal", icon: "handshake-outline" },
+    */
   ];
 
   // ── Employee (Hr/Reporting) grid ────────────────────────────────────────────
   const employeeMenu: MenuItem[] = [
+    /* Hidden per request (hidden, not removed):
     {
       label: "Activities",
       icon: "run-fast",
       onPress: () => navigation.navigate("Report"),
     },
+    */
     { label: "My Expense\nBill", icon: "receipt", onPress: () => navigation.navigate("ExpenseList") },
     { label: "Expense\nSummary", icon: "chart-bar-stacked", onPress: () => navigation.navigate("ExpenseMonthlySummary") },
     { label: "Attendance", icon: "calendar-check-outline", onPress: () => navigation.navigate("AttendanceCalendar") },
@@ -170,8 +176,10 @@ export default function DashboardScreen() {
           },
         ]
       : []),
+    /* Hidden per request (hidden, not removed):
     { label: "Product\nPlaning", icon: "chart-bar" },
     { label: "Coll.\nPlaning", icon: "briefcase-outline" },
+    */
     { label: "My Report", icon: "file-chart-outline", onPress: () => navigation.navigate("Report") },
   ];
 
@@ -207,7 +215,7 @@ export default function DashboardScreen() {
               accessibilityLabel="View user profile"
             >
               {user?.profile_image_url ? (
-                <Image
+                <CachedImage
                   source={{ uri: user.profile_image_url }}
                   style={styles.profileAvatarImg}
                 />

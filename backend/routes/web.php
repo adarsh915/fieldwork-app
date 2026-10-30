@@ -249,7 +249,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
 
         // ── Locations Master (Districts & Areas) ───────────────────────────────
-        Route::prefix('locations')->name('locations.')->middleware('permission:master-data.manage')->group(function () {
+        Route::prefix('locations')->name('locations.')->middleware('permission:locations.view|locations.manage')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\LocationController::class, 'index'])->name('index');
             Route::post('/districts', [\App\Http\Controllers\Admin\LocationController::class, 'storeDistrict'])->name('districts.store');
             Route::put('/districts/{district}', [\App\Http\Controllers\Admin\LocationController::class, 'updateDistrict'])->name('districts.update');

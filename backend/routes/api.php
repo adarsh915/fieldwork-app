@@ -46,8 +46,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('tour-purposes',  [MasterController::class, 'tourPurposes'])->name('tour-purposes');
         Route::get('tour-types',     [MasterController::class, 'tourTypes'])->name('tour-types');
         Route::get('vehicle-types',  [MasterController::class, 'vehicleTypes'])->name('vehicle-types');
-        Route::get('locations',      [MasterController::class, 'locations'])->name('locations');
-        Route::get('parties',        [MasterController::class, 'parties'])->name('parties');
+        Route::get('locations',        [MasterController::class, 'locations'])->name('locations');
+        Route::get('india-locations',  [MasterController::class, 'indiaLocations'])->name('india-locations');
+        Route::get('parties',          [MasterController::class, 'parties'])->name('parties');
         Route::get('parties/{id}',   [MasterController::class, 'partyDetails'])->name('party.details');
     });
 

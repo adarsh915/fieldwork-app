@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Modal,
   Platform,
   RefreshControl,
@@ -19,6 +18,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ScreenHeader from "../components/ScreenHeader";
+import CachedImage from "../components/CachedImage";
 import { getExpenses, type ExpenseBill } from "../api/expense";
 import type { AppStackParamList } from "../navigation/RootNavigator";
 
@@ -292,7 +292,7 @@ export default function ExpenseListScreen() {
                 )
               }
             >
-              <Image source={{ uri: item.bill_photo_url }} style={styles.cardThumbImg} />
+              <CachedImage source={{ uri: item.bill_photo_url }} style={styles.cardThumbImg} />
               <View style={styles.thumbZoomBadge}>
                 <MaterialIcons name="zoom-in" size={12} color="#fff" />
               </View>
@@ -653,7 +653,7 @@ export default function ExpenseListScreen() {
                         )
                       }
                     >
-                      <Image
+                      <CachedImage
                         source={{ uri: selectedExpense.bill_photo_url }}
                         style={styles.modalPhotoLarge}
                         resizeMode="cover"
@@ -747,7 +747,7 @@ export default function ExpenseListScreen() {
                               )
                             }
                           >
-                            <Image
+                            <CachedImage
                               source={{ uri: selectedExpense.day_start.opening_km_photo_url }}
                               style={styles.meterThumbImg}
                             />
@@ -766,7 +766,7 @@ export default function ExpenseListScreen() {
                               )
                             }
                           >
-                            <Image
+                            <CachedImage
                               source={{ uri: selectedExpense.day_start.closing_km_photo_url }}
                               style={styles.meterThumbImg}
                             />
@@ -911,7 +911,7 @@ export default function ExpenseListScreen() {
             </View>
             <View style={styles.photoViewerBody}>
               {selectedPhotoUrl ? (
-                <Image
+                <CachedImage
                   source={{ uri: selectedPhotoUrl }}
                   style={styles.photoViewerImage}
                   resizeMode="contain"

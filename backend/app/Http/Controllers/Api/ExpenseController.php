@@ -152,7 +152,7 @@ class ExpenseController extends Controller
                             ->whereNotIn('status', ['rejected', 'manager_rejected']);
                     });
             })
-            ->orderBy('date', 'asc')
+            ->orderBy('date', 'desc')
             ->get();
 
         $groupedByDate = $expenses->groupBy(function ($expense) {

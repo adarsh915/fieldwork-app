@@ -111,7 +111,7 @@ class OrderController extends Controller
         ];
 
         // Apply status filter for table rows
-        $query = (clone $baseQuery)->with(['party', 'user.roles'])->select('orders.*');
+        $query = (clone $baseQuery)->with(['party', 'user.roles'])->select('orders.*')->orderBy('orders.id', 'desc');
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }

@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { navigate, useCurrentRouteName } from "../navigation/navigationRef";
 
-export type BottomTabKey = "Home" | "Track" | "MIS" | "Task" | "Calendar";
+export type BottomTabKey = "Home" | "Bill" | "MIS" | "Leaves" | "Calendar";
 
 type TabItem = {
   key: BottomTabKey;
@@ -22,14 +22,14 @@ type TabItem = {
 
 const TABS: TabItem[] = [
   { key: "Home",     label: "Home",     icon: "home-outline" },
-  { key: "Track",    label: "Track",    icon: "crosshairs-gps" },
-  { key: "MIS",      label: "MIS",      icon: "chart-pie" },
-  { key: "Task",     label: "Task",     icon: "checkbox-marked-outline" },
+  { key: "Bill",     label: "Bill",     icon: "receipt" },
+  { key: "MIS",      label: "Reports",  icon: "chart-pie" },
+  { key: "Leaves",   label: "Leaves",   icon: "calendar-account-outline" },
   { key: "Calendar", label: "Calendar", icon: "calendar-month-outline" },
 ];
 
 // Tabs not yet implemented — tap shows a toast instead of navigating
-const COMING_SOON: BottomTabKey[] = ["Track", "Task"];
+const COMING_SOON: BottomTabKey[] = [];
 
 export default function AppBottomBar({
   activeKey,
@@ -66,7 +66,15 @@ export default function AppBottomBar({
     if (currentRoute === "Dashboard") return "Home";
     if (currentRoute === "Report") return "MIS";
     if (currentRoute === "AttendanceCalendar" || currentRoute === "Calendar") return "Calendar";
-    if (currentRoute === "Track") return "Track";
+    if (
+      currentRoute === "ExpenseList" ||
+      currentRoute === "AddExpense" ||
+      currentRoute === "ExpenseMonthlySummary" ||
+      currentRoute === "ExpenseStatement"
+    ) {
+      return "Bill";
+    }
+    if (currentRoute === "MyLeaves" || currentRoute === "LeaveApplication") return "Leaves";
     return null;
   }, [activeKey, currentRoute]);
 
@@ -105,6 +113,10 @@ export default function AppBottomBar({
       navigate("Dashboard");
     } else if (key === "MIS") {
       navigate("Report");
+    } else if (key === "Bill") {
+      navigate("ExpenseList");
+    } else if (key === "Leaves") {
+      navigate("MyLeaves");
     }
   }
 

@@ -20,7 +20,8 @@ export interface OrderPayload {
   schema?: string;
   order_type?: string;
   payment_mode?: string;
-  items: OrderItemPayload[];
+  total_amount?: number;
+  items?: OrderItemPayload[];
 }
 
 export const submitOrder = async (payload: OrderPayload): Promise<any> => {

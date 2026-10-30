@@ -1,7 +1,7 @@
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,10 +15,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 import DatePickerModal from "../components/DatePickerModal";
-import ProductSelectionModal from "./ProductSelectionModal";
 import { submitOrder, OrderPayload } from "../api/order";
-import { getProducts, Product, ProductUnit } from "../api/product";
 import { getPartyDetails, PartyProfile } from "../api/party";
+import { Product, ProductUnit } from "../api/product";
+
+export interface CartItem {
+  product?: Product;
+  unit?: ProductUnit;
+  quantity?: number;
+  product_id?: number;
+  product_name?: string;
+  sku_code?: string;
+  unit_name?: string;
+  unit_conversion?: number;
+  rate?: number;
+  total_amount?: number;
+}
 
 type OrderScreenRouteProp = RouteProp<
   {
@@ -35,11 +47,23 @@ type OrderScreenRouteProp = RouteProp<
   "Order"
 >;
 
-export interface CartItem {
-  product: Product;
-  unit: ProductUnit;
-  quantity: number;
-}
+const PHONE_QUICK_TAGS = [
+  "Confirmed Verbal Order",
+  "Rate & Discount Inquiry",
+  "Stock Availability Check",
+  "Payment Follow-up",
+  "Will Reorder Next Week",
+  "Samples / Catalog Requested",
+];
+
+const VISIT_QUICK_TAGS = [
+  "Confirmed Verbal Order",
+  "Stock Refill Order",
+  "Urgent Delivery Required",
+  "Rate & Discount Inquiry",
+  "Samples / Catalog Given",
+  "Payment Collected",
+];
 
 export default function OrderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -59,14 +83,8 @@ export default function OrderScreen() {
 
   // Party state (Autofilled)
   const [party, setParty] = useState<PartyProfile | null>(null);
-  const [loadingParty, setLoadingParty] = useState(false);
-
-  // Products & Cart
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [showProductModal, setShowProductModal] = useState(false);
 
   // Date State & Picker
   const getTodayStr = () => {
@@ -81,27 +99,23 @@ export default function OrderScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateError, setDateError] = useState<string | null>(null);
 
-  // Notes / Remarks
+  // Order Amount & Notes
+  const [phoneAmount, setPhoneAmount] = useState<string>("");
   const [remarks, setRemarks] = useState("");
 
-  // Load products and party details
+  // Load party details
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [prodRes, partyRes] = await Promise.all([
-          getProducts(),
-          partyId ? getPartyDetails(partyId).catch(() => null) : Promise.resolve(null),
-        ]);
-
-        if (prodRes.success) {
-          setProducts(prodRes.data);
-        }
-        if (partyRes && partyRes.success) {
-          setParty(partyRes.data);
+        if (partyId) {
+          const partyRes = await getPartyDetails(partyId).catch(() => null);
+          if (partyRes && partyRes.success) {
+            setParty(partyRes.data);
+          }
         }
       } catch (err: any) {
-        Alert.alert("Error", "Failed to load products list");
+        console.warn("Failed to load details", err);
       } finally {
         setLoading(false);
       }
@@ -109,99 +123,63 @@ export default function OrderScreen() {
     fetchData();
   }, [partyId]);
 
-  // Handle adding products from selection modal
-  const handleAddProduct = (item: CartItem) => {
-    setCart((prev) => {
-      const existingIndex = prev.findIndex(
-        (c) => c.product.id === item.product.id && c.unit.id === item.unit.id,
-      );
-      if (existingIndex > -1) {
-        const updated = [...prev];
-        updated[existingIndex].quantity += item.quantity;
-        return updated;
-      }
-      return [...prev, item];
-    });
-  };
-
-  const handleUpdateQuantity = (index: number, newQty: number) => {
-    if (newQty <= 0) {
-      handleRemoveItem(index);
-      return;
-    }
-    setCart((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], quantity: newQty };
-      return updated;
-    });
-  };
-
-  const handleRemoveItem = (index: number) => {
-    setCart((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleDateChange = (newDate: string) => {
     const today = getTodayStr();
     if (newDate > today) {
-      setDateError("Report date cannot be in the future");
-      Alert.alert("Invalid Date", "Report date cannot be in the future.");
+      setDateError("Order date cannot be in the future");
+      Alert.alert("Invalid Date", "Order date cannot be in the future.");
       return;
     }
     setDateError(null);
     setReportDate(newDate);
   };
 
-  const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = cart.reduce(
-    (sum, item) => sum + item.quantity * (Number(item.unit.price) || 0),
-    0,
-  );
-
-  // Validate and Submit Report
+  // Validate and Submit Order
   const handleSubmit = async () => {
-    if (cart.length === 0) {
+    if (!remarks.trim() && !phoneAmount) {
       Alert.alert(
-        "Product Required",
-        "Please add at least one product with quantity to this report.",
+        "Notes Required",
+        "Please enter order items or discussion notes in remarks.",
       );
       return;
     }
 
     if (!reportDate) {
-      Alert.alert("Validation Error", "Please select a valid report date.");
+      Alert.alert("Validation Error", "Please select a valid order date.");
       return;
     }
 
     setSubmitting(true);
+    const parsedAmount = phoneAmount ? parseFloat(phoneAmount) : 0;
+    const finalAmount = isNaN(parsedAmount) ? 0 : parsedAmount;
+
     const payload: OrderPayload = {
       visit_id: visitId || null,
       party_id: partyId,
       order_source: isPhoneOrder ? "phone" : "visit",
       order_date: reportDate,
-      order_type: "Visit Report",
-      payment_mode: "Report",
+      order_type: isPhoneOrder ? "Phone Order" : "Store Order",
+      payment_mode: isPhoneOrder ? "Phone" : "Visit",
       remarks: remarks.trim() || undefined,
-      items: cart.map((c) => ({
-        product_id: c.product.id,
-        product_unit_id: c.unit.id,
-        quantity: c.quantity,
-        price: c.unit.price || 0,
-      })),
+      total_amount: finalAmount,
+      items: [],
     };
 
     try {
       const res = await submitOrder(payload);
       if (res.success) {
         Alert.alert(
-          "Report Submitted",
-          "Visit product report has been saved successfully without stock deduction.",
+          isPhoneOrder ? "Phone Order Saved" : "Order Saved",
+          isPhoneOrder
+            ? "Phone order note has been recorded and saved to party history."
+            : "Store order note has been recorded and saved successfully.",
           [{ text: "OK", onPress: () => navigation.goBack() }],
         );
       } else {
-        Alert.alert("Error", res.message || "Failed to submit report");
+        Alert.alert("Error", res.message || "Failed to submit order");
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to submit product report");
+      Alert.alert("Error", err.message || "Failed to submit order");
     } finally {
       setSubmitting(false);
     }
@@ -211,12 +189,12 @@ export default function OrderScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: "#F8F9FA" }}>
         <ScreenHeader
-          title="Visit Product Report"
+          title={isPhoneOrder ? "Phone Order Note" : "Order Note"}
           onBack={() => navigation.goBack()}
         />
         <View style={styles.centerLoading}>
           <ActivityIndicator size="large" color="#7367F0" />
-          <Text style={styles.loadingText}>Loading products & party details...</Text>
+          <Text style={styles.loadingText}>Loading party details...</Text>
         </View>
       </View>
     );
@@ -230,7 +208,7 @@ export default function OrderScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#F4F5FA" }}>
       <ScreenHeader
-        title="Visit Product Report"
+        title={isPhoneOrder ? "Phone Order Note" : "Order Note"}
         onBack={() => navigation.goBack()}
       />
 
@@ -241,18 +219,24 @@ export default function OrderScreen() {
         ]}
         extraScrollHeight={120}
       >
-        {/* Source Badge (Visit vs Direct) */}
-        {isPhoneOrder && (
-          <View style={styles.phoneOrderBanner}>
-            <MaterialIcons name="phone-in-talk" size={20} color="#7367F0" />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.phoneOrderTitle}>Direct / Phone Entry</Text>
-              <Text style={styles.phoneOrderSubtitle}>
-                Creating a product report without an active check-in visit
-              </Text>
-            </View>
+        {/* Source Banner */}
+        <View style={styles.phoneOrderBanner}>
+          <MaterialIcons
+            name={isPhoneOrder ? "phone-in-talk" : "storefront"}
+            size={22}
+            color="#7367F0"
+          />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.phoneOrderTitle}>
+              {isPhoneOrder ? "Direct Phone Order" : "Store Visit Order"}
+            </Text>
+            <Text style={styles.phoneOrderSubtitle}>
+              {isPhoneOrder
+                ? "Record order details & consultation notes discussed over the phone"
+                : "Record order items, quantities and notes agreed during store visit"}
+            </Text>
           </View>
-        )}
+        </View>
 
         {/* 1. Autofilled Party Details Card */}
         <View style={styles.card}>
@@ -303,7 +287,7 @@ export default function OrderScreen() {
               <View style={[styles.partyIconWrap, { backgroundColor: "#FEF3C7" }]}>
                 <MaterialCommunityIcons name="calendar-month" size={20} color="#D97706" />
               </View>
-              <Text style={styles.cardTitle}>Report Date</Text>
+              <Text style={styles.cardTitle}>Order Date</Text>
             </View>
             {reportDate === getTodayStr() ? (
               <View style={[styles.autofillBadge, { backgroundColor: "#ECFDF5" }]}>
@@ -335,160 +319,82 @@ export default function OrderScreen() {
           ) : null}
         </View>
 
-        {/* 3. Product Selection & Quantities Card */}
+        {/* 3. Order Notes & Details Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
               <View style={[styles.partyIconWrap, { backgroundColor: "#EEF2FF" }]}>
-                <MaterialCommunityIcons name="package-variant" size={20} color="#7367F0" />
+                <MaterialCommunityIcons
+                  name={isPhoneOrder ? "phone-log" : "clipboard-text-outline"}
+                  size={20}
+                  color="#7367F0"
+                />
               </View>
-              <Text style={styles.cardTitle}>Products ({cart.length})</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.addProductBtn}
-              activeOpacity={0.85}
-              onPress={() => setShowProductModal(true)}
-            >
-              <MaterialIcons name="add" size={18} color="#FFFFFF" />
-              <Text style={styles.addProductBtnText}>Add Products</Text>
-            </TouchableOpacity>
-          </View>
-
-          {cart.length === 0 ? (
-            <TouchableOpacity
-              style={styles.emptyProductBox}
-              activeOpacity={0.8}
-              onPress={() => setShowProductModal(true)}
-            >
-              <MaterialCommunityIcons
-                name="cart-plus"
-                size={42}
-                color="#9CA3AF"
-              />
-              <Text style={styles.emptyProductTitle}>No Products Selected</Text>
-              <Text style={styles.emptyProductSub}>
-                Tap here to search and select products & quantities
+              <Text style={styles.cardTitle}>
+                {isPhoneOrder ? "Phone Order Details" : "Order Notes & Details"}
               </Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.productList}>
-              {cart.map((item, index) => {
-                const itemRate = Number(item.unit.price) || 0;
-                const itemTotal = item.quantity * itemRate;
-                return (
-                  <View key={`${item.product.id}-${item.unit.id}`} style={styles.productRowCard}>
-                    <View style={styles.productRowMain}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.productRowName}>{item.product.name}</Text>
-                        <View style={styles.productRowMeta}>
-                          <Text style={styles.productUnitBadge}>
-                            {item.unit.unit_name || "Standard Unit"}
-                          </Text>
-                          {item.product.code ? (
-                            <Text style={styles.productSkuText}>
-                              SKU: {item.product.code}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-
-                      {/* Delete Item */}
-                      <TouchableOpacity
-                        onPress={() => handleRemoveItem(index)}
-                        style={styles.deleteItemBtn}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <MaterialIcons name="delete-outline" size={22} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Quantity Stepper & Manual Input */}
-                    <View style={styles.qtyControlRow}>
-                      <Text style={styles.qtyLabel}>Quantity:</Text>
-                      <View style={styles.stepperContainer}>
-                        <TouchableOpacity
-                          style={styles.stepBtn}
-                          onPress={() => handleUpdateQuantity(index, item.quantity - 1)}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <MaterialIcons name="remove" size={18} color="#4B5563" />
-                        </TouchableOpacity>
-
-                        <TextInput
-                          style={styles.qtyInput}
-                          keyboardType="numeric"
-                          value={String(item.quantity)}
-                          onChangeText={(txt) => {
-                            const val = parseInt(txt, 10);
-                            if (!isNaN(val)) {
-                              handleUpdateQuantity(index, val);
-                            } else if (txt === "") {
-                              handleUpdateQuantity(index, 0);
-                            }
-                          }}
-                        />
-
-                        <TouchableOpacity
-                          style={[styles.stepBtn, styles.stepBtnAdd]}
-                          onPress={() => handleUpdateQuantity(index, item.quantity + 1)}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <MaterialIcons name="add" size={18} color="#FFFFFF" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    {/* Line item rate & total price */}
-                    <View style={styles.itemPriceRow}>
-                      <View style={styles.itemRateWrap}>
-                        <Text style={styles.itemRateLabel}>Rate:</Text>
-                        <Text style={styles.itemRateVal}>₹{itemRate.toFixed(2)}</Text>
-                      </View>
-                      <View style={styles.itemTotalWrap}>
-                        <Text style={styles.itemTotalLabel}>Total:</Text>
-                        <Text style={styles.itemTotalVal}>₹{itemTotal.toFixed(2)}</Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-
-              {/* Summary of quantities & total amount */}
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryCol}>
-                  <Text style={styles.summaryLabel}>Total Items: {cart.length}</Text>
-                  <Text style={styles.summaryValue}>
-                    Total Quantity: <Text style={{ color: "#7367F0", fontWeight: "700" }}>{totalQuantity}</Text>
-                  </Text>
-                </View>
-                <View style={[styles.summaryCol, { alignItems: "flex-end" }]}>
-                  <Text style={styles.summaryLabel}>Total Amount</Text>
-                  <Text style={styles.summaryTotalPrice}>₹{totalPrice.toFixed(2)}</Text>
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* 4. Visit Notes / Remarks */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderLeft}>
-              <View style={[styles.partyIconWrap, { backgroundColor: "#F3F4F6" }]}>
-                <MaterialCommunityIcons name="note-text-outline" size={20} color="#4B5563" />
-              </View>
-              <Text style={styles.cardTitle}>Visit Notes / Remarks</Text>
             </View>
           </View>
-          <TextInput
-            style={styles.textArea}
-            placeholder="Enter discussion notes, requirements, or feedback from party..."
-            placeholderTextColor="#9CA3AF"
-            multiline
-            numberOfLines={3}
-            value={remarks}
-            onChangeText={setRemarks}
-          />
+
+          {/* Optional Estimated Order Value */}
+          <View style={{ marginBottom: 14 }}>
+            <Text style={styles.fieldLabel}>Estimated Order Value (₹) - Optional</Text>
+            <View style={styles.amountInputWrap}>
+              <Text style={styles.amountPrefix}>₹</Text>
+              <TextInput
+                style={styles.amountInput}
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={phoneAmount}
+                onChangeText={setPhoneAmount}
+              />
+              {phoneAmount ? (
+                <TouchableOpacity
+                  onPress={() => setPhoneAmount("")}
+                  style={{ padding: 6 }}
+                >
+                  <MaterialIcons name="cancel" size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Quick Suggestion Chips */}
+          <View style={{ marginBottom: 10 }}>
+            <Text style={styles.fieldLabel}>Quick Suggestion Chips</Text>
+            <View style={styles.quickTagsWrap}>
+              {(isPhoneOrder ? PHONE_QUICK_TAGS : VISIT_QUICK_TAGS).map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={styles.quickTagBtn}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setRemarks((prev) =>
+                      prev ? `${prev.trim()}\n• ${tag}` : `• ${tag}`
+                    );
+                  }}
+                >
+                  <MaterialIcons name="add" size={14} color="#7367F0" />
+                  <Text style={styles.quickTagText}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Discussion Remarks / Items Note */}
+          <View>
+            <Text style={styles.fieldLabel}>Order Items / Discussion Notes *</Text>
+            <TextInput
+              style={styles.phoneTextArea}
+              placeholder="Enter items ordered, quantities, agreed rates, delivery dates or discussion notes..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={4}
+              value={remarks}
+              onChangeText={setRemarks}
+            />
+          </View>
         </View>
       </KeyboardAwareScreen>
 
@@ -500,9 +406,15 @@ export default function OrderScreen() {
         ]}
       >
         <View style={styles.bottomBarInfo}>
-          <Text style={styles.bottomBarPriceVal}>₹{totalPrice.toFixed(2)}</Text>
+          <Text style={styles.bottomBarPriceVal}>
+            {phoneAmount && !isNaN(Number(phoneAmount))
+              ? `₹${Number(phoneAmount).toLocaleString("en-IN")}`
+              : isPhoneOrder
+              ? "Phone Order"
+              : "Store Order"}
+          </Text>
           <Text style={styles.bottomBarQtyVal}>
-            {totalQuantity} units • {cart.length} items
+            {remarks.trim() ? "Notes recorded" : "Simple note entry"}
           </Text>
         </View>
 
@@ -516,27 +428,26 @@ export default function OrderScreen() {
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <>
-              <MaterialIcons name="send" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <Text style={styles.submitBtnText}>Submit Report</Text>
+              <MaterialIcons
+                name={isPhoneOrder ? "phone-in-talk" : "check-circle"}
+                size={20}
+                color="#FFFFFF"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.submitBtnText}>
+                {isPhoneOrder ? "Save Phone Order" : "Save Store Order"}
+              </Text>
             </>
           )}
         </TouchableOpacity>
       </View>
-
-      {/* Product Selection Modal */}
-      <ProductSelectionModal
-        visible={showProductModal}
-        products={products}
-        onClose={() => setShowProductModal(false)}
-        onAddToCart={handleAddProduct}
-      />
 
       {/* Date Picker Modal */}
       <DatePickerModal
         visible={showDatePicker}
         value={reportDate}
         maxDate={getTodayStr()}
-        title="Select Report Date"
+        title="Select Order Date"
         onChange={handleDateChange}
         onClose={() => setShowDatePicker(false)}
       />
@@ -704,204 +615,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: "500",
   },
-  addProductBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#7367F0",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    gap: 4,
-  },
-  addProductBtnText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  emptyProductBox: {
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    borderStyle: "dashed",
-    borderRadius: 12,
-    padding: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  emptyProductTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#374151",
-    marginTop: 4,
-  },
-  emptyProductSub: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    textAlign: "center",
-  },
-  productList: {
-    gap: 10,
-  },
-  productRowCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  productRowMain: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  productRowName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  productRowMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 4,
-  },
-  productUnitBadge: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#7367F0",
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  productSkuText: {
-    fontSize: 11,
-    color: "#6B7280",
-  },
-  deleteItemBtn: {
-    padding: 4,
-  },
-  qtyControlRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  qtyLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
-  },
-  stepperContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    overflow: "hidden",
-  },
-  stepBtn: {
-    width: 32,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F3F4F6",
-  },
-  stepBtnAdd: {
-    backgroundColor: "#7367F0",
-  },
-  qtyInput: {
-    width: 48,
-    height: 32,
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    padding: 0,
-  },
-  itemPriceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  itemRateWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  itemRateLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-  },
-  itemRateVal: {
-    fontSize: 12,
-    color: "#374151",
-    fontWeight: "700",
-  },
-  itemTotalWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  itemTotalLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-  },
-  itemTotalVal: {
-    fontSize: 14,
-    color: "#7367F0",
-    fontWeight: "800",
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 10,
-    marginTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  summaryCol: {
-    justifyContent: "center",
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-  },
-  summaryValue: {
-    fontSize: 13,
-    color: "#374151",
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  summaryTotalPrice: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#7367F0",
-    marginTop: 2,
-  },
-  textArea: {
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: "#1F2937",
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
+
   bottomBar: {
     position: "absolute",
     bottom: 0,
@@ -961,5 +675,67 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4B5563",
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
+  amountInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  amountPrefix: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#7367F0",
+    marginRight: 6,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1F2937",
+    padding: 0,
+  },
+  quickTagsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  quickTagBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    gap: 4,
+  },
+  quickTagText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#4F46E5",
+  },
+  phoneTextArea: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: "#1F2937",
+    minHeight: 110,
+    textAlignVertical: "top",
   },
 });

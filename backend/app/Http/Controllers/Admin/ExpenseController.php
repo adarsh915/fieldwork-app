@@ -58,7 +58,9 @@ class ExpenseController extends Controller
     public function data(Request $request)
     {
         $query = ExpenseBill::with(['user.roles', 'category', 'items', 'tempApprovedBy', 'approvedBy', 'rejectedBy'])
-            ->select('expense_bills.*');
+            ->select('expense_bills.*')
+            ->orderBy('expense_bills.date', 'desc')
+            ->orderBy('expense_bills.id', 'desc');
 
         // Data scoping: restrict to visible team members
         $visibleIds = DataScope::visibleUserIds('expenses');

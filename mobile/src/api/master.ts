@@ -45,6 +45,7 @@ export type PaginatedPartiesResponse = {
   last_page: number;
   total: number;
   has_more: boolean;
+  completed_visits_count?: number;
 };
 
 export const getMasterTourPurposes = () =>

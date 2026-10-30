@@ -52,7 +52,7 @@ class DealerRepository
             });
         }
 
-        return $query->orderBy('name')->paginate($perPage);
+        return $query->orderBy('id', 'desc')->paginate($perPage);
     }
 
     /**
@@ -69,7 +69,7 @@ class DealerRepository
             ->where('assigned_to', $userId)
             ->select('id', 'dealer_code', 'name', 'company_name', 'mobile', 'city', 'state',
                      'outstanding_balance', 'balance_type', 'status', 'assigned_to', 'dealer_type')
-            ->orderBy('name')
+            ->orderBy('id', 'desc')
             ->paginate($perPage);
     }
 

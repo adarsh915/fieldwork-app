@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
+import { optimizeImageForUpload } from "../utils/imageOptimizer";
 
 import { submitExpense, updateExpense, getExpenseCategories, type ExpenseCategory } from "../api/expense";
 import { API_BASE_URL } from "../api/config";
@@ -210,14 +211,16 @@ export default function AddExpenseScreen() {
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      const optimized = await optimizeImageForUpload(result.assets[0].uri);
+      setPhotoUri(optimized);
     }
   }
 
   async function pickFromGallery() {
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      const optimized = await optimizeImageForUpload(result.assets[0].uri);
+      setPhotoUri(optimized);
     }
   }
 

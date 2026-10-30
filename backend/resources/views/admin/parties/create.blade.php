@@ -86,32 +86,39 @@
                     </div>
 
                     <div x-data="{
-                        districts: {{ Js::from($districts ?? []) }},
-                        selectedDistrictId: '{{ old('district_id') }}',
-                        selectedAreaId: '{{ old('area_id') }}',
-                        get areas() {
-                            const d = this.districts.find(item => String(item.id) === String(this.selectedDistrictId));
-                            return d ? (d.areas || []) : [];
+                        locations: {{ Js::from($indiaLocations ?? []) }},
+                        selectedState: '{{ old('state', 'Madhya Pradesh') }}',
+                        selectedDistrict: '{{ old('district', '') }}',
+                        get districts() {
+                            const found = this.locations.find(item => item.state === this.selectedState);
+                            return found ? (found.districts || []) : [];
                         }
-                    }" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    }" class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-5">
                         <div>
-                            <label class="form-label">District / City</label>
-                            <select name="district_id" x-model="selectedDistrictId" class="form-input">
+                            <label class="form-label">State <span class="text-red-500">*</span></label>
+                            <select name="state" x-model="selectedState" @change="selectedDistrict = ''" class="form-input" required>
+                                <option value="">Select State</option>
+                                <template x-for="loc in locations" :key="loc.state">
+                                    <option :value="loc.state" x-text="loc.state" :selected="loc.state === selectedState"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="form-label">District / City <span class="text-red-500">*</span></label>
+                            <select name="district" x-model="selectedDistrict" class="form-input" :disabled="!selectedState" required>
                                 <option value="">Select District</option>
-                                <template x-for="d in districts" :key="d.id">
-                                    <option :value="d.id" x-text="d.name"></option>
+                                <template x-for="d in districts" :key="d">
+                                    <option :value="d" x-text="d" :selected="d === selectedDistrict"></option>
                                 </template>
                             </select>
                         </div>
 
                         <div>
                             <label class="form-label">Area / Town / Beat</label>
-                            <select name="area_id" x-model="selectedAreaId" class="form-input" :disabled="!selectedDistrictId">
-                                <option value="">Select Area</option>
-                                <template x-for="a in areas" :key="a.id">
-                                    <option :value="a.id" x-text="a.name + (a.pincode ? ' (' + a.pincode + ')' : '')"></option>
-                                </template>
-                            </select>
+                            <input type="text" name="area" value="{{ old('area') }}"
+                                   class="form-input"
+                                   placeholder="e.g. Civil Lines, Kotwali">
                         </div>
                     </div>
 

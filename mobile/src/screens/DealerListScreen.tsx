@@ -30,14 +30,16 @@ const ACTIONS: {
 }[] = [
   { label: "Phone Order", icon: "phone-plus" },
   { label: "Visit", icon: "map-marker-outline" },
+  { label: "Party History", icon: "history" },
+  /* Hidden per request (hidden, not removed):
   { label: "Order", icon: "cart-outline" },
   { label: "Payment", icon: "currency-inr" },
-  { label: "Party History", icon: "history" },
   { label: "Ledger", icon: "clipboard-text-outline" },
   { label: "Find Location", icon: "crosshairs-gps" },
   { label: "Contact Dealer", icon: "account-box-outline" },
   { label: "Add Reminder", icon: "alarm" },
   { label: "Bill", icon: "receipt" },
+  */
 ];
 
 export default function DealerListScreen() {
@@ -53,6 +55,7 @@ export default function DealerListScreen() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalDealers, setTotalDealers] = useState(0);
+  const [completedVisits, setCompletedVisits] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -90,6 +93,9 @@ export default function DealerListScreen() {
       if (res.success) {
         if (pageToLoad === 1) {
           setParties(res.data);
+          if (typeof res.completed_visits_count === "number") {
+            setCompletedVisits(res.completed_visits_count);
+          }
         } else {
           setParties((prev) => {
             const existing = new Set(prev.map((p) => p.id));
@@ -205,6 +211,7 @@ export default function DealerListScreen() {
           {dealer.address || "No address"}
         </Text>
 
+        {/* Hidden: Bal, Whatsapp icon, and Credit Limit per request (hidden, not removed)
         <View style={styles.dealerFooterRow}>
           <Text style={styles.balance}>
             <Text style={{ color: "#ef4444" }}>Bal :</Text>{" "}
@@ -219,6 +226,7 @@ export default function DealerListScreen() {
           ) : null}
           <Text style={styles.clText}>CL:0</Text>
         </View>
+        */}
       </View>
     </View>
   ), []);
@@ -236,6 +244,17 @@ export default function DealerListScreen() {
         </View>
         <View style={styles.totalDivider} />
         <View style={styles.totalCol}>
+          <Text style={[styles.totalValue, { color: "#10B981" }]}>
+            {completedVisits}
+          </Text>
+          <Text style={[styles.totalLabel, { color: "#10B981" }]}>
+            Completed Visits
+          </Text>
+        </View>
+
+        {/* Hidden: Total Credit and Total Debt per request (hidden, not removed)
+        <View style={styles.totalDivider} />
+        <View style={styles.totalCol}>
           <Text style={[styles.totalValue, { color: "#7367F0" }]}>0</Text>
           <Text style={[styles.totalLabel, { color: "#7367F0" }]}>
             Total Credit
@@ -248,20 +267,27 @@ export default function DealerListScreen() {
             Total Debt
           </Text>
         </View>
+        */}
+
         <View style={styles.totalProgress}>
           <View
             style={[styles.progressSeg, { backgroundColor: "#f59e0b" }]}
           />
+          <View
+            style={[styles.progressSeg, { backgroundColor: "#10B981" }]}
+          />
+          {/*
           <View
             style={[styles.progressSeg, { backgroundColor: "#7367F0" }]}
           />
           <View
             style={[styles.progressSeg, { backgroundColor: "#ef4444" }]}
           />
+          */}
         </View>
       </View>
     ),
-    [totalDealers]
+    [totalDealers, completedVisits]
   );
 
   const renderFooter = () => {

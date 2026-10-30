@@ -210,12 +210,12 @@
                 <table class="data-table" id="orders-table">
                     <thead>
                         <tr>
-                            <th>Order #</th><th>Date</th><th>Fieldworker</th>
-                            <th>Payment</th><th>Remarks</th><th>Amount</th><th>Status</th>
+                            <th>Order #</th><th>Date</th><th>Source</th><th>Fieldworker</th>
+                            <th>Payment</th><th>Remarks / Notes</th><th>Amount</th><th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="orders-tbody">
-                        <tr><td colspan="7" class="py-10 text-center text-slate-400 text-sm">
+                        <tr><td colspan="8" class="py-10 text-center text-slate-400 text-sm">
                             <span class="animate-pulse">Loading orders…</span>
                         </td></tr>
                     </tbody>
@@ -319,19 +319,27 @@
         function renderOrders(data) {
             const tbody = document.getElementById('orders-tbody');
             if (!data.data.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="py-10 text-center text-slate-400">No orders found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="py-10 text-center text-slate-400">No orders found.</td></tr>';
                 return;
             }
-            tbody.innerHTML = data.data.map(o => `
+            tbody.innerHTML = data.data.map(o => {
+                const isPhone = (o.order_source === 'phone' || (o.order_type && o.order_type.toLowerCase().includes('phone')));
+                const sourceBadge = isPhone
+                    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">📞 Phone Order</span>`
+                    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">📍 Field / Store</span>`;
+
+                return `
                 <tr>
                     <td class="font-bold text-blue-600">#${o.id}</td>
                     <td class="whitespace-nowrap">${o.order_date ? new Date(o.order_date).toLocaleDateString('en-IN') : '—'}</td>
+                    <td>${sourceBadge}</td>
                     <td>${o.user ? o.user.name ?? '—' : '—'}</td>
                     <td class="text-xs">${o.payment_mode ? o.payment_mode.charAt(0).toUpperCase() + o.payment_mode.slice(1) : '—'}</td>
-                    <td class="max-w-[200px] truncate text-slate-500">${o.remarks ?? '—'}</td>
+                    <td class="max-w-[220px] truncate text-slate-600" title="${o.remarks ?? ''}">${o.remarks ? `<span class="font-medium text-slate-700">${o.remarks}</span>` : '<span class="text-slate-400">—</span>'}</td>
                     <td class="font-bold whitespace-nowrap">₹${Number(o.total_amount ?? 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
                     <td><span class="badge badge-${o.status === 'delivered' ? 'success' : o.status === 'pending' ? 'warning' : 'info'}">${o.status ?? 'pending'}</span></td>
-                </tr>`).join('');
+                </tr>`;
+            }).join('');
             renderPager('orders', data);
         }
 

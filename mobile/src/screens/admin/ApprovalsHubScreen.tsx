@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Platform,
   RefreshControl,
@@ -19,6 +18,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ScreenHeader from "../../components/ScreenHeader";
+import CachedImage from "../../components/CachedImage";
 import {
   actOnDayStart,
   actOnExpense,
@@ -1195,7 +1195,7 @@ export default function ApprovalsHubScreen() {
                                 openPhotoViewer(item.bill_photo_url, `${item.employee_name} - Expense Bill`)
                               }
                             >
-                              <Image source={{ uri: item.bill_photo_url }} style={styles.tableThumbImg} />
+                              <CachedImage source={{ uri: item.bill_photo_url }} style={styles.tableThumbImg} />
                             </TouchableOpacity>
                           ) : (
                             <Text style={styles.tdSecondaryText}>No Bill</Text>
@@ -1315,6 +1315,16 @@ export default function ApprovalsHubScreen() {
                       <Text style={styles.drawerInfoVal}>{selectedDayStart.date_formatted}</Text>
                     </View>
                     <View style={styles.drawerInfoRow}>
+                      <Text style={styles.drawerInfoLabel}>Start Time:</Text>
+                      <Text style={styles.drawerInfoVal}>{selectedDayStart.start_time || "—"}</Text>
+                    </View>
+                    {selectedDayStart.end_time ? (
+                      <View style={styles.drawerInfoRow}>
+                        <Text style={styles.drawerInfoLabel}>End Time:</Text>
+                        <Text style={styles.drawerInfoVal}>{selectedDayStart.end_time}</Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.drawerInfoRow}>
                       <Text style={styles.drawerInfoLabel}>Status:</Text>
                       {renderStatusPill(selectedDayStart.status)}
                     </View>
@@ -1361,7 +1371,7 @@ export default function ApprovalsHubScreen() {
                             openPhotoViewer(selectedDayStart.opening_km_photo_url, "Opening Meter Photo")
                           }
                         >
-                          <Image source={{ uri: selectedDayStart.opening_km_photo_url }} style={styles.drawerThumbImg} />
+                          <CachedImage source={{ uri: selectedDayStart.opening_km_photo_url }} style={styles.drawerThumbImg} />
                           <View style={styles.zoomBadge}>
                             <MaterialIcons name="zoom-in" size={12} color="#fff" />
                           </View>
@@ -1383,7 +1393,7 @@ export default function ApprovalsHubScreen() {
                             openPhotoViewer(selectedDayStart.closing_km_photo_url, "Closing Meter Photo")
                           }
                         >
-                          <Image source={{ uri: selectedDayStart.closing_km_photo_url }} style={styles.drawerThumbImg} />
+                          <CachedImage source={{ uri: selectedDayStart.closing_km_photo_url }} style={styles.drawerThumbImg} />
                           <View style={styles.zoomBadge}>
                             <MaterialIcons name="zoom-in" size={12} color="#fff" />
                           </View>
@@ -1485,7 +1495,7 @@ export default function ApprovalsHubScreen() {
                               style={styles.dayExpenseThumbBtn}
                               onPress={() => openPhotoViewer(exp.bill_photo_url, `${exp.category_name} Bill`)}
                             >
-                              <Image source={{ uri: exp.bill_photo_url }} style={styles.dayExpenseThumbImg} />
+                              <CachedImage source={{ uri: exp.bill_photo_url }} style={styles.dayExpenseThumbImg} />
                             </TouchableOpacity>
                           )}
                         </View>
@@ -1655,7 +1665,7 @@ export default function ApprovalsHubScreen() {
                                 openPhotoViewer(selectedExpense.opening_km_photo_url || null, "Opening Meter Photo")
                               }
                             >
-                              <Image
+                              <CachedImage
                                 source={{ uri: selectedExpense.opening_km_photo_url }}
                                 style={styles.drawerThumbImg}
                               />
@@ -1682,7 +1692,7 @@ export default function ApprovalsHubScreen() {
                                 openPhotoViewer(selectedExpense.closing_km_photo_url || null, "Closing Meter Photo")
                               }
                             >
-                              <Image
+                              <CachedImage
                                 source={{ uri: selectedExpense.closing_km_photo_url }}
                                 style={styles.drawerThumbImg}
                               />
@@ -1735,7 +1745,7 @@ export default function ApprovalsHubScreen() {
                             openPhotoViewer(selectedExpense.bill_photo_url, "Expense Receipt")
                           }
                         >
-                          <Image source={{ uri: selectedExpense.bill_photo_url }} style={styles.expBillImg} />
+                          <CachedImage source={{ uri: selectedExpense.bill_photo_url }} style={styles.expBillImg} />
                           <View style={styles.billZoomBanner}>
                             <MaterialIcons name="zoom-in" size={14} color="#fff" />
                             <Text style={styles.billZoomText}>Tap to Zoom Full Receipt</Text>
@@ -1924,7 +1934,7 @@ export default function ApprovalsHubScreen() {
 
             <View style={styles.photoViewerBody}>
               {selectedPhotoUrl && (
-                <Image source={{ uri: selectedPhotoUrl }} style={styles.fullScreenImg} resizeMode="contain" />
+                <CachedImage source={{ uri: selectedPhotoUrl }} style={styles.fullScreenImg} resizeMode="contain" />
               )}
             </View>
           </SafeAreaView>

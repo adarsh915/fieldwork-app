@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
+import { optimizeImageForUpload } from "../utils/imageOptimizer";
 import {
   getPartyPayments,
   getPaymentSettings,
@@ -114,7 +115,8 @@ export default function PaymentCollectionScreen() {
           quality: 0.7,
         });
         if (!result.canceled && result.assets[0]?.uri) {
-          setProofPhotoUri(result.assets[0].uri);
+          const optimized = await optimizeImageForUpload(result.assets[0].uri);
+          setProofPhotoUri(optimized);
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -127,7 +129,8 @@ export default function PaymentCollectionScreen() {
           quality: 0.7,
         });
         if (!result.canceled && result.assets[0]?.uri) {
-          setProofPhotoUri(result.assets[0].uri);
+          const optimized = await optimizeImageForUpload(result.assets[0].uri);
+          setProofPhotoUri(optimized);
         }
       }
     } catch (err: any) {

@@ -30,7 +30,8 @@
       "expo-secure-store",
       "expo-notifications",
       "expo-location",
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-image"
     ]
   }
 }

@@ -70,7 +70,8 @@ class PartyController extends Controller
             ->with(['activeAssignment.employee', 'submittedBy', 'auditLogs' => function($q) {
                 $q->latest()->limit(1);
             }])
-            ->select('customers.*');
+            ->select('customers.*')
+            ->orderBy('customers.id', 'desc');
 
         // Data scoping: strictly restrict party list to parties actively assigned to visible users (hide unassigned parties)
         DataScope::applyParties($query);
@@ -122,6 +123,9 @@ class PartyController extends Controller
         }
 
         return DataTables::of($query)
+            ->orderColumn('party_info', function ($q, $order) {
+                $q->orderBy('customers.id', $order);
+            })
             ->addColumn('party_info', function ($party) {
                 return [
                     'id' => $party->id,
@@ -230,7 +234,7 @@ class PartyController extends Controller
                 ->latest()
                 ->paginate(15),
             default => $data = Order::where('party_id', $id)
-                ->with('items.product')
+                ->with(['user:id,name', 'items.product'])
                 ->latest('order_date')
                 ->paginate(15),
         };
@@ -450,11 +454,10 @@ class PartyController extends Controller
     public function create()
     {
         $employees = DataScope::assignableUsers()->orderBy('name')->get(['id', 'name']);
-        $districts = \App\Models\District::with(['areas' => fn($q) => $q->where('is_active', true)->orderBy('name')])
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
-        return view('admin.parties.create', compact('employees', 'districts'));
+        $jsonPath = resource_path('data/india_states_districts.json');
+        $indiaLocations = file_exists($jsonPath) ? json_decode(file_get_contents($jsonPath), true) : [];
+
+        return view('admin.parties.create', compact('employees', 'indiaLocations'));
     }
 
     /**
@@ -467,7 +470,10 @@ class PartyController extends Controller
             'mobile'       => ['nullable', 'string', 'max:20'],
             'email'        => ['nullable', 'email', 'max:255'],
             'address'      => ['nullable', 'string', 'max:1000'],
+            'state'        => ['nullable', 'string', 'max:100'],
+            'district'     => ['nullable', 'string', 'max:100'],
             'district_id'  => ['nullable', 'exists:districts,id'],
+            'area'         => ['nullable', 'string', 'max:150'],
             'area_id'      => ['nullable', 'exists:areas,id'],
             'user_id'      => ['nullable', 'integer', 'exists:users,id'],
             'land_area'    => ['nullable', 'string', 'max:100'],
@@ -478,12 +484,45 @@ class PartyController extends Controller
             'employee_ids.*' => ['exists:users,id'],
         ]);
 
+        $state = $request->input('state');
+        $districtName = $request->input('district');
+        $districtId = $request->input('district_id');
+
+        if ($districtId) {
+            $district = \App\Models\District::find($districtId);
+            if ($district) {
+                $districtName = $district->name;
+                $state = $state ?: $district->state;
+            }
+        } elseif (!empty($districtName)) {
+            $district = \App\Models\District::firstOrCreate(
+                ['name' => trim($districtName), 'state' => $state ?: 'Gujarat'],
+                ['is_active' => true]
+            );
+            $districtId = $district->id;
+            $state = $state ?: $district->state;
+        }
+
+        $areaName = trim($request->input('area') ?: '');
+        $areaId = $request->input('area_id');
+        if (!empty($areaName) && $districtId) {
+            $area = \App\Models\Area::firstOrCreate([
+                'name' => $areaName,
+                'district_id' => $districtId,
+            ]);
+            $areaId = $area->id;
+        }
+
+        $validated['state'] = $state;
+        $validated['city'] = $districtName;
+        $validated['district_id'] = $districtId;
+        $validated['area_id'] = $areaId;
         $validated['is_active'] = $request->boolean('is_active', true);
         $validated['approval_status'] = 'approved';
         $validated['submitted_by'] = auth()->id() ?? 1;
 
         $party = Customer::create(array_filter($validated, function ($k) {
-            return $k !== 'employee_ids';
+            return !in_array($k, ['employee_ids', 'district', 'area']);
         }, ARRAY_FILTER_USE_KEY));
 
         // Sync employee assignments, fallback to creator if none specified
@@ -857,7 +896,20 @@ class PartyController extends Controller
         $districts = \App\Models\District::all();
         $districtByName = $districts->keyBy(fn($d) => strtolower(trim($d->name)));
         $districtByCode = $districts->whereNotNull('code')->keyBy(fn($d) => strtolower(trim($d->code)));
-        $allAreas = \App\Models\Area::all();
+
+        // Load All-India official states and districts for auto-linking
+        $jsonPath = resource_path('data/india_states_districts.json');
+        $indiaLocations = file_exists($jsonPath) ? json_decode(file_get_contents($jsonPath), true) : [];
+        $officialDistrictsMap = [];
+        foreach ($indiaLocations as $loc) {
+            $stateName = $loc['state'];
+            foreach ($loc['districts'] as $distName) {
+                $officialDistrictsMap[strtolower(trim($distName))] = [
+                    'district' => $distName,
+                    'state'    => $stateName,
+                ];
+            }
+        }
 
         $handle = fopen($file->getRealPath(), 'r');
         $rawHeader = fgetcsv($handle);
@@ -893,8 +945,10 @@ class PartyController extends Controller
                 $districtInput = trim($data['district'] ?? '');
                 $cityInput     = trim($data['city'] ?? '');
                 $areaInput     = trim($data['area'] ?? '');
+                $stateVal      = ($data['state'] ?? '') !== '' ? trim($data['state']) : null;
+                $pincodeVal    = ($data['pincode'] ?? '') !== '' ? trim($data['pincode']) : null;
 
-                // Match District: Check explicit district column, fallback to city matching
+                // 1. Try to match against existing DB districts first
                 $matchedDistrict = null;
                 if ($districtInput !== '') {
                     $matchedDistrict = $districtByName->get(strtolower($districtInput))
@@ -904,10 +958,32 @@ class PartyController extends Controller
                     $matchedDistrict = $districtByName->get(strtolower($cityInput));
                 }
 
+                // 2. If not yet in DB, auto-match from official india_states_districts.json
+                if (!$matchedDistrict) {
+                    $candidateKey = strtolower($districtInput ?: $cityInput);
+                    if ($candidateKey !== '' && isset($officialDistrictsMap[$candidateKey])) {
+                        $matchedOfficial = $officialDistrictsMap[$candidateKey];
+                        $matchedState = $stateVal ?: $matchedOfficial['state'];
+                        $matchedDistrict = \App\Models\District::firstOrCreate(
+                            ['name' => $matchedOfficial['district'], 'state' => $matchedState],
+                            ['is_active' => true]
+                        );
+                        $districtByName->put(strtolower($matchedDistrict->name), $matchedDistrict);
+                    }
+                }
+
+                // 3. Fallback: if district/city is provided but not in JSON list, auto-create so district_id is NEVER null
+                if (!$matchedDistrict && ($districtInput !== '' || $cityInput !== '')) {
+                    $customDistName = $districtInput ?: $cityInput;
+                    $matchedDistrict = \App\Models\District::firstOrCreate(
+                        ['name' => $customDistName, 'state' => $stateVal ?: 'Gujarat'],
+                        ['is_active' => true]
+                    );
+                    $districtByName->put(strtolower($matchedDistrict->name), $matchedDistrict);
+                }
+
                 $districtId = null;
                 $areaId = null;
-                $stateVal = ($data['state'] ?? '') !== '' ? $data['state'] : null;
-                $pincodeVal = ($data['pincode'] ?? '') !== '' ? $data['pincode'] : null;
 
                 if ($matchedDistrict) {
                     $districtId = $matchedDistrict->id;
@@ -915,13 +991,16 @@ class PartyController extends Controller
                         $stateVal = $matchedDistrict->state;
                     }
                     if ($areaInput !== '') {
-                        $matchedArea = $allAreas->where('district_id', $matchedDistrict->id)
-                            ->first(fn($a) => strtolower(trim($a->name)) === strtolower($areaInput));
-                        if ($matchedArea) {
-                            $areaId = $matchedArea->id;
-                            if (empty($pincodeVal) && !empty($matchedArea->pincode)) {
-                                $pincodeVal = $matchedArea->pincode;
-                            }
+                        $matchedArea = \App\Models\Area::firstOrCreate([
+                            'name'        => $areaInput,
+                            'district_id' => $matchedDistrict->id,
+                        ], [
+                            'pincode'   => $pincodeVal,
+                            'is_active' => true,
+                        ]);
+                        $areaId = $matchedArea->id;
+                        if (empty($pincodeVal) && !empty($matchedArea->pincode)) {
+                            $pincodeVal = $matchedArea->pincode;
                         }
                     }
                 }

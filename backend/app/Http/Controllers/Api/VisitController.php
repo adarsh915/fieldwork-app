@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\DayStart;
+use App\Models\Order;
 use App\Models\Visit;
 use App\Services\ActivityNotificationService;
 use Carbon\Carbon;
@@ -78,13 +79,50 @@ class VisitController extends Controller
             ->with('user:id,name')
             ->orderByDesc('check_out_time')
             ->limit(5)
-            ->get(['id', 'user_id', 'party_id', 'check_in_time', 'check_out_time', 'notes', 'purpose']);
+            ->get(['id', 'user_id', 'party_id', 'check_in_time', 'check_out_time', 'notes', 'purpose'])
+            ->map(function ($v) {
+                $v->source = 'visit';
+                return $v;
+            });
+
+        // Also fetch recent phone order notes for this party
+        $phoneOrdersQuery = Order::where('party_id', $partyId)
+            ->where('order_source', 'phone')
+            ->whereNotNull('remarks')
+            ->where('remarks', '!=', '');
+
+        $phoneOrdersCount = (clone $phoneOrdersQuery)->count();
+        $totalConsultations += $phoneOrdersCount;
+
+        $phoneOrders = $phoneOrdersQuery
+            ->with('user:id,name')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get(['id', 'user_id', 'party_id', 'created_at', 'remarks', 'order_type', 'total_amount'])
+            ->map(function ($o) {
+                return (object)[
+                    'id'             => 'phone_' . $o->id,
+                    'user_id'        => $o->user_id,
+                    'party_id'       => $o->party_id,
+                    'check_in_time'  => $o->created_at,
+                    'check_out_time' => $o->created_at,
+                    'notes'          => $o->remarks,
+                    'purpose'        => 'Phone Order' . ($o->total_amount > 0 ? ' (₹' . number_format($o->total_amount, 2) . ')' : ''),
+                    'source'         => 'phone',
+                    'user'           => $o->user,
+                ];
+            });
+
+        // Merge and sort chronologically descending
+        $mergedVisits = $recentVisits->concat($phoneOrders)->sortByDesc(function ($item) {
+            return $item->check_out_time ?? $item->check_in_time;
+        })->values()->take(5);
                 
         return response()->json([
             'success' => true,
             'active_visit' => $activeVisit,
             'has_other_active_visit' => (bool)$otherActiveVisit,
-            'recent_visits' => $recentVisits,
+            'recent_visits' => $mergedVisits,
             'total_consultations' => $totalConsultations,
         ]);
     }
@@ -113,9 +151,14 @@ class VisitController extends Controller
 
         $paginated = $query->paginate($perPage, ['id', 'user_id', 'party_id', 'check_in_time', 'check_out_time', 'notes', 'purpose']);
 
+        $items = collect($paginated->items())->map(function ($v) {
+            $v->source = 'visit';
+            return $v;
+        });
+
         return response()->json([
             'success'      => true,
-            'data'         => $paginated->items(),
+            'data'         => $items,
             'current_page' => $paginated->currentPage(),
             'last_page'    => $paginated->lastPage(),
             'per_page'     => $paginated->perPage(),

@@ -2,7 +2,6 @@ import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -17,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ScreenHeader from "../components/ScreenHeader";
 import DatePickerModal from "../components/DatePickerModal";
+import CachedImage from "../components/CachedImage";
 import {
   fetchReportSummary,
   type ReportPeriod,
@@ -104,7 +104,7 @@ export default function ReportScreen() {
     <View style={styles.container}>
       {/* ── Seamless Header ── */}
       <ScreenHeader
-        title="MIS & Performance Report"
+        title="Reports"
         onBack={() => navigation.goBack()}
         bgColor={PURPLE}
       />
@@ -250,19 +250,7 @@ export default function ReportScreen() {
                 </Text>
               </View>
 
-              {/* Card 2: Orders Value */}
-              <View style={[styles.kpiCard, { borderLeftColor: "#10B981" }]}>
-                <View style={[styles.kpiIconWrap, { backgroundColor: "#D1FAE5" }]}>
-                  <MaterialCommunityIcons name="cart-check" size={22} color="#10B981" />
-                </View>
-                <Text style={styles.kpiNumber}>
-                  ₹ {Number(kpis?.orders_value || 0).toLocaleString("en-IN")}
-                </Text>
-                <Text style={styles.kpiTitle}>Total Orders</Text>
-                <Text style={styles.kpiSub}>{kpis?.orders_count ?? 0} orders booked</Text>
-              </View>
-
-              {/* Card 3: Expenses (Replaced Collections) */}
+              {/* Card 2: Expenses */}
               <View style={[styles.kpiCard, { borderLeftColor: "#EF4444" }]}>
                 <View style={[styles.kpiIconWrap, { backgroundColor: "#FEE2E2" }]}>
                   <MaterialCommunityIcons name="receipt-text-outline" size={22} color="#EF4444" />
@@ -276,18 +264,25 @@ export default function ReportScreen() {
                 </Text>
               </View>
 
-              {/* Card 4: Distance & Attendance */}
-              <View style={[styles.kpiCard, { borderLeftColor: "#F59E0B" }]}>
-                <View style={[styles.kpiIconWrap, { backgroundColor: "#FEF3C7" }]}>
-                  <MaterialCommunityIcons name="car-speed-limiter" size={22} color="#F59E0B" />
+              {/* Card 3: Distance & Attendance (Full Width) */}
+              <View style={[styles.kpiCardFull, { borderLeftColor: "#F59E0B" }]}>
+                <View style={styles.kpiFullRow}>
+                  <View style={[styles.kpiIconWrap, { backgroundColor: "#FEF3C7", marginBottom: 0 }]}>
+                    <MaterialCommunityIcons name="car-speed-limiter" size={22} color="#F59E0B" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.kpiNumber}>{kpis?.km_traveled ?? 0} KM</Text>
+                    <Text style={styles.kpiTitle}>Distance Traveled</Text>
+                  </View>
+                  <View style={styles.kpiFullSubBadge}>
+                    <MaterialCommunityIcons name="calendar-check" size={14} color="#B45309" />
+                    <Text style={styles.kpiFullSubText}>
+                      {isManagerOrVP && selectedUserId === "all"
+                        ? `${kpis?.active_fieldworkers ?? 0} active today`
+                        : `${kpis?.working_days ?? 0} active days`}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.kpiNumber}>{kpis?.km_traveled ?? 0} KM</Text>
-                <Text style={styles.kpiTitle}>Distance Traveled</Text>
-                <Text style={styles.kpiSub}>
-                  {isManagerOrVP && selectedUserId === "all"
-                    ? `${kpis?.active_fieldworkers ?? 0} active today`
-                    : `${kpis?.working_days ?? 0} active days`}
-                </Text>
               </View>
             </View>
 
@@ -359,59 +354,83 @@ export default function ReportScreen() {
                   (reportData.breakdown as TeamMemberBreakdown[]).map((emp) => (
                     <TouchableOpacity
                       key={emp.user_id}
-                      style={styles.empRow}
-                      activeOpacity={0.8}
+                      style={styles.empCard}
+                      activeOpacity={0.85}
                       onPress={() => {
                         setSelectedUserId(emp.user_id);
                         setActiveTab("visits");
                       }}
                     >
-                      <View style={styles.empAvatar}>
-                        <Text style={styles.empAvatarText}>
-                          {emp.name.substring(0, 2).toUpperCase()}
-                        </Text>
-                      </View>
+                      {/* Top Header: Avatar, Name & Position, Status Pill */}
+                      <View style={styles.empCardHeader}>
+                        <View style={styles.empAvatar}>
+                          <Text style={styles.empAvatarText}>
+                            {emp.name.substring(0, 2).toUpperCase()}
+                          </Text>
+                        </View>
 
-                      <View style={styles.empInfo}>
-                        <View style={styles.empNameRow}>
+                        <View style={styles.empInfo}>
                           <Text style={styles.empName} numberOfLines={1}>
                             {emp.name}
                           </Text>
+                          <Text style={styles.empPosition} numberOfLines={1}>
+                            {emp.position || "Field Worker"}
+                            {emp.employee_id ? ` • ${emp.employee_id}` : ""}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.statusPill,
+                            emp.day_status === "Working" && styles.statusWorking,
+                            emp.day_status === "Completed" && styles.statusCompleted,
+                          ]}
+                        >
                           <View
                             style={[
-                              styles.statusPill,
-                              emp.day_status === "Working" && styles.statusWorking,
-                              emp.day_status === "Completed" && styles.statusCompleted,
+                              styles.statusDot,
+                              emp.day_status === "Working" && { backgroundColor: "#2563EB" },
+                              emp.day_status === "Completed" && { backgroundColor: "#059669" },
+                              emp.day_status === "Not Started" && { backgroundColor: "#94A3B8" },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.statusPillText,
+                              emp.day_status === "Working" && styles.statusWorkingText,
+                              emp.day_status === "Completed" && styles.statusCompletedText,
                             ]}
                           >
-                            <Text
-                              style={[
-                                styles.statusPillText,
-                                emp.day_status === "Working" && styles.statusWorkingText,
-                                emp.day_status === "Completed" && styles.statusCompletedText,
-                              ]}
-                            >
-                              {emp.day_status}
-                            </Text>
-                          </View>
+                            {emp.day_status}
+                          </Text>
                         </View>
+                      </View>
 
-                        <Text style={styles.empPosition}>{emp.position}</Text>
-
-                        <View style={styles.empMetricsRow}>
-                          <View style={styles.empMetricCol}>
+                      {/* Metrics: Visits and Expenses (Orders Hidden) */}
+                      <View style={styles.empMetricsRow}>
+                        <View style={styles.empMetricCol}>
+                          <View style={styles.empMetricHeader}>
+                            <MaterialCommunityIcons name="map-marker-check-outline" size={15} color="#3B82F6" />
                             <Text style={styles.empMetricLabel}>Visits</Text>
-                            <Text style={styles.empMetricVal}>{emp.visits_count}</Text>
                           </View>
-                          <View style={styles.empMetricCol}>
-                            <Text style={styles.empMetricLabel}>Orders</Text>
-                            <Text style={styles.empMetricVal}>₹ {emp.orders_value.toLocaleString("en-IN")}</Text>
-                          </View>
-                          <View style={styles.empMetricCol}>
-                            <Text style={styles.empMetricLabel}>Expenses</Text>
-                            <Text style={styles.empMetricVal}>₹ {(emp.expenses_total || 0).toLocaleString("en-IN")}</Text>
-                          </View>
+                          <Text style={styles.empMetricVal}>{emp.visits_count}</Text>
                         </View>
+
+                        <View style={styles.empMetricDivider} />
+
+                        <View style={styles.empMetricCol}>
+                          <View style={styles.empMetricHeader}>
+                            <MaterialCommunityIcons name="receipt-text-outline" size={15} color="#EA580C" />
+                            <Text style={styles.empMetricLabel}>Expenses</Text>
+                          </View>
+                          <Text style={styles.empMetricVal}>₹ {(emp.expenses_total || 0).toLocaleString("en-IN")}</Text>
+                        </View>
+                      </View>
+
+                      {/* Footer Hint */}
+                      <View style={styles.empCardFooter}>
+                        <Text style={styles.empCardFooterText}>View Worker's Visits</Text>
+                        <MaterialIcons name="chevron-right" size={16} color={PURPLE} />
                       </View>
                     </TouchableOpacity>
                   ))
@@ -458,9 +477,8 @@ export default function ReportScreen() {
                         >
                           <MaterialCommunityIcons
                             name={act.is_success ? "check-circle" : "clock-outline"}
-                            size={12}
+                            size={13}
                             color={act.is_success ? "#059669" : "#D97706"}
-                            style={{ marginRight: 3 }}
                           />
                           <Text
                             style={[
@@ -523,7 +541,7 @@ export default function ReportScreen() {
                             activeOpacity={0.8}
                             onPress={() => setPreviewPhoto(act.check_in_photo!)}
                           >
-                            <Image
+                            <CachedImage
                               source={{ uri: act.check_in_photo }}
                               style={styles.photoThumbnail}
                             />
@@ -626,7 +644,7 @@ export default function ReportScreen() {
             <MaterialIcons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           {previewPhoto ? (
-            <Image
+            <CachedImage
               source={{ uri: previewPhoto }}
               style={styles.lightboxImage}
               resizeMode="contain"
@@ -817,6 +835,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
   },
+  kpiCardFull: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderLeftWidth: 4,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+  },
+  kpiFullRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  kpiFullSubBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  kpiFullSubText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#B45309",
+  },
   kpiIconWrap: {
     width: 36,
     height: 36,
@@ -885,17 +934,27 @@ const styles = StyleSheet.create({
     marginTop: 4,
     maxWidth: 240,
   },
-  empRow: {
+  empCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 5,
+    elevation: 1,
+  },
+  empCardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    marginBottom: 10,
   },
   empAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "#EDE9FE",
     alignItems: "center",
     justifyContent: "center",
@@ -908,24 +967,32 @@ const styles = StyleSheet.create({
   },
   empInfo: {
     flex: 1,
-  },
-  empNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  empName: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#1E293B",
-    flex: 1,
     marginRight: 8,
   },
+  empName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1E293B",
+  },
+  empPosition: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
   statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#F1F5F9",
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
+    backgroundColor: "#94A3B8",
   },
   statusWorking: {
     backgroundColor: "#DBEAFE",
@@ -944,87 +1011,62 @@ const styles = StyleSheet.create({
   statusCompletedText: {
     color: "#059669",
   },
-  empPosition: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 1,
-  },
   empMetricsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
     backgroundColor: "#F8FAFC",
     borderRadius: 8,
-    padding: 8,
-    marginTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   empMetricCol: {
+    flex: 1,
     alignItems: "center",
   },
+  empMetricHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 2,
+  },
   empMetricLabel: {
-    fontSize: 9,
+    fontSize: 10,
     color: "#64748B",
     fontWeight: "600",
   },
   empMetricVal: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#0F172A",
-    marginTop: 1,
-  },
-  activityRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
-  activityIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  activityBody: {
-    flex: 1,
-  },
-  activityTitleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  activityTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#1E293B",
-    flex: 1,
-    marginRight: 6,
+    color: "#0F172A",
   },
-  activityTime: {
-    fontSize: 10,
-    color: "#94A3B8",
-    fontWeight: "600",
+  empMetricDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: 8,
   },
-  activitySubtitle: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 2,
-  },
-  activityFooter: {
+  empCardFooter: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 4,
+    justifyContent: "flex-end",
+    gap: 4,
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
   },
-  activityDate: {
+  empCardFooterText: {
     fontSize: 10,
-    color: "#94A3B8",
+    fontWeight: "700",
+    color: PURPLE,
   },
   activityBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: "flex-start",
   },
   badgeSuccess: {
     backgroundColor: "#D1FAE5",
@@ -1035,6 +1077,7 @@ const styles = StyleSheet.create({
   activityBadgeText: {
     fontSize: 10,
     fontWeight: "700",
+    marginLeft: 4,
   },
   badgeSuccessText: {
     color: "#059669",

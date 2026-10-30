@@ -31,7 +31,7 @@ class ProductAttributeController extends Controller
             $query->where('is_active', $status === 'active');
         }
 
-        $attributes = $query->orderBy('name')->paginate(20)->withQueryString();
+        $attributes = $query->orderBy('id', 'desc')->paginate(20)->withQueryString();
 
         return view('admin.product-attributes.index', compact('attributes', 'search', 'status'));
     }

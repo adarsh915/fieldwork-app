@@ -67,6 +67,20 @@ class MasterController extends Controller
     }
 
     /**
+     * GET /api/master/india-locations
+     * Returns all India states with their districts from the JSON file.
+     */
+    public function indiaLocations(): JsonResponse
+    {
+        $path = resource_path('data/india_states_districts.json');
+        if (!file_exists($path)) {
+            return response()->json(['success' => false, 'data' => []]);
+        }
+        $data = json_decode(file_get_contents($path), true) ?: [];
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
+    /**
      * GET /api/master/parties
      *
      * Returns customers assigned to the authenticated user.

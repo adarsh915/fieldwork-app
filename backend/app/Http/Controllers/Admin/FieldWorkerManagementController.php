@@ -27,7 +27,7 @@ class FieldWorkerManagementController extends Controller
             ->with(['assignments' => function ($q) {
                 $q->where('is_active', true);
             }])
-            ->orderBy('name');
+            ->orderBy('id', 'desc');
 
         $visibleIds = DataScope::visibleUserIds('employees');
         if ($visibleIds !== null) {

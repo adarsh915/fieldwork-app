@@ -23,7 +23,7 @@ class ProductController extends Controller
 
         $query = Product::with('units')
             ->withCount('units')
-            ->orderBy('name');
+            ->orderBy('id', 'desc');
 
         if ($search) {
             $query->where(function ($q) use ($search) {

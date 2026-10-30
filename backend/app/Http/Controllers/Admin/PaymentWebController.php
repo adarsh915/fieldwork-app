@@ -35,7 +35,7 @@ class PaymentWebController extends Controller
             $pendingPaymentsQuery->whereIn('collected_by', $scopedUserIds);
         }
 
-        $pendingPayments = $pendingPaymentsQuery->orderBy('created_at', 'asc')->get();
+        $pendingPayments = $pendingPaymentsQuery->orderBy('created_at', 'desc')->get();
 
         // 2. All Payments query for history tab (scoped)
         $allQuery = Payment::with(['party', 'collectedBy.roles', 'confirmedBy.roles'])

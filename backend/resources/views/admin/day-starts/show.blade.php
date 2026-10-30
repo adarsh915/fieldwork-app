@@ -22,17 +22,17 @@
             startTime: '{{ $dayStart->start_time ? \Carbon\Carbon::parse($dayStart->start_time)->format('H:i') : '' }}',
             startTimeFormatted: '{{ $dayStart->start_time ? \Carbon\Carbon::parse($dayStart->start_time)->format('h:i A') : '—' }}',
             tourPurposeId: '{{ $dayStart->tour_purpose_id }}',
-            tourPurposeName: '{{ addslashes($dayStart->tourPurpose?->name ?? '—') }}',
+            tourPurposeName: {{ json_encode($dayStart->tourPurpose?->name ?? '—') }},
             tourTypeId: '{{ $dayStart->tour_type_id }}',
-            tourTypeName: '{{ addslashes($dayStart->tourType?->name ?? '—') }}',
+            tourTypeName: {{ json_encode($dayStart->tourType?->name ?? '—') }},
             vehicleTypeId: '{{ $dayStart->vehicle_type_id }}',
-            vehicleTypeName: '{{ addslashes($dayStart->vehicleType?->name ?? '—') }}',
-            vehicleNo: '{{ addslashes($dayStart->vehicle_no ?? '') }}',
+            vehicleTypeName: {{ json_encode($dayStart->vehicleType?->name ?? '—') }},
+            vehicleNo: {{ json_encode($dayStart->vehicle_no ?? '') }},
             openingKm: '{{ $dayStart->opening_km !== null ? $dayStart->opening_km : '' }}',
             closingKm: '{{ $dayStart->closing_km !== null ? $dayStart->closing_km : '' }}',
             partyId: '{{ $dayStart->party_id ?? '' }}',
-            partyName: '{{ addslashes($dayStart->party?->name ?? '—') }}',
-            visitPlace: '{{ addslashes($dayStart->visit_place ?? '') }}',
+            partyName: {{ json_encode($dayStart->party?->name ?? '—') }},
+            visitPlace: {{ json_encode($dayStart->visit_place ?? '') }},
             openingPhotoUrl: '{{ $dayStart->opening_km_photo ? asset('storage/' . $dayStart->opening_km_photo) : '' }}',
             newPhotoPreview: null,
             reason: '',
@@ -122,12 +122,12 @@
             openingKm: {{ (float) ($dayStart->opening_km ?? 0) }},
             endTime: '{{ $dayStart->end_time ? \Carbon\Carbon::parse($dayStart->end_time)->format('H:i') : '' }}',
             endTimeFormatted: '{{ $dayStart->end_time ? \Carbon\Carbon::parse($dayStart->end_time)->format('h:i A') : '—' }}',
-            remarks: '{{ addslashes($dayStart->end_remarks ?? '') }}',
+            remarks: {{ json_encode($dayStart->end_remarks ?? '') }},
             reason: '',
             closingPhotoUrl: '{{ $dayStart->closing_km_photo ? asset('storage/' . $dayStart->closing_km_photo) : '' }}',
             newPhotoPreview: null,
             isAutoClosed: {{ $dayStart->is_auto_closed ? 'true' : 'false' }},
-            flaggedReason: '{{ addslashes($dayStart->flagged_reason ?? '') }}',
+            flaggedReason: {{ json_encode($dayStart->flagged_reason ?? '') }},
             distanceKm: '{{ ($dayStart->closing_km && $dayStart->opening_km) ? max(0, $dayStart->closing_km - $dayStart->opening_km) : '—' }}',
             updateUrl: '{{ route('admin.day-starts.updateClosing', $dayStart->id) }}',
             errorMsg: ''
@@ -523,6 +523,12 @@
                         <div class="mt-1 text-slate-900" x-text="dayStartData.dateFormatted">{{ $dayStart->date->format('d M Y') }}</div>
                     </div>
                     <div>
+                        <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Start Time</div>
+                        <div class="mt-1 font-semibold text-slate-900" x-text="dayStartData.startTimeFormatted || '—'">
+                            {{ $dayStart->start_time ? \Carbon\Carbon::parse($dayStart->start_time)->format('h:i A') : '—' }}
+                        </div>
+                    </div>
+                    <div>
                         <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Tour Purpose</div>
                         <div class="mt-1 text-slate-900 font-medium" x-text="dayStartData.tourPurposeName">{{ $dayStart->tourPurpose?->name ?? '—' }}</div>
                     </div>
@@ -546,7 +552,7 @@
                     </div>
                     <div x-data="{
                         status: '{{ $dayStart->status }}',
-                        approverName: '{{ addslashes($dayStart->approvedBy?->name ?? '') }}',
+                        approverName: {{ json_encode($dayStart->approvedBy?->name ?? '') }},
                         approvedAt: '{{ $dayStart->updated_at?->format('d M Y, h:i A') ?? '' }}',
                         loading: false,
                         async updateDayStatus(newStatus) {
@@ -862,6 +868,8 @@
                         <tr>
                             <th>Time</th>
                             <th>Party</th>
+                            <th>Source</th>
+                            <th>Notes / Remarks</th>
                             <th>Amount</th>
                             <th>Status</th>
                             <th class="text-right">View</th>
@@ -872,6 +880,20 @@
                             <tr>
                                 <td>{{ $order->created_at->format('h:i A') }}</td>
                                 <td class="font-semibold">{{ $order->party->name ?? 'Unknown' }}</td>
+                                <td>
+                                    @if(($order->order_source ?? '') === 'phone')
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            📞 Phone
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                            📍 Visit
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="max-w-[260px] text-xs text-slate-600 truncate" title="{{ $order->remarks }}">
+                                    {{ $order->remarks ?? '—' }}
+                                </td>
                                 <td class="font-bold text-brand-600">₹{{ number_format($order->total_amount, 2) }}</td>
                                 <td>
                                     <x-status-badge :status="$order->status" :map="['approved' => 'success', 'pending' => 'warning', 'rejected' => 'danger']" />
@@ -883,7 +905,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center py-6 text-slate-500">No orders placed today.</td>
+                                <td colspan="7" class="text-center py-6 text-slate-500">No orders placed today.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -915,21 +937,21 @@
                                     status: '{{ $expense->status }}',
                                     amount: '{{ (float) $expense->amount }}',
                                     categoryId: '{{ $expense->category_id }}',
-                                    categoryName: '{{ addslashes($expense->is_system_generated ? 'System Travel' : ($expense->category?->name ?? 'N/A')) }}',
+                                    categoryName: {{ json_encode($expense->is_system_generated ? 'System Travel' : ($expense->category?->name ?? 'N/A')) }},
                                     date: '{{ $expense->date?->format('Y-m-d') ?? '' }}',
                                     billPhotoUrl: '{{ $expense->bill_photo ? asset('storage/' . $expense->bill_photo) : '' }}',
                                     loading: false,
-                                    tempApprovedBy: '{{ addslashes($expense->tempApprovedBy?->name ?? '') }}',
+                                    tempApprovedBy: {{ json_encode($expense->tempApprovedBy?->name ?? '') }},
                                     tempApprovedAt: '{{ $expense->temp_approved_at ? $expense->temp_approved_at->format('d M Y, h:i A') : '' }}',
-                                    tempApprovedNote: '{{ addslashes($expense->temp_approved_note ?? '') }}',
-                                    approvedBy: '{{ addslashes($expense->approvedBy?->name ?? '') }}',
+                                    tempApprovedNote: {{ json_encode($expense->temp_approved_note ?? '') }},
+                                    approvedBy: {{ json_encode($expense->approvedBy?->name ?? '') }},
                                     approvedAt: '{{ $expense->approved_at ? $expense->approved_at->format('d M Y, h:i A') : '' }}',
-                                    finalNote: '{{ addslashes($expense->final_note ?? '') }}',
-                                    rejectedBy: '{{ addslashes($expense->rejectedBy?->name ?? '') }}',
+                                    finalNote: {{ json_encode($expense->final_note ?? '') }},
+                                    rejectedBy: {{ json_encode($expense->rejectedBy?->name ?? '') }},
                                     rejectedAt: '{{ $expense->rejected_at ? $expense->rejected_at->format('d M Y, h:i A') : '' }}',
-                                    rejectionReason: '{{ addslashes($expense->rejection_reason ?? '') }}',
+                                    rejectionReason: {{ json_encode($expense->rejection_reason ?? '') }},
                                     updateExpenseStatus(actionType, confirmText) {
-                                        openExpenseAction(this, {{ $expense->id }}, actionType, 'Claim #{{ $expense->id }} • ₹{{ number_format((float)$expense->amount, 2) }} • {{ addslashes($expense->is_system_generated ? 'System Travel' : ($expense->category?->name ?? 'Expense')) }}');
+                                        openExpenseAction(this, {{ $expense->id }}, actionType, {{ json_encode('Claim #' . $expense->id . ' • ₹' . number_format((float)$expense->amount, 2) . ' • ' . ($expense->is_system_generated ? 'System Travel' : ($expense->category?->name ?? 'Expense'))) }});
                                     }
                                 }">
                                 <td>
@@ -1070,10 +1092,10 @@
                                         {{-- History / Audit Log Button --}}
                                         <button type="button" @click="openExpenseHistory({
                                                 id: {{ $expense->id }},
-                                                userName: '{{ addslashes($expense->user?->name ?? 'Worker') }}',
+                                                userName: {{ json_encode($expense->user?->name ?? 'Worker') }},
                                                 amount: '{{ number_format((float) $expense->amount, 2) }}',
                                                 date: '{{ $expense->date?->format('d M Y') ?? '—' }}',
-                                                categoryName: '{{ addslashes($expense->is_system_generated ? 'System Travel' : ($expense->category?->name ?? 'N/A')) }}',
+                                                categoryName: {{ json_encode($expense->is_system_generated ? 'System Travel' : ($expense->category?->name ?? 'N/A')) }},
                                                 isAfterDayEnd: {{ $expense->is_after_day_end ? 'true' : 'false' }},
                                                 billPhotoUrl: '{{ $expense->bill_photo ? asset('storage/' . $expense->bill_photo) : '' }}',
                                                 status: status,
@@ -1325,12 +1347,26 @@
                         @endforelse
                     </tbody>
                     @if($expenses->count() > 0)
+                        @php
+                            $systemTravelTotal = (float) $expenses->where('is_system_generated', true)->sum('amount');
+                            $otherExpensesTotal = (float) $expenses->where('is_system_generated', false)->sum('amount');
+                            $grandTotalExpenses = (float) $expenses->sum('amount');
+                        @endphp
                         <tfoot>
                             <tr class="bg-slate-50 border-t border-slate-200">
-                                <td class="font-bold text-slate-900 text-right">Total Bill Amount:</td>
-                                <td class="font-bold text-brand-600 text-lg">₹{{ number_format($expenses->sum('amount'), 2) }}
-                                </td>
-                                <td colspan="4"></td>
+                                <td class="font-semibold text-slate-700 text-right">System Travel Expense:</td>
+                                <td class="font-bold text-slate-900 text-base">₹{{ number_format($systemTravelTotal, 2) }}</td>
+                                <td colspan="4" class="text-xs text-slate-500">Auto-calculated distance travel</td>
+                            </tr>
+                            <tr class="bg-slate-50 border-t border-slate-100">
+                                <td class="font-semibold text-slate-700 text-right">Other Expenses:</td>
+                                <td class="font-bold text-slate-900 text-base">₹{{ number_format($otherExpensesTotal, 2) }}</td>
+                                <td colspan="4" class="text-xs text-slate-500">Manual expense claims (stationery, food, hotel, etc.)</td>
+                            </tr>
+                            <tr class="bg-slate-100 border-t-2 border-slate-300">
+                                <td class="font-bold text-slate-900 text-right text-base">Total Bill Amount:</td>
+                                <td class="font-bold text-brand-600 text-lg">₹{{ number_format($grandTotalExpenses, 2) }}</td>
+                                <td colspan="4" class="text-xs font-semibold text-slate-700">Combined total expense</td>
                             </tr>
                         </tfoot>
                     @endif

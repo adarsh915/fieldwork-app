@@ -28,7 +28,10 @@ export interface NewPartyPayload {
   party_type?: string;
   owner_name?: string;
   district_id?: number;
+  district?: string;
   area_id?: number;
+  area?: string;
+  new_area?: string;
   address?: string;
   city?: string;
   state?: string;

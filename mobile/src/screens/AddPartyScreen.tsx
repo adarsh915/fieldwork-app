@@ -17,8 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
 import { submitParty } from "../api/party";
-import { getMasterLocations } from "../api/master";
-import type { District, Area } from "../api/master";
+import indiaLocationsData from "../data/india_states_districts.json";
 import { useAlert } from "../context/AlertModalContext";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -43,18 +42,18 @@ export default function AddPartyScreen() {
   // Input refs for smooth chained keyboard navigation
   const mobileRef = useRef<TextInput>(null);
   const ownerNameRef = useRef<TextInput>(null);
+  const areaRef = useRef<TextInput>(null);
   const addressRef = useRef<TextInput>(null);
-  const cityRef = useRef<TextInput>(null);
-  const stateRef = useRef<TextInput>(null);
   const pincodeRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const gstRef = useRef<TextInput>(null);
 
-  // Locations State
-  const [districts, setDistricts] = useState<District[]>([]);
-  const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
-  const [selectedArea, setSelectedArea] = useState<Area | null>(null);
-  const [locationPicker, setLocationPicker] = useState<"district" | "area" | null>(null);
+  // Locations State (All-India JSON)
+  const [selectedState, setSelectedState] = useState<string>("Madhya Pradesh");
+  const [selectedDistrictName, setSelectedDistrictName] = useState<string>("");
+  const [manualArea, setManualArea] = useState<string>("");
+  const [locationPicker, setLocationPicker] = useState<"state" | "district" | null>(null);
+  const [locationSearch, setLocationSearch] = useState<string>("");
 
   // Form State
   const [name, setName] = useState("");
@@ -62,31 +61,12 @@ export default function AddPartyScreen() {
   const [partyType, setPartyType] = useState("Retailer");
   const [ownerName, setOwnerName] = useState("");
   const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
   const [email, setEmail] = useState("");
   const [gstNumber, setGstNumber] = useState("");
 
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await getMasterLocations();
-        if (res.success && res.data) {
-          setDistricts(res.data);
-          if (res.data.length > 0) {
-            setSelectedDistrict(res.data[0]);
-            setState(res.data[0].state || "Gujarat");
-          }
-        }
-      } catch (err) {
-        // silent fail fallback to manual text
-      }
-    })();
-  }, []);
 
   async function handleSubmit() {
     if (!name.trim()) {
@@ -99,6 +79,10 @@ export default function AddPartyScreen() {
     }
     if (mobile.trim().length < 10) {
       showWarning("Invalid Mobile", "Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    if (!selectedDistrictName) {
+      showWarning("Required Field", "Please select a District.");
       return;
     }
     if (pincode.trim() && pincode.trim().length !== 6) {
@@ -120,11 +104,11 @@ export default function AddPartyScreen() {
         mobile: mobile.trim(),
         party_type: partyType,
         owner_name: ownerName.trim() || undefined,
-        district_id: selectedDistrict?.id,
-        area_id: selectedArea?.id,
+        state: selectedState,
+        district: selectedDistrictName,
+        area: manualArea.trim() || undefined,
         address: address.trim() || undefined,
-        city: selectedArea?.name || selectedDistrict?.name || city.trim() || undefined,
-        state: selectedDistrict?.state || state.trim() || undefined,
+        city: selectedDistrictName,
         pincode: pincode.trim() || undefined,
         email: email.trim() || undefined,
         gst_number: gstNumber.trim() || undefined,
@@ -293,58 +277,88 @@ export default function AddPartyScreen() {
             </View>
           </View>
 
-          {/* District & Area Selectors (2-tier territory) */}
+          {/* State & District Selectors (All-India JSON) */}
           <View style={styles.row}>
-            {/* District */}
+            {/* State */}
             <View style={[styles.field, { flex: 1, marginRight: 6 }]}>
+              <Text style={styles.label}>
+                State <Text style={styles.required}>*</Text>
+              </Text>
+              <TouchableOpacity
+                style={styles.selectWrap}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setLocationSearch("");
+                  setLocationPicker("state");
+                }}
+              >
+                <MaterialCommunityIcons name="map-outline" size={18} color="#7367F0" />
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.selectValueText,
+                    !selectedState && styles.selectPlaceholderText,
+                  ]}
+                >
+                  {selectedState || "Select State"}
+                </Text>
+                <MaterialCommunityIcons name="chevron-down" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* District */}
+            <View style={[styles.field, { flex: 1, marginLeft: 6 }]}>
               <Text style={styles.label}>
                 District / City <Text style={styles.required}>*</Text>
               </Text>
               <TouchableOpacity
                 style={styles.selectWrap}
                 activeOpacity={0.8}
-                onPress={() => setLocationPicker("district")}
+                onPress={() => {
+                  if (selectedState) {
+                    setLocationSearch("");
+                    setLocationPicker("district");
+                  } else {
+                    showWarning("Select State", "Please select a State first.");
+                  }
+                }}
               >
                 <MaterialCommunityIcons name="city-variant-outline" size={18} color="#7367F0" />
                 <Text
                   numberOfLines={1}
                   style={[
                     styles.selectValueText,
-                    !selectedDistrict && styles.selectPlaceholderText,
+                    !selectedDistrictName && styles.selectPlaceholderText,
                   ]}
                 >
-                  {selectedDistrict?.name ?? "Select District"}
+                  {selectedDistrictName || "Select District"}
                 </Text>
                 <MaterialCommunityIcons name="chevron-down" size={18} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
+          </View>
 
-            {/* Area */}
-            <View style={[styles.field, { flex: 1, marginLeft: 6 }]}>
-              <Text style={styles.label}>Area / Beat</Text>
-              <TouchableOpacity
-                style={styles.selectWrap}
-                activeOpacity={0.8}
-                onPress={() => {
-                  if (selectedDistrict) {
-                    setLocationPicker("area");
-                  } else {
-                    showWarning("Select District", "Please select a district first.");
-                  }
-                }}
-              >
-                <MaterialCommunityIcons name="map-marker-radius-outline" size={18} color="#7367F0" />
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.selectValueText,
-                    !selectedArea && styles.selectPlaceholderText,
-                  ]}
-                >
-                  {selectedArea?.name ?? (selectedDistrict ? "Select Area" : "Select District")}
-                </Text>
-                <MaterialCommunityIcons name="chevron-down" size={18} color="#9CA3AF" />
-              </TouchableOpacity>
+          {/* Area / Town / Beat (Manual) */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Area / Town / Beat</Text>
+            <View style={[styles.inputWrap, focusedField === "area" && styles.inputWrapFocused]}>
+              <MaterialCommunityIcons
+                name="map-marker-radius-outline"
+                size={18}
+                color={focusedField === "area" ? "#7367F0" : "#9CA3AF"}
+              />
+              <TextInput
+                ref={areaRef}
+                style={styles.inputWithIcon}
+                placeholder="e.g. Civil Lines, Main Market"
+                placeholderTextColor="#9CA3AF"
+                value={manualArea}
+                onChangeText={setManualArea}
+                onFocus={() => setFocusedField("area")}
+                onBlur={() => setFocusedField(null)}
+                returnKeyType="next"
+                onSubmitEditing={() => addressRef.current?.focus()}
+              />
             </View>
           </View>
 
@@ -373,54 +387,6 @@ export default function AddPartyScreen() {
             </View>
           </View>
 
-          {/* City & State (Row) */}
-          <View style={styles.row}>
-            <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>City</Text>
-              <View style={[styles.inputWrap, focusedField === "city" && styles.inputWrapFocused]}>
-                <MaterialCommunityIcons
-                  name="city-variant-outline"
-                  size={18}
-                  color={focusedField === "city" ? "#7367F0" : "#9CA3AF"}
-                />
-                <TextInput
-                  ref={cityRef}
-                  style={styles.inputWithIcon}
-                  placeholder="City"
-                  placeholderTextColor="#9CA3AF"
-                  value={city}
-                  onChangeText={setCity}
-                  onFocus={() => setFocusedField("city")}
-                  onBlur={() => setFocusedField(null)}
-                  returnKeyType="next"
-                  onSubmitEditing={() => stateRef.current?.focus()}
-                />
-              </View>
-            </View>
-
-            <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
-              <Text style={styles.label}>State</Text>
-              <View style={[styles.inputWrap, focusedField === "state" && styles.inputWrapFocused]}>
-                <MaterialCommunityIcons
-                  name="map-outline"
-                  size={18}
-                  color={focusedField === "state" ? "#7367F0" : "#9CA3AF"}
-                />
-                <TextInput
-                  ref={stateRef}
-                  style={styles.inputWithIcon}
-                  placeholder="State"
-                  placeholderTextColor="#9CA3AF"
-                  value={state}
-                  onChangeText={setState}
-                  onFocus={() => setFocusedField("state")}
-                  onBlur={() => setFocusedField(null)}
-                  returnKeyType="next"
-                  onSubmitEditing={() => pincodeRef.current?.focus()}
-                />
-              </View>
-            </View>
-          </View>
 
           {/* Pincode */}
           <View style={[styles.field, { marginBottom: 4 }]}>
@@ -540,56 +506,86 @@ export default function AddPartyScreen() {
           <View style={styles.modalSheet}>
             <ScreenHeader
               title={
-                locationPicker === "district"
-                  ? "Select District"
-                  : `Select Area in ${selectedDistrict?.name ?? ""}`
+                locationPicker === "state"
+                  ? "Select State"
+                  : `Select District (${selectedState})`
               }
               onBack={() => setLocationPicker(null)}
               bgColor="#7367F0"
             />
+            {/* Search Filter Box */}
+            <View style={styles.searchBoxWrap}>
+              <MaterialCommunityIcons name="magnify" size={20} color="#94A3B8" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={locationPicker === "state" ? "Search State / UT..." : "Search District..."}
+                placeholderTextColor="#94A3B8"
+                value={locationSearch}
+                onChangeText={setLocationSearch}
+                autoCorrect={false}
+              />
+              {locationSearch.length > 0 ? (
+                <TouchableOpacity onPress={() => setLocationSearch("")}>
+                  <MaterialCommunityIcons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
             <ScrollView
               contentContainerStyle={[
                 styles.modalList,
                 { paddingBottom: Math.max(insets.bottom, 14) + 24 },
               ]}
+              keyboardShouldPersistTaps="handled"
             >
-              {locationPicker === "district" ? (
-                districts.map((d) => (
-                  <TouchableOpacity
-                    key={d.id}
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setSelectedDistrict(d);
-                      setSelectedArea(null);
-                      setState(d.state || "Gujarat");
-                      setCity(d.name);
-                      setLocationPicker(null);
-                    }}
-                  >
-                    <Text style={styles.modalItemText}>{d.name}</Text>
-                    {d.areas?.length ? (
-                      <Text style={styles.modalItemSub}>{d.areas.length} areas</Text>
-                    ) : null}
-                  </TouchableOpacity>
-                ))
+              {locationPicker === "state" ? (
+                indiaLocationsData
+                  .map((item) => item.state)
+                  .filter((s) => s.toLowerCase().includes(locationSearch.trim().toLowerCase()))
+                  .map((stateName) => {
+                    const isSelected = selectedState === stateName;
+                    return (
+                      <TouchableOpacity
+                        key={stateName}
+                        style={[styles.modalItem, isSelected && styles.modalItemSelected]}
+                        onPress={() => {
+                          setSelectedState(stateName);
+                          setSelectedDistrictName("");
+                          setLocationPicker(null);
+                        }}
+                      >
+                        <Text style={[styles.modalItemText, isSelected && styles.modalItemTextActive]}>
+                          {stateName}
+                        </Text>
+                        {isSelected ? (
+                          <MaterialCommunityIcons name="check-circle" size={20} color="#7367F0" />
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })
               ) : (
-                (selectedDistrict?.areas || []).map((a) => (
-                  <TouchableOpacity
-                    key={a.id}
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setSelectedArea(a);
-                      setCity(a.name);
-                      if (a.pincode) setPincode(a.pincode);
-                      setLocationPicker(null);
-                    }}
-                  >
-                    <Text style={styles.modalItemText}>{a.name}</Text>
-                    {a.pincode ? (
-                      <Text style={styles.modalItemSub}>Pincode: {a.pincode}</Text>
-                    ) : null}
-                  </TouchableOpacity>
-                ))
+                (indiaLocationsData.find((item) => item.state === selectedState)?.districts || [])
+                  .filter((d) => d.toLowerCase().includes(locationSearch.trim().toLowerCase()))
+                  .map((distName) => {
+                    const isSelected = selectedDistrictName === distName;
+                    return (
+                      <TouchableOpacity
+                        key={distName}
+                        style={[styles.modalItem, isSelected && styles.modalItemSelected]}
+                        onPress={() => {
+                          setSelectedDistrictName(distName);
+                          setLocationPicker(null);
+                        }}
+                      >
+                        <Text style={[styles.modalItemText, isSelected && styles.modalItemTextActive]}>
+                          {distName}
+                        </Text>
+                        {isSelected ? (
+                          <MaterialCommunityIcons name="check-circle" size={20} color="#7367F0" />
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })
               )}
             </ScrollView>
             <TouchableOpacity
@@ -883,5 +879,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#475569",
+  },
+  searchBoxWrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#1E293B",
+  },
+  modalItemSelected: {
+    backgroundColor: "#F5F3FF",
+  },
+  modalItemTextActive: {
+    color: "#7367F0",
   },
 });

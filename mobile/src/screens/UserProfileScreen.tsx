@@ -5,7 +5,6 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ScreenHeader from "../components/ScreenHeader";
+import CachedImage from "../components/CachedImage";
 import { useAuth } from "../auth/AuthContext";
 import { useAlert } from "../context/AlertModalContext";
 import type { RootStackParamList } from "../navigation/RootNavigator";
@@ -82,7 +82,7 @@ export default function UserProfileScreen() {
         <View style={styles.heroCard}>
           <View style={styles.avatarContainer}>
             {user?.profile_image_url ? (
-              <Image
+              <CachedImage
                 source={{ uri: user.profile_image_url }}
                 style={styles.avatarImg}
               />
@@ -105,10 +105,7 @@ export default function UserProfileScreen() {
             <Text style={styles.empIdText}>Employee Code: {user.employee_id}</Text>
           )}
 
-          <View style={styles.activePill}>
-            <View style={styles.greenDot} />
-            <Text style={styles.activePillText}>Active Field Account</Text>
-          </View>
+
         </View>
 
         {/* ── Employee Details Card ── */}
@@ -198,32 +195,6 @@ export default function UserProfileScreen() {
           )}
         </View>
 
-        {/* ── System Information Card ── */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeaderTitle}>Application Information</Text>
-
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIconWrap, { backgroundColor: "#F1F5F9" }]}>
-              <MaterialCommunityIcons name="cellphone-cog" size={20} color="#64748B" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Application</Text>
-              <Text style={styles.infoValue}>AMPL Fieldwork Mobile</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIconWrap, { backgroundColor: "#F1F5F9" }]}>
-              <MaterialCommunityIcons name="shield-lock-outline" size={20} color="#64748B" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Security Version</Text>
-              <Text style={styles.infoValue}>v1.0.0 (Encrypted Token Auth)</Text>
-            </View>
-          </View>
-        </View>
 
         {/* ── Logout Button in Bottom ── */}
         <View style={styles.logoutSection}>
@@ -344,29 +315,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
-    marginBottom: 10,
-  },
-  activePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#F0FDF4",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-  },
-  greenDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#16A34A",
-  },
-  activePillText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#15803D",
   },
   sectionCard: {
     backgroundColor: "#FFFFFF",

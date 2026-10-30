@@ -16,7 +16,7 @@ class LeaveTypeWebController extends Controller
      */
     public function index(Request $request)
     {
-        $leaveTypes = LeaveType::orderBy('id')->get();
+        $leaveTypes = LeaveType::orderBy('id', 'desc')->get();
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([

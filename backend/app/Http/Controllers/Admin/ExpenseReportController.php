@@ -83,7 +83,7 @@ class ExpenseReportController extends Controller
         $visits = Visit::with('party')
             ->where('user_id', $dayStart->user_id)
             ->whereDate('check_in_time', Carbon::parse($dayStart->date)->toDateString())
-            ->orderBy('check_in_time', 'asc')
+            ->orderBy('check_in_time', 'desc')
             ->get();
 
         $expenses = ExpenseBill::with(['category', 'items'])->where('day_start_id', $day_start_id)->get();
@@ -114,7 +114,7 @@ class ExpenseReportController extends Controller
                              ->whereNotIn('status', ['rejected', 'manager_rejected']);
                       });
             })
-            ->orderBy('date', 'asc')
+            ->orderBy('date', 'desc')
             ->get();
 
         $groupedByDate = $expenses->groupBy(function($expense) {

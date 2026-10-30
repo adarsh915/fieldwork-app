@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import ScreenHeader from "../components/ScreenHeader";
+import { optimizeImageForUpload } from "../utils/imageOptimizer";
 
 import { submitDayEnd } from "../api/day";
 import type { AppStackParamList } from "../navigation/RootNavigator";
@@ -46,14 +47,16 @@ export default function DayEndScreen() {
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
-      setKmPhotoUri(result.assets[0].uri);
+      const optimized = await optimizeImageForUpload(result.assets[0].uri);
+      setKmPhotoUri(optimized);
     }
   }
 
   async function pickFromGallery() {
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
-      setKmPhotoUri(result.assets[0].uri);
+      const optimized = await optimizeImageForUpload(result.assets[0].uri);
+      setKmPhotoUri(optimized);
     }
   }
 

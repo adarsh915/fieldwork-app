@@ -755,7 +755,7 @@
                         }
                     }
                 ],
-                order: [[1, 'asc']],
+                order: [[1, 'desc']],
                 pageLength: 25,
                 lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
                 dom: 'rt<"flex items-center justify-between px-6 py-3 border-t border-surface-border"<"text-caption text-ink-400"i><""p>>'

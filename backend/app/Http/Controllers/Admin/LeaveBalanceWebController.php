@@ -72,7 +72,7 @@ class LeaveBalanceWebController extends Controller
         $totalUsed           = (float) (clone $query)->sum('used');
         $totalAvailable      = max(0.0, ($totalAllocated + $totalCarriedForward) - $totalUsed);
 
-        $balances = $query->orderBy('user_id')->paginate(25);
+        $balances = $query->orderBy('id', 'desc')->paginate(25);
         $leaveTypes = LeaveType::orderBy('id')->get(['id', 'name', 'code']);
 
         $formattedBalances = $balances->map(fn ($b) => $this->formatBalance($b));

@@ -63,7 +63,9 @@ class DayStartController extends Controller
         $query = DayStart::query()
             ->forUser($user)
             ->with(['user.roles', 'tourPurpose', 'tourType', 'vehicleType', 'party', 'district', 'area'])
-            ->select('day_starts.*');
+            ->select('day_starts.*')
+            ->orderBy('day_starts.date', 'desc')
+            ->orderBy('day_starts.id', 'desc');
 
         if ($request->filled('date_from')) {
             $query->whereDate('date', '>=', $request->date_from);
@@ -264,19 +266,19 @@ class DayStartController extends Controller
         $visits = Visit::with('party')
             ->where('user_id', $dayStart->user_id)
             ->where('day_start_id', $dayStart->id)
-            ->orderBy('check_in_time')
+            ->orderBy('check_in_time', 'desc')
             ->get();
 
         $orders = Order::with('party')
             ->where('user_id', $dayStart->user_id)
             ->whereDate('created_at', $dayStart->date)
-            ->orderBy('created_at')
+            ->orderBy('created_at', 'desc')
             ->get();
 
         $expenses = ExpenseBill::with(['category', 'items', 'tempApprovedBy', 'approvedBy', 'rejectedBy'])
             ->where('user_id', $dayStart->user_id)
             ->where('day_start_id', $dayStart->id)
-            ->orderBy('created_at')
+            ->orderBy('created_at', 'desc')
             ->get();
 
         $authUser = auth()->user();

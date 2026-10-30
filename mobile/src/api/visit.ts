@@ -19,6 +19,7 @@ export type Visit = {
   notes?: string | null;
   purpose?: string | null;
   status: "pending" | "completed" | "in_progress";
+  source?: "visit" | "phone";
   user?: { id: number; name: string };
 };
 

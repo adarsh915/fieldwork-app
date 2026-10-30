@@ -97,6 +97,10 @@ class ComprehensivePermissionsSeeder extends Seeder
             // Master Data
             'master-data.manage',
 
+            // Locations (Districts & Areas)
+            'locations.view',
+            'locations.manage',
+
             // Activities
             'activities.view',
 
