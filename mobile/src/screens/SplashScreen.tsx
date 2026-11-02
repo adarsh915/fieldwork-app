@@ -146,7 +146,7 @@ export default function SplashScreen() {
             },
           ]}
         >
-          <Text style={styles.brandTitle}>AMPL SOLUTION</Text>
+          <Text style={styles.brandTitle}>KCPL SOLUTION</Text>
           <View style={styles.badgePill}>
             <Text style={styles.badgeText}>FIELDWORK MOBILITY</Text>
           </View>

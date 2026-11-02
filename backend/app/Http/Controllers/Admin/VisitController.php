@@ -81,13 +81,11 @@ class VisitController extends Controller
             ]);
         }
 
-        $employeesQuery = User::with('roles')->where('is_active', true);
-        if ($scopedUserIds !== null) {
-            $employeesQuery->whereIn('id', $scopedUserIds);
-        } else {
-            $employeesQuery->whereHas('roles', fn($q) => $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']));
-        }
-        $employees = $employeesQuery->orderBy('name')->get();
+        $employees = User::with('roles')
+            ->where('is_active', true)
+            ->when($scopedUserIds !== null, fn($q) => $q->whereIn('id', $scopedUserIds))
+            ->orderBy('name')
+            ->get();
 
         return view('admin.visits.index', compact('visits', 'employees'));
     }

@@ -45,7 +45,7 @@ export default function LoginScreen() {
     <View style={styles.safe}>
       <SafeAreaView style={{ backgroundColor: PURPLE }} edges={["top", "left", "right"]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>AMPL SOLUTION</Text>
+          <Text style={styles.headerTitle}>KCPL SOLUTION</Text>
         </View>
       </SafeAreaView>
 

@@ -188,7 +188,7 @@ export default function DashboardScreen() {
       {/* ── Header with Seamless Purple Top Bar ── */}
       <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: PURPLE }}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>AMPL SOLUTION</Text>
+          <Text style={styles.headerTitle}>KCPL SOLUTION</Text>
 
           <View style={styles.headerActions}>
             {/* Notification Bell */}
