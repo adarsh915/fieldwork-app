@@ -23,16 +23,12 @@ class FieldWorkerManagementController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
-        $query = User::role(['Field Worker', 'field_worker'])
+        $query = User::visibleToUser()
+            ->role(['Field Worker', 'field_worker'])
             ->with(['assignments' => function ($q) {
                 $q->where('is_active', true);
             }])
             ->orderBy('id', 'desc');
-
-        $visibleIds = DataScope::visibleUserIds('employees');
-        if ($visibleIds !== null) {
-            $query->whereIn('id', $visibleIds);
-        }
 
         // Filter by status
         if ($request->filled('status')) {

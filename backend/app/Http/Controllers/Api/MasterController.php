@@ -53,15 +53,60 @@ class MasterController extends Controller
     /**
      * GET /api/master/locations
      * Returns active districts with their active areas.
+     * Non-admin workers only receive districts and areas where their assigned parties exist.
      */
-    public function locations(): JsonResponse
+    public function locations(Request $request): JsonResponse
     {
-        $districts = District::where('is_active', true)
-            ->with(['areas' => function ($q) {
-                $q->where('is_active', true)->orderBy('name');
+        $user = $request->user();
+
+        // Admins and users with full party permissions see all master locations
+        if (!$user || $user->canSelectAllParties()) {
+            $districts = District::where('is_active', true)
+                ->with(['areas' => function ($q) {
+                    $q->where('is_active', true)->orderBy('name');
+                }])
+                ->orderBy('name')
+                ->get(['id', 'name', 'state', 'code']);
+
+            return response()->json(['success' => true, 'data' => $districts]);
+        }
+
+        // Get user's assigned party query
+        $assignedPartiesQuery = Customer::query()->active()->where('approval_status', 'approved');
+
+        $assignedDistrictIds = $user->territories()->whereNull('area_id')->pluck('district_id')->toArray();
+        $assignedAreaIds = $user->territories()->whereNotNull('area_id')->pluck('area_id')->toArray();
+
+        $assignedPartiesQuery->where(function ($q) use ($user, $assignedDistrictIds, $assignedAreaIds) {
+            $q->whereHas('assignments', function ($sq) use ($user) {
+                $sq->where('employee_id', $user->id)->where('is_active', true);
+            })->orWhere('submitted_by', $user->id);
+
+            if (!empty($assignedDistrictIds)) {
+                $q->orWhereIn('customers.district_id', $assignedDistrictIds);
+            }
+            if (!empty($assignedAreaIds)) {
+                $q->orWhereIn('customers.area_id', $assignedAreaIds);
+            }
+        });
+
+        // Collect distinct district IDs and area IDs from their parties + direct territory assignments
+        $partyDistrictIds = (clone $assignedPartiesQuery)->whereNotNull('district_id')->distinct()->pluck('district_id')->toArray();
+        $partyAreaIds     = (clone $assignedPartiesQuery)->whereNotNull('area_id')->distinct()->pluck('area_id')->toArray();
+
+        $allowedDistrictIds = array_unique(array_filter(array_merge($partyDistrictIds, $assignedDistrictIds)));
+        $allowedAreaIds     = array_unique(array_filter(array_merge($partyAreaIds, $assignedAreaIds)));
+
+        $districtsQuery = District::where('is_active', true)
+            ->whereIn('id', $allowedDistrictIds)
+            ->with(['areas' => function ($q) use ($allowedAreaIds) {
+                $q->where('is_active', true)
+                  ->when(!empty($allowedAreaIds), fn($sq) => $sq->whereIn('id', $allowedAreaIds))
+                  ->orderBy('name');
             }])
-            ->orderBy('name')
-            ->get(['id', 'name', 'state', 'code']);
+            ->orderBy('name');
+
+        $districts = $districtsQuery->get(['id', 'name', 'state', 'code']);
 
         return response()->json(['success' => true, 'data' => $districts]);
     }

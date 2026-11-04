@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 /**
  * DataScope — centralizes who the logged-in user is allowed to see and manage.
@@ -310,5 +311,78 @@ class DataScope
     public static function directReportIds(int $managerId): array
     {
         return User::where('reporting_to', $managerId)->pluck('id')->toArray();
+    }
+
+    /**
+     * Get all managers in upward reporting chain
+     * 
+     * Replaces manual manager chain traversal in ActivityNotificationService
+     * 
+     * @param int $userId Starting user ID
+     * @return Collection Collection of User models
+     */
+    public static function managerChain(int $userId): Collection
+    {
+        $managers = collect();
+        $visited = [];
+        $current = User::where('id', $userId)->where('is_active', true)->first();
+        
+        while ($current && $current->reporting_to && !in_array($current->reporting_to, $visited)) {
+            $visited[] = $current->reporting_to;
+            $manager = User::where('id', $current->reporting_to)
+                ->where('is_active', true)
+                ->first();
+            
+            if ($manager) {
+                $managers->push($manager);
+                $current = $manager;
+            } else {
+                break;
+            }
+        }
+        
+        return $managers;
+    }
+
+    /**
+     * Check if user can action a specific record
+     * Combines conflict-of-interest check + hierarchy validation
+     * 
+     * Replaces this repetitive pattern:
+     * if ($record->user_id === $user->id && !$isSuperAdmin) { abort(403); }
+     * $actionableIds = DataScope::actionableSubordinateIds(...);
+     * if ($actionableIds !== null && !in_array($record->user_id, $actionableIds)) { abort(403); }
+     * 
+     * Usage: if (!DataScope::canAction('expenses', $expense->user_id)) { abort(403); }
+     * 
+     * @param string $module Module name (expenses, leaves, day-start, etc.)
+     * @param int $recordUserId User ID who owns the record
+     * @param User|null $user User attempting the action (defaults to auth user)
+     * @return bool
+     */
+    public static function canAction(string $module, int $recordUserId, ?User $user = null): bool
+    {
+        $user = $user ?? auth()->user();
+        
+        if (!$user) return false;
+        
+        // Super Admin can action anything
+        if ($user->hasRole(['Super Admin', 'super_admin'])) {
+            return true;
+        }
+        
+        // Conflict of interest: Cannot action own records
+        if ($recordUserId === $user->id) {
+            return false;
+        }
+        
+        // Must be in actionable subordinates
+        $actionableIds = static::actionableSubordinateIds($module, $user);
+        
+        if ($actionableIds === null) {
+            return true; // Unrestricted (Admin/HR/Finance)
+        }
+        
+        return in_array($recordUserId, $actionableIds, true);
     }
 }

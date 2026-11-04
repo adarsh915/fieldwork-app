@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Traits\Auditable;
+use App\Services\DataScope;
 
 class Leave extends Model
 {
@@ -133,5 +134,41 @@ class Leave extends Model
     {
         return $query->where('from_date', '<=', $date)
                      ->where('to_date', '>=', $date);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // QUERY SCOPES - Automatic DataScope Integration
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Scope query to visible users based on DataScope permissions
+     * 
+     * Replaces repetitive pattern:
+     * $visibleIds = DataScope::visibleUserIds('leaves');
+     * if ($visibleIds !== null) { $query->whereIn('user_id', $visibleIds); }
+     * 
+     * Usage: Leave::visibleToUser()->get();
+     */
+    public function scopeVisibleToUser($query, ?User $user = null)
+    {
+        return DataScope::apply($query, 'leaves', 'user_id');
+    }
+
+    /**
+     * Scope query to actionable subordinates only (for approval/rejection)
+     * Excludes own records (conflict of interest prevention)
+     * 
+     * Usage: Leave::actionableByUser()->where('status', 'pending')->get();
+     */
+    public function scopeActionableByUser($query, ?User $user = null)
+    {
+        $user = $user ?? auth()->user();
+        $actionableIds = DataScope::actionableSubordinateIds('leaves', $user);
+        
+        if ($actionableIds !== null) {
+            return $query->whereIn('user_id', $actionableIds);
+        }
+        
+        return $query;
     }
 }

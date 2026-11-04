@@ -278,14 +278,13 @@ class PaymentController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
-        $query = Payment::with([
-            'party:id,name,mobile,address',
-            'collectedBy:id,name,employee_id',
-            'visit:id,check_in_at',
-        ])
-        ->where('status', 'pending');
-
-        DataScope::apply($query, 'payments', 'collected_by');
+        $query = Payment::visibleToUser()
+            ->with([
+                'party:id,name,mobile,address',
+                'collectedBy:id,name,employee_id',
+                'visit:id,check_in_at',
+            ])
+            ->where('status', 'pending');
 
         if ($request->has('page') || $request->has('per_page')) {
             $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
@@ -321,16 +320,15 @@ class PaymentController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
-        $query = Payment::with([
-            'party:id,name,mobile,address',
-            'collectedBy:id,name,employee_id',
-            'confirmedBy:id,name',
-        ])->orderBy('created_at', 'desc');
+        $query = Payment::visibleToUser()
+            ->with([
+                'party:id,name,mobile,address',
+                'collectedBy:id,name,employee_id',
+                'confirmedBy:id,name',
+            ])
+            ->orderBy('created_at', 'desc');
 
         $scopedIds = DataScope::visibleUserIds('payments');
-        if ($scopedIds !== null) {
-            $query->whereIn('collected_by', $scopedIds);
-        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);

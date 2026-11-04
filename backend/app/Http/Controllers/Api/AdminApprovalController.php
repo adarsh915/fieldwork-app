@@ -50,42 +50,32 @@ class AdminApprovalController extends Controller
             ]);
         }
 
-        // Pending Day Starts Count (using the exact same visibleUserIds function as the admin panel)
-        $dayStartVisibleIds = DataScope::visibleUserIds('day-start', $user);
-        $dayStartQuery = DayStart::query()->whereIn('status', ['pending', 'submitted']);
+        // Pending Day Starts Count (using DataScope scopes)
+        $dayStartQuery = DayStart::visibleToUser($user)
+            ->whereIn('status', ['pending', 'submitted']);
         if (!$isSuperAdmin) {
             $dayStartQuery->where('user_id', '!=', $user->id);
-            if ($dayStartVisibleIds !== null) {
-                $dayStartQuery->whereIn('user_id', $dayStartVisibleIds);
-            }
         }
         $pendingDayStarts = $canApproveDay ? $dayStartQuery->count() : 0;
 
-        // Pending Expenses Level 1 (using the exact same visibleUserIds function as the admin panel)
-        $expenseVisibleIds = DataScope::visibleUserIds('expenses', $user);
-        $expL1Query = ExpenseBill::query()->where('status', 'pending');
+        // Pending Expenses Level 1 (using DataScope scopes)
+        $expL1Query = ExpenseBill::visibleToUser($user)
+            ->where('status', 'pending');
         if (!$isSuperAdmin) {
             $expL1Query->where('user_id', '!=', $user->id);
-            if ($isAdmin || $user->can('expenses.manage')) {
-                // Admin can verify all
-            } else {
-                $expL1Query->whereHas('user', function ($uq) use ($user) {
-                    $uq->where('reporting_to', $user->id);
-                });
-            }
-            if ($expenseVisibleIds !== null) {
-                $expL1Query->whereIn('user_id', $expenseVisibleIds);
+            if (!$isAdmin && !$user->can('expenses.manage')) {
+                // Managers: only direct reports
+                $directReportIds = DataScope::directReportIds($user->id);
+                $expL1Query->whereIn('user_id', $directReportIds);
             }
         }
         $pendingExpL1 = $canTempApproveExp ? $expL1Query->count() : 0;
 
         // Pending Expenses Level 2 (Final approval for temp_approved claims)
-        $expL2Query = ExpenseBill::query()->where('status', 'temp_approved');
+        $expL2Query = ExpenseBill::visibleToUser($user)
+            ->where('status', 'temp_approved');
         if (!$isSuperAdmin) {
             $expL2Query->where('user_id', '!=', $user->id);
-            if ($expenseVisibleIds !== null) {
-                $expL2Query->whereIn('user_id', $expenseVisibleIds);
-            }
         }
         $pendingExpL2 = $canFinalApproveExp ? $expL2Query->count() : 0;
 
@@ -119,24 +109,7 @@ class AdminApprovalController extends Controller
         $query = User::query()->select('id', 'name', 'employee_id', 'department', 'position');
 
         if (!$isSuperAdmin) {
-            $query->where('id', '!=', $user->id);
-            if ($module === 'expenses') {
-                $visibleIds = DataScope::visibleUserIds('expenses', $user);
-            } elseif ($module === 'day-start') {
-                $visibleIds = DataScope::visibleUserIds('day-start', $user);
-            } else {
-                $dsIds = DataScope::visibleUserIds('day-start', $user);
-                $expIds = DataScope::visibleUserIds('expenses', $user);
-                if ($dsIds === null || $expIds === null) {
-                    $visibleIds = null;
-                } else {
-                    $visibleIds = array_values(array_unique(array_merge($dsIds, $expIds)));
-                }
-            }
-
-            if ($visibleIds !== null) {
-                $query->whereIn('id', $visibleIds);
-            }
+            $query->visibleToUser($user)->where('id', '!=', $user->id);
         } else {
             $query->where('id', '!=', $user->id);
         }
@@ -187,13 +160,9 @@ class AdminApprovalController extends Controller
             'expenses.items',
         ]);
 
-        // Data scoping — using the exact same visibleUserIds as the admin panel
+        // Data scoping — using visibleToUser scope
         if (!$isSuperAdmin) {
-            $query->where('user_id', '!=', $user->id); // Conflict of interest: cannot approve self
-            $visibleIds = DataScope::visibleUserIds('day-start', $user);
-            if ($visibleIds !== null) {
-                $query->whereIn('user_id', $visibleIds);
-            }
+            $query->visibleToUser($user)->where('user_id', '!=', $user->id);
         }
 
         // Status filter: pending (default), approved, rejected, all
@@ -330,8 +299,7 @@ class AdminApprovalController extends Controller
             return response()->json(['success' => false, 'message' => 'Conflict of Interest: You cannot approve your own tour plan.'], 403);
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('day-start', $user);
-        if ($actionableIds !== null && !in_array($dayStart->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('day-start', $dayStart->user_id, $user)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized: You can only approve tour plans for your team subordinates.'], 403);
         }
 
@@ -393,8 +361,7 @@ class AdminApprovalController extends Controller
             return response()->json(['success' => false, 'message' => 'Conflict of Interest: You cannot edit your own tour plan.'], 403);
         }
 
-        $visibleIds = DataScope::visibleUserIds('day-start', $user);
-        if ($visibleIds !== null && !in_array($dayStart->user_id, $visibleIds, true)) {
+        if (!DataScope::canAction('day-start', $dayStart->user_id, $user)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized: You can only edit tour plans for your team subordinates.'], 403);
         }
 
@@ -535,13 +502,9 @@ class AdminApprovalController extends Controller
             'dayStart.party:id,name',
         ]);
 
-        // Data scoping — using the exact same visibleUserIds as the admin panel
+        // Data scoping — using visibleToUser scope
         if (!$isSuperAdmin) {
-            $query->where('user_id', '!=', $user->id); // Conflict of interest: cannot approve self
-            $visibleIds = DataScope::visibleUserIds('expenses', $user);
-            if ($visibleIds !== null) {
-                $query->whereIn('user_id', $visibleIds);
-            }
+            $query->visibleToUser($user)->where('user_id', '!=', $user->id);
         }
 
         // Status filter: pending (level 1), temp_approved (level 2), approved, rejected, all
@@ -694,8 +657,7 @@ class AdminApprovalController extends Controller
             return response()->json(['success' => false, 'message' => 'Conflict of Interest: You cannot approve or reject your own expense claim.'], 403);
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('expenses', $user);
-        if ($actionableIds !== null && !in_array($expense->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('expenses', $expense->user_id, $user)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized: You can only approve expenses for your subordinates.'], 403);
         }
 
@@ -869,14 +831,11 @@ class AdminApprovalController extends Controller
         }
 
         // Data scoping: only allow editing subordinates
-        if (!$isSuperAdmin) {
-            $actionableIds = DataScope::actionableSubordinateIds('expenses', $user);
-            if ($actionableIds !== null && !in_array($expense->user_id, $actionableIds, true)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized: You can only edit expenses for subordinates strictly below you.',
-                ], 403);
-            }
+        if (!$isSuperAdmin && !DataScope::canAction('expenses', $expense->user_id, $user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized: You can only edit expenses for subordinates strictly below you.',
+            ], 403);
         }
 
         $validated = $request->validate([

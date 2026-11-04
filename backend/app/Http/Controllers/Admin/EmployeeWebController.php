@@ -138,15 +138,9 @@ class EmployeeWebController extends Controller
             $roleFilter = $request->get('role');
             $statusFilter = $request->get('status');
 
-            $query = User::query()
+            $query = User::visibleToUser()
                 ->with(['roles', 'reportingManager.roles', 'parties:id,name'])
                 ->orderBy('created_at', 'desc');
-
-            // Data scoping: restrict to visible team members
-            $visibleIds = DataScope::visibleUserIds('employees');
-            if ($visibleIds !== null) {
-                $query->whereIn('id', $visibleIds);
-            }
 
             // Search
             if ($search) {
@@ -351,11 +345,10 @@ class EmployeeWebController extends Controller
      */
     public function activeDropdown(Request $request)
     {
-        $scopedUserIds = DataScope::visibleUserIds('employees');
-        $query = User::with('roles')->where('is_active', true)->orderBy('name');
-        if ($scopedUserIds !== null) {
-            $query->whereIn('id', $scopedUserIds);
-        }
+        $query = User::visibleToUser()
+            ->with('roles')
+            ->where('is_active', true)
+            ->orderBy('name');
         if ($excludeId = $request->query('exclude_id')) {
             $query->where('id', '!=', $excludeId);
         }

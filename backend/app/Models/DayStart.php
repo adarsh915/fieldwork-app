@@ -6,6 +6,7 @@ use App\Traits\HasRoleBasedScope;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\DataScope;
 
 class DayStart extends Model
 {
@@ -124,5 +125,41 @@ class DayStart extends Model
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // QUERY SCOPES - Automatic DataScope Integration
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Scope query to visible users based on DataScope permissions
+     * 
+     * Replaces repetitive pattern:
+     * $visibleIds = DataScope::visibleUserIds('day-start');
+     * if ($visibleIds !== null) { $query->whereIn('user_id', $visibleIds); }
+     * 
+     * Usage: DayStart::visibleToUser()->get();
+     */
+    public function scopeVisibleToUser($query, ?User $user = null)
+    {
+        return DataScope::apply($query, 'day-start', 'user_id');
+    }
+
+    /**
+     * Scope query to actionable subordinates only (for approval/rejection)
+     * Excludes own records (conflict of interest prevention)
+     * 
+     * Usage: DayStart::actionableByUser()->whereIn('status', ['pending', 'submitted'])->get();
+     */
+    public function scopeActionableByUser($query, ?User $user = null)
+    {
+        $user = $user ?? auth()->user();
+        $actionableIds = DataScope::actionableSubordinateIds('day-start', $user);
+        
+        if ($actionableIds !== null) {
+            return $query->whereIn('user_id', $actionableIds);
+        }
+        
+        return $query;
     }
 }

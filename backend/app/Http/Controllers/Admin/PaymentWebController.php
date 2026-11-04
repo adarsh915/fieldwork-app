@@ -19,31 +19,25 @@ class PaymentWebController extends Controller
 {
     public function index(Request $request)
     {
-        $scopedUserIds = DataScope::visibleUserIds('payments');
-
         $status = $request->input('status', 'all');
         $partyId = $request->input('party_id');
         $collectedBy = $request->input('collected_by');
         $search = $request->input('search');
         $activeTab = $request->input('tab', 'pending'); // 'pending' | 'all'
 
-        // 1. Pending Queue (scoped)
-        $pendingPaymentsQuery = Payment::with(['party', 'collectedBy.roles', 'visit'])
-            ->where('status', 'pending');
+        $scopedUserIds = DataScope::visibleUserIds('payments');
 
-        if ($scopedUserIds !== null) {
-            $pendingPaymentsQuery->whereIn('collected_by', $scopedUserIds);
-        }
+        // 1. Pending Queue (scoped)
+        $pendingPaymentsQuery = Payment::visibleToUser()
+            ->with(['party', 'collectedBy.roles', 'visit'])
+            ->where('status', 'pending');
 
         $pendingPayments = $pendingPaymentsQuery->orderBy('created_at', 'desc')->get();
 
         // 2. All Payments query for history tab (scoped)
-        $allQuery = Payment::with(['party', 'collectedBy.roles', 'confirmedBy.roles'])
+        $allQuery = Payment::visibleToUser()
+            ->with(['party', 'collectedBy.roles', 'confirmedBy.roles'])
             ->orderBy('created_at', 'desc');
-
-        if ($scopedUserIds !== null) {
-            $allQuery->whereIn('collected_by', $scopedUserIds);
-        }
 
         if ($status !== 'all') {
             $allQuery->where('status', $status);
@@ -73,10 +67,8 @@ class PaymentWebController extends Controller
         $allPayments = $allQuery->paginate(15)->withQueryString();
 
         // 3. Per-rep Pending summary widget (scoped)
-        $repSummariesQuery = Payment::where('status', 'pending');
-        if ($scopedUserIds !== null) {
-            $repSummariesQuery->whereIn('collected_by', $scopedUserIds);
-        }
+        $repSummariesQuery = Payment::visibleToUser()
+            ->where('status', 'pending');
 
         $repSummaries = $repSummariesQuery
             ->select('collected_by', DB::raw('count(*) as pending_count'), DB::raw('sum(amount) as pending_total'))
@@ -158,8 +150,7 @@ class PaymentWebController extends Controller
 
     public function confirm(Request $request, Payment $payment)
     {
-        $scopedUserIds = DataScope::visibleUserIds('payments');
-        if ($scopedUserIds !== null && !in_array($payment->collected_by, $scopedUserIds, true)) {
+        if (!DataScope::canAction('payments', $payment->collected_by)) {
             abort(403, 'Unauthorized to confirm this payment.');
         }
 
@@ -232,8 +223,7 @@ class PaymentWebController extends Controller
 
     public function reject(Request $request, Payment $payment)
     {
-        $scopedUserIds = DataScope::visibleUserIds('payments');
-        if ($scopedUserIds !== null && !in_array($payment->collected_by, $scopedUserIds, true)) {
+        if (!DataScope::canAction('payments', $payment->collected_by)) {
             abort(403, 'Unauthorized to reject this payment.');
         }
 

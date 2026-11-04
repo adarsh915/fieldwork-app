@@ -15,8 +15,6 @@ class ExpenseReportController extends Controller
 {
     public function monthlySummary(Request $request)
     {
-        $scopedUserIds = DataScope::visibleUserIds('expenses');
-
         if (!$request->filled('month')) {
             $latestDate = ExpenseBill::max('date');
             $monthInput = $latestDate ? Carbon::parse($latestDate)->format('Y-m') : Carbon::now()->format('Y-m');
@@ -25,15 +23,10 @@ class ExpenseReportController extends Controller
         }
         $month = Carbon::parse($monthInput);
 
+        $scopedUserIds = DataScope::visibleUserIds('expenses');
+
         // Fetch users and their expenses for the selected month (scoped)
-        $usersQuery = User::where('is_active', true);
-        if ($scopedUserIds !== null) {
-            $usersQuery->whereIn('id', $scopedUserIds);
-        } else {
-            $usersQuery->whereHas('roles', function($q) {
-                $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']);
-            });
-        }
+        $usersQuery = User::visibleToUser()->where('is_active', true);
 
         $users = $usersQuery->with(['expenses' => function($q) use ($month) {
             $q->whereMonth('date', $month->month)
@@ -75,8 +68,7 @@ class ExpenseReportController extends Controller
             'user'
         ])->findOrFail($day_start_id);
 
-        $scopedUserIds = DataScope::visibleUserIds('expenses');
-        if ($scopedUserIds !== null && !in_array($dayStart->user_id, $scopedUserIds)) {
+        if (!DataScope::canAction('expenses', $dayStart->user_id)) {
             abort(403, 'Unauthorized access to this expense receipt.');
         }
 
@@ -93,8 +85,7 @@ class ExpenseReportController extends Controller
 
     public function workerStatement(Request $request, $user_id)
     {
-        $scopedUserIds = DataScope::visibleUserIds('expenses');
-        if ($scopedUserIds !== null && !in_array((int) $user_id, $scopedUserIds, true)) {
+        if (!DataScope::canAction('expenses', (int) $user_id)) {
             abort(403, 'Unauthorized access to this worker statement.');
         }
 

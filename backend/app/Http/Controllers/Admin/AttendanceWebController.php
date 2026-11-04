@@ -21,10 +21,11 @@ class AttendanceWebController extends Controller
     {
         // Scoped user list
         $visibleIds = DataScope::visibleUserIds('attendance');
-        $usersQuery = User::with('roles')->where('is_active', true)->orderBy('name');
-        if ($visibleIds !== null) {
-            $usersQuery->whereIn('id', $visibleIds);
-        }
+        
+        $usersQuery = User::visibleToUser()
+            ->with('roles')
+            ->where('is_active', true)
+            ->orderBy('name');
         $users = $usersQuery->get();
 
         $selectedUserId = $request->integer('user_id', $users->first()?->id ?? 0);

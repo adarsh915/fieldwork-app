@@ -12,14 +12,11 @@ class VisitController extends Controller
 {
     public function index(Request $request)
     {
-        $scopedUserIds = DataScope::visibleUserIds('visits');
-
-        $query = Visit::with(['party', 'user.roles'])
+        $query = Visit::visibleToUser()
+            ->with(['party', 'user.roles'])
             ->orderBy('created_at', 'desc');
 
-        if ($scopedUserIds !== null) {
-            $query->whereIn('user_id', $scopedUserIds);
-        }
+        $scopedUserIds = DataScope::visibleUserIds('visits');
 
         if ($request->filled('employee_id')) {
             if ($scopedUserIds === null || in_array($request->employee_id, $scopedUserIds)) {
@@ -81,9 +78,9 @@ class VisitController extends Controller
             ]);
         }
 
-        $employees = User::with('roles')
+        $employees = User::visibleToUser()
+            ->with('roles')
             ->where('is_active', true)
-            ->when($scopedUserIds !== null, fn($q) => $q->whereIn('id', $scopedUserIds))
             ->orderBy('name')
             ->get();
 

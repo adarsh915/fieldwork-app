@@ -15,11 +15,9 @@ class ExpenseController extends Controller
 {
     public function index(Request $request)
     {
-        $visibleIds = DataScope::visibleUserIds('expenses');
-
-        $users = User::with('roles')
+        $users = User::visibleToUser()
+            ->with('roles')
             ->where('is_active', true)
-            ->when($visibleIds !== null, fn($q) => $q->whereIn('id', $visibleIds))
             ->orderBy('name')
             ->get();
 
@@ -32,11 +30,11 @@ class ExpenseController extends Controller
         $canEdit = $authUser ? ($authUser->can('expenses.edit') || $authUser->can('expenses.manage') || $isSuperAdmin) : false;
 
         if ($request->wantsJson()) {
-            $expensesQuery = ExpenseBill::with(['user.roles', 'category', 'items']);
-            if ($visibleIds !== null) {
-                $expensesQuery->whereIn('user_id', $visibleIds);
-            }
-            $expenses = $expensesQuery->orderBy('date', 'desc')->orderBy('id', 'desc')->get();
+            $expenses = ExpenseBill::visibleToUser()
+                ->with(['user.roles', 'category', 'items'])
+                ->orderBy('date', 'desc')
+                ->orderBy('id', 'desc')
+                ->get();
 
             return response()->json([
                 'success' => true,
@@ -57,23 +55,14 @@ class ExpenseController extends Controller
 
     public function data(Request $request)
     {
-        $query = ExpenseBill::with(['user.roles', 'category', 'items', 'tempApprovedBy', 'approvedBy', 'rejectedBy'])
+        $query = ExpenseBill::visibleToUser()
+            ->with(['user.roles', 'category', 'items', 'tempApprovedBy', 'approvedBy', 'rejectedBy'])
             ->select('expense_bills.*')
             ->orderBy('expense_bills.date', 'desc')
             ->orderBy('expense_bills.id', 'desc');
 
-        // Data scoping: restrict to visible team members
-        $visibleIds = DataScope::visibleUserIds('expenses');
-        if ($visibleIds !== null) {
-            $query->whereIn('user_id', $visibleIds);
-        }
-
         if ($request->filled('user_id')) {
-            if ($visibleIds === null || in_array($request->user_id, $visibleIds)) {
-                $query->where('user_id', $request->user_id);
-            } else {
-                $query->whereRaw('1=0');
-            }
+            $query->where('user_id', $request->user_id);
         }
 
         if ($request->filled('status')) {
@@ -249,8 +238,7 @@ class ExpenseController extends Controller
             ], 403);
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('expenses');
-        if ($actionableIds !== null && !in_array($expense->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('expenses', $expense->user_id, $user)) {
             abort(403, 'Unauthorized: You can only approve or reject expenses for subordinates strictly below you.');
         }
 
@@ -291,6 +279,19 @@ class ExpenseController extends Controller
 
             ActivityNotificationService::notifyExpenseTempApproved($expense);
 
+            \App\Models\AuditLog::logEvent(
+                event: 'expense.temp_approved',
+                auditable: $expense,
+                oldValues: ['status' => 'pending'],
+                newValues: [
+                    'status' => 'temp_approved',
+                    'temp_approved_by' => $user->id,
+                    'temp_approved_note' => $note,
+                ],
+                reason: $note ?? 'Verified by reporting manager (Level 1)',
+                causerUserId: $user->id
+            );
+
             $msg = 'Expense verified by reporting manager (Level 1). Forwarded to HR for final approval.';
         } elseif ($action === 'final_approve' || $action === 'approved') {
             if (!$canFinalApprove) {
@@ -315,6 +316,19 @@ class ExpenseController extends Controller
 
             ActivityNotificationService::notifyExpenseFinalApproved($expense);
 
+            \App\Models\AuditLog::logEvent(
+                event: 'expense.approved',
+                auditable: $expense,
+                oldValues: ['status' => $expense->status],
+                newValues: [
+                    'status' => 'approved',
+                    'approved_by' => $user->id,
+                    'final_note' => $note,
+                ],
+                reason: $note ?? 'Final approval granted',
+                causerUserId: $user->id
+            );
+
             $msg = 'Expense approved successfully (Final Approval). Sent for reimbursement payout.';
         } elseif ($action === 'manager_reject') {
             if (!$canTempApprove || !$isDirectManager) {
@@ -333,6 +347,19 @@ class ExpenseController extends Controller
                 'rejected_at' => now(),
                 'rejection_reason' => $note,
             ]);
+
+            \App\Models\AuditLog::logEvent(
+                event: 'expense.manager_rejected',
+                auditable: $expense,
+                oldValues: ['status' => 'pending'],
+                newValues: [
+                    'status' => 'manager_rejected',
+                    'rejected_by' => $user->id,
+                    'rejection_reason' => $note,
+                ],
+                reason: $note,
+                causerUserId: $user->id
+            );
 
             \App\Models\UserNotification::create([
                 'user_id' => $expense->user_id,
@@ -361,6 +388,19 @@ class ExpenseController extends Controller
                 'rejected_at' => now(),
                 'rejection_reason' => $note,
             ]);
+
+            \App\Models\AuditLog::logEvent(
+                event: 'expense.rejected',
+                auditable: $expense,
+                oldValues: ['status' => $expense->status],
+                newValues: [
+                    'status' => 'rejected',
+                    'rejected_by' => $user->id,
+                    'rejection_reason' => $note,
+                ],
+                reason: $note,
+                causerUserId: $user->id
+            );
 
             ActivityNotificationService::notifyExpenseFinalRejected($expense, $note);
 
@@ -419,8 +459,7 @@ class ExpenseController extends Controller
             ], 403);
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('expenses');
-        if ($actionableIds !== null && !in_array($expense->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('expenses', $expense->user_id, $user)) {
             abort(403, 'Unauthorized: You can only edit expenses for subordinates strictly below you.');
         }
 

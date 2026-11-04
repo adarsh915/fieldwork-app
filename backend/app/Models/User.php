@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use App\Traits\Auditable;
+use App\Services\DataScope;
 
 class User extends Authenticatable
 {
@@ -177,5 +178,25 @@ class User extends Authenticatable
     public function getNameWithRoleAttribute(): string
     {
         return "{$this->name} ({$this->role_name})";
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // QUERY SCOPES - Automatic DataScope Integration
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Scope query to visible users based on DataScope permissions
+     * 
+     * Note: Uses 'id' column instead of 'user_id' (self-referential)
+     * 
+     * Replaces repetitive pattern:
+     * $visibleIds = DataScope::visibleUserIds('employees');
+     * if ($visibleIds !== null) { $query->whereIn('id', $visibleIds); }
+     * 
+     * Usage: User::visibleToUser()->where('is_active', true)->get();
+     */
+    public function scopeVisibleToUser($query, ?User $user = null)
+    {
+        return DataScope::apply($query, 'employees', 'id');
     }
 }

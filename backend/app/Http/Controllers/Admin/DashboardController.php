@@ -55,10 +55,7 @@ class DashboardController extends Controller
 
     private function scopedUsersQuery()
     {
-        $ids = DataScope::visibleUserIds('employees');
-        $q   = User::query();
-        if ($ids !== null) $q->whereIn('id', $ids);
-        return $q;
+        return User::visibleToUser();
     }
 
     private function scopedPartiesQuery()
@@ -70,18 +67,12 @@ class DashboardController extends Controller
 
     private function scopedVisitsQuery()
     {
-        $ids = DataScope::visibleUserIds('visits');
-        $q   = Visit::query();
-        if ($ids !== null) $q->whereIn('user_id', $ids);
-        return $q;
+        return Visit::visibleToUser();
     }
 
     private function scopedOrdersQuery()
     {
-        $ids = DataScope::visibleUserIds('orders');
-        $q   = Order::query();
-        if ($ids !== null) $q->whereIn('user_id', $ids);
-        return $q;
+        return Order::visibleToUser();
     }
 }
 

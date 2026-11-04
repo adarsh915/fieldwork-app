@@ -29,8 +29,7 @@ class AttendanceAdjustmentWebController extends Controller
         $userId = (int) $request->user_id;
         $date   = $request->date;
 
-        $scopedIds = DataScope::visibleUserIds('attendance');
-        if ($scopedIds !== null && !in_array($userId, $scopedIds)) {
+        if (!DataScope::canAction('attendance', $userId)) {
             abort(403, 'Unauthorized: Cannot adjust attendance for an employee outside your scope.');
         }
 

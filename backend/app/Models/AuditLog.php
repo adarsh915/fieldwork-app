@@ -57,4 +57,18 @@ class AuditLog extends Model
             'ip_address'     => request() ? request()->ip() : null,
         ]);
     }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // QUERY SCOPES - Automatic DataScope Integration
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Scope query to visible users based on DataScope permissions
+     * Note: Uses 'causer_id' column (who performed the action)
+     * Usage: AuditLog::visibleToUser()->get();
+     */
+    public function scopeVisibleToUser($query, ?User $user = null)
+    {
+        return \App\Services\DataScope::apply($query, 'employees', 'causer_id');
+    }
 }

@@ -25,24 +25,15 @@ class LeaveWebController extends Controller
      */
     public function index(Request $request)
     {
-        $scopedUserIds = DataScope::visibleUserIds('leaves');
-
-        $query = Leave::with(['user', 'leaveType', 'approvedBy']);
-
-        if ($scopedUserIds !== null) {
-            $query->whereIn('user_id', $scopedUserIds);
-        }
+        $query = Leave::visibleToUser()
+            ->with(['user', 'leaveType', 'approvedBy']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
         if ($request->filled('user_id')) {
-            if ($scopedUserIds === null || in_array($request->user_id, $scopedUserIds)) {
-                $query->where('user_id', $request->user_id);
-            } else {
-                $query->whereRaw('1=0');
-            }
+            $query->where('user_id', $request->user_id);
         }
 
         if ($request->filled('month')) {
@@ -72,14 +63,15 @@ class LeaveWebController extends Controller
         }
 
         $leaves = $query->with(['user.roles', 'leaveType'])->orderBy('created_at', 'desc')->paginate(15)->withQueryString();
-        $users  = User::with('roles')
+        
+        $users = User::visibleToUser()
+            ->with('roles')
             ->where('is_active', true)
-            ->when($scopedUserIds !== null, fn($q) => $q->whereIn('id', $scopedUserIds))
             ->orderBy('name')
             ->get();
 
         // Summary counts (scoped)
-        $countQuery    = Leave::query()->when($scopedUserIds !== null, fn($q) => $q->whereIn('user_id', $scopedUserIds));
+        $countQuery = Leave::visibleToUser();
         $pendingCount  = (clone $countQuery)->where('status', 'pending')->count();
         $approvedCount = (clone $countQuery)->where('status', 'approved')->count();
         $rejectedCount = (clone $countQuery)->where('status', 'rejected')->count();
@@ -87,9 +79,9 @@ class LeaveWebController extends Controller
 
         // Conflicts query (scoped)
         $conflictTab = $request->input('conflict_tab', 'pending');
-        $conflictsQuery = Leave::with(['user.roles', 'leaveType', 'resolvedBy.roles'])
+        $conflictsQuery = Leave::visibleToUser()
+            ->with(['user.roles', 'leaveType', 'resolvedBy.roles'])
             ->where('has_conflict', true)
-            ->when(!empty($scopedUserIds), fn($q) => $q->whereIn('user_id', $scopedUserIds))
             ->when($conflictTab === 'resolved', fn ($q) => $q->where('conflict_status', 'resolved'))
             ->when($conflictTab !== 'resolved', fn ($q) => $q->where('conflict_status', 'pending_review'));
 
@@ -176,20 +168,11 @@ class LeaveWebController extends Controller
     public function data(Request $request)
     {
         $user = $request->user();
-        $scopedUserIds = DataScope::visibleUserIds('leaves');
-
-        $baseQuery = Leave::query();
-
-        if ($scopedUserIds !== null) {
-            $baseQuery->whereIn('user_id', $scopedUserIds);
-        }
+        
+        $baseQuery = Leave::visibleToUser();
 
         if ($request->filled('user_id')) {
-            if ($scopedUserIds === null || in_array($request->user_id, $scopedUserIds)) {
-                $baseQuery->where('user_id', $request->user_id);
-            } else {
-                $baseQuery->whereRaw('1=0');
-            }
+            $baseQuery->where('user_id', $request->user_id);
         }
 
         if ($request->filled('month')) {
@@ -310,21 +293,16 @@ class LeaveWebController extends Controller
     public function conflictsData(Request $request)
     {
         $user = $request->user();
-        $scopedUserIds = DataScope::visibleUserIds('leaves');
 
         $conflictTab = $request->input('conflict_tab', 'pending');
-        $conflictsQuery = Leave::with(['user.roles', 'leaveType', 'resolvedBy.roles'])
+        $conflictsQuery = Leave::visibleToUser()
+            ->with(['user.roles', 'leaveType', 'resolvedBy.roles'])
             ->where('has_conflict', true)
-            ->when(!empty($scopedUserIds), fn($q) => $q->whereIn('user_id', $scopedUserIds))
             ->when($conflictTab === 'resolved', fn ($q) => $q->where('conflict_status', 'resolved'))
             ->when($conflictTab !== 'resolved', fn ($q) => $q->where('conflict_status', 'pending_review'));
 
         if ($request->filled('user_id')) {
-            if ($scopedUserIds === null || in_array($request->user_id, $scopedUserIds)) {
-                $conflictsQuery->where('user_id', $request->user_id);
-            } else {
-                $conflictsQuery->whereRaw('1=0');
-            }
+            $conflictsQuery->where('user_id', $request->user_id);
         }
 
         if ($request->filled('month')) {
@@ -417,8 +395,7 @@ class LeaveWebController extends Controller
             abort(403, 'Conflict of Interest: You cannot approve your own leave.');
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('leaves');
-        if ($actionableIds !== null && !in_array($leave->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('leaves', $leave->user_id, $request->user())) {
             abort(403, 'Unauthorized: You can only approve leave requests for subordinates strictly below you.');
         }
 
@@ -490,8 +467,7 @@ class LeaveWebController extends Controller
             abort(403, 'Conflict of Interest: You cannot reject your own leave.');
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('leaves');
-        if ($actionableIds !== null && !in_array($leave->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('leaves', $leave->user_id, $request->user())) {
             abort(403, 'Unauthorized: You can only reject leave requests for subordinates strictly below you.');
         }
 
@@ -538,9 +514,8 @@ class LeaveWebController extends Controller
             abort(403, 'Unauthorized to cancel approved leave requests.');
         }
 
-        $scopedUserIds = DataScope::visibleUserIds('leaves');
-        if ($scopedUserIds !== null && !in_array($leave->user_id, $scopedUserIds, true)) {
-            abort(403, 'Unauthorized to cancel this leave request.');
+        if (!DataScope::canAction('leaves', $leave->user_id, $request->user())) {
+            abort(403, 'Unauthorized: You can only cancel leave requests for your subordinates.');
         }
 
         if (! in_array($leave->status, ['approved', 'cancellation_requested'], true)) {
@@ -590,9 +565,8 @@ class LeaveWebController extends Controller
             abort(403, 'Unauthorized to resolve conflict for this leave request.');
         }
 
-        $scopedUserIds = DataScope::visibleUserIds('leaves');
-        if ($scopedUserIds !== null && !in_array($leave->user_id, $scopedUserIds, true)) {
-            abort(403, 'Unauthorized to resolve conflict for this leave request.');
+        if (!DataScope::canAction('leaves', $leave->user_id, $request->user())) {
+            abort(403, 'Unauthorized: You can only resolve conflicts for your subordinates.');
         }
 
         $validated = $request->validate([

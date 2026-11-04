@@ -37,11 +37,9 @@ class DayStartController extends Controller
             403
         );
 
-        $visibleIds = DataScope::visibleUserIds('day-start');
-
-        $employees = User::with('roles')
+        $employees = User::visibleToUser()
+            ->with('roles')
             ->where('is_active', true)
-            ->when($visibleIds !== null, fn($q) => $q->whereIn('id', $visibleIds))
             ->orderBy('name')
             ->get();
 
@@ -75,13 +73,8 @@ class DayStartController extends Controller
             $query->whereDate('date', '<=', $request->date_to);
         }
 
-        $visibleIds = DataScope::visibleUserIds('day-start');
         if ($request->filled('employee_id')) {
-            if ($visibleIds === null || in_array($request->employee_id, $visibleIds)) {
-                $query->where('user_id', $request->employee_id);
-            } else {
-                $query->whereRaw('1=0');
-            }
+            $query->where('user_id', $request->employee_id);
         }
 
         if ($request->filled('status')) {
@@ -322,8 +315,7 @@ class DayStartController extends Controller
             abort(403, 'Conflict of Interest: You cannot edit your own Day End details.');
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('day-start');
-        if ($actionableIds !== null && !in_array($dayStart->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('day-start', $dayStart->user_id, $user)) {
             abort(403, 'Unauthorized: You can only adjust Day End records for subordinates strictly below you.');
         }
 
@@ -498,8 +490,7 @@ class DayStartController extends Controller
             abort(403, 'Conflict of Interest: You cannot edit your own Day Start details.');
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('day-start');
-        if ($actionableIds !== null && !in_array($dayStart->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('day-start', $dayStart->user_id, $user)) {
             abort(403, 'Unauthorized: You can only adjust Day Start records for subordinates strictly below you.');
         }
 
@@ -691,8 +682,7 @@ class DayStartController extends Controller
             abort(403, 'Conflict of Interest: You cannot approve or reject your own Day Start.');
         }
 
-        $actionableIds = DataScope::actionableSubordinateIds('day-start');
-        if ($actionableIds !== null && !in_array($dayStart->user_id, $actionableIds, true)) {
+        if (!DataScope::canAction('day-start', $dayStart->user_id, $user)) {
             abort(403, 'Unauthorized: You can only approve or reject Day Start records for subordinates strictly below you.');
         }
 

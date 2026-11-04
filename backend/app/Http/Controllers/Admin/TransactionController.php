@@ -14,17 +14,10 @@ class TransactionController extends Controller
         $status = request('status');
         $type = request('type');
 
-        $baseQuery = Transaction::query();
-        $scopedIds = DataScope::visibleUserIds('transactions');
-        if ($scopedIds !== null) {
-            $baseQuery->whereIn('user_id', $scopedIds);
-        }
+        $baseQuery = Transaction::visibleToUser();
 
-        $txQuery = Transaction::query()
+        $txQuery = Transaction::visibleToUser()
             ->with(['user.roles', 'customer']);
-        if ($scopedIds !== null) {
-            $txQuery->whereIn('user_id', $scopedIds);
-        }
 
         return view('admin.transactions.index', [
             'transactions' => $txQuery

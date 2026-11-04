@@ -22,9 +22,9 @@ class LeaveBalanceWebController extends Controller
         $year  = (int) $request->input('year', now()->year);
         $scopedUserIds = DataScope::visibleUserIds('leaves');
 
-        $users = User::with('roles')
+        $users = User::visibleToUser()
+            ->with('roles')
             ->where('is_active', true)
-            ->when($scopedUserIds !== null, fn($q) => $q->whereIn('id', $scopedUserIds))
             ->orderBy('name')
             ->get();
 

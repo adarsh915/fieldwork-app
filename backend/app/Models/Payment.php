@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\DataScope;
 
 class Payment extends Model
 {
@@ -75,5 +76,25 @@ class Payment extends Model
     public function scopeRejected($query)
     {
         return $query->where('status', 'rejected');
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // QUERY SCOPES - Automatic DataScope Integration
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Scope query to visible users based on DataScope permissions
+     * 
+     * Note: Payments use 'collected_by' column instead of 'user_id'
+     * 
+     * Replaces repetitive pattern:
+     * $visibleIds = DataScope::visibleUserIds('payments');
+     * if ($visibleIds !== null) { $query->whereIn('collected_by', $visibleIds); }
+     * 
+     * Usage: Payment::visibleToUser()->get();
+     */
+    public function scopeVisibleToUser($query, ?User $user = null)
+    {
+        return DataScope::apply($query, 'payments', 'collected_by');
     }
 }

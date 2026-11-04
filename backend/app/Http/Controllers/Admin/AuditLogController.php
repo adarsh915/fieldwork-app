@@ -16,14 +16,11 @@ class AuditLogController extends Controller
      */
     public function index(Request $request)
     {
-        $scopedUserIds = \App\Services\DataScope::visibleUserIds('employees');
-
-        $query = AuditLog::with('causer.roles')
+        $query = AuditLog::visibleToUser()
+            ->with('causer.roles')
             ->orderByDesc('id');
 
-        if ($scopedUserIds !== null) {
-            $query->whereIn('causer_id', $scopedUserIds);
-        }
+        $scopedUserIds = \App\Services\DataScope::visibleUserIds('employees');
 
         // Search text filter
         if ($request->filled('search')) {

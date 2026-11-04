@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Auditable;
+use App\Services\DataScope;
 
 class ExpenseBill extends Model
 {
@@ -86,5 +87,40 @@ class ExpenseBill extends Model
     public function items()
     {
         return $this->hasMany(ExpenseBillItem::class, 'expense_bill_id');
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // QUERY SCOPES - Automatic DataScope Integration
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Scope query to visible users based on DataScope permissions
+     * 
+     * Replaces repetitive pattern:
+     * $visibleIds = DataScope::visibleUserIds('expenses');
+     * if ($visibleIds !== null) { $query->whereIn('user_id', $visibleIds); }
+     * 
+     * Usage: ExpenseBill::visibleToUser()->get();
+     */
+    public function scopeVisibleToUser($query, ?User $user = null)
+    {
+        return DataScope::apply($query, 'expenses', 'user_id');
+    }
+
+    /**
+     * Scope query to actionable subordinates only (for approval/rejection)
+     * 
+     * Usage: ExpenseBill::actionableByUser()->get();
+     */
+    public function scopeActionableByUser($query, ?User $user = null)
+    {
+        $user = $user ?? auth()->user();
+        $actionableIds = DataScope::actionableSubordinateIds('expenses', $user);
+        
+        if ($actionableIds !== null) {
+            return $query->whereIn('user_id', $actionableIds);
+        }
+        
+        return $query;
     }
 }

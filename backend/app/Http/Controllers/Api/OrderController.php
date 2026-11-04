@@ -93,9 +93,7 @@ class OrderController extends Controller
 
         $user = $request->user();
         if ($order->user_id !== $user->id) {
-            $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
-            $scopedUserIds = DataScope::visibleUserIds('orders', $user);
-            if (!$isSuperAdmin && ($scopedUserIds === null || !in_array($order->user_id, $scopedUserIds, true))) {
+            if (!DataScope::canAction('orders', $order->user_id, $user)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized access to this order.',

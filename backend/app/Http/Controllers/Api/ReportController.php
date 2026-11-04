@@ -38,7 +38,8 @@ class ReportController extends Controller
         // Team members for dropdown selection
         $teamMembers = [];
         if ($isAllScope) {
-            $teamMembers = User::where('is_active', true)
+            $teamMembers = User::visibleToUser()
+                ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name', 'employee_id', 'department', 'position'])
                 ->toArray();

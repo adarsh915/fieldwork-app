@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Services\DataScope;
 
 class Visit extends Model
 {
@@ -65,5 +66,23 @@ class Visit extends Model
     public function party()
     {
         return $this->belongsTo(Customer::class, 'party_id');
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // QUERY SCOPES - Automatic DataScope Integration
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Scope query to visible users based on DataScope permissions
+     * 
+     * Replaces repetitive pattern:
+     * $visibleIds = DataScope::visibleUserIds('visits');
+     * if ($visibleIds !== null) { $query->whereIn('user_id', $visibleIds); }
+     * 
+     * Usage: Visit::visibleToUser()->get();
+     */
+    public function scopeVisibleToUser($query, ?User $user = null)
+    {
+        return DataScope::apply($query, 'visits', 'user_id');
     }
 }

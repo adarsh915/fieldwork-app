@@ -55,8 +55,7 @@ class AttendanceController extends Controller
             return response()->json(['success' => false, 'message' => 'user_id is required.'], 422);
         }
 
-        $scopedUserIds = DataScope::visibleUserIds('attendance');
-        if ($scopedUserIds !== null && !in_array($userId, $scopedUserIds)) {
+        if (!DataScope::canAction('attendance', $userId)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized to view this employee attendance.'], 403);
         }
 
@@ -85,11 +84,8 @@ class AttendanceController extends Controller
         $year  = (int) $request->input('year',  now()->year);
         $month = (int) $request->input('month', now()->month);
 
-        $scopedUserIds = DataScope::visibleUserIds('attendance');
-        $usersQuery = User::where('is_active', true);
-        if ($scopedUserIds !== null) {
-            $usersQuery->whereIn('id', $scopedUserIds);
-        }
+        $usersQuery = User::visibleToUser()
+            ->where('is_active', true);
 
         $users = $usersQuery->get(['id', 'name']);
 

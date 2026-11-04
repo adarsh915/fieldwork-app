@@ -14,22 +14,18 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
+        $fwQuery = User::visibleToUser()
+            ->with('roles')
+            ->where('is_active', true);
         $scopedUserIds = DataScope::visibleUserIds('orders');
-
-        $fwQuery = User::with('roles')->where('is_active', true);
-        if ($scopedUserIds !== null) {
-            $fwQuery->whereIn('id', $scopedUserIds);
-        } else {
+        if ($scopedUserIds === null) {
             $fwQuery->whereHas('roles', function($q) {
                 $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']);
             });
         }
         $fieldWorkers = $fwQuery->orderBy('name')->get();
 
-        $baseQuery = Order::query();
-        if ($scopedUserIds !== null) {
-            $baseQuery->whereIn('user_id', $scopedUserIds);
-        }
+        $baseQuery = Order::visibleToUser();
 
         $statusCounts = (clone $baseQuery)->select('status', DB::raw('count(*) as count'))
             ->groupBy('status')
@@ -50,20 +46,10 @@ class OrderController extends Controller
 
     public function data(Request $request)
     {
-        $scopedUserIds = DataScope::visibleUserIds('orders');
-
-        $baseQuery = Order::query();
-
-        if ($scopedUserIds !== null) {
-            $baseQuery->whereIn('user_id', $scopedUserIds);
-        }
+        $baseQuery = Order::visibleToUser();
 
         if ($request->filled('user_id')) {
-            if ($scopedUserIds === null || in_array($request->user_id, $scopedUserIds)) {
-                $baseQuery->where('user_id', $request->user_id);
-            } else {
-                $baseQuery->whereRaw('1=0');
-            }
+            $baseQuery->where('user_id', $request->user_id);
         }
 
         $search = $request->input('search.value');
@@ -169,8 +155,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        $scopedUserIds = DataScope::visibleUserIds('orders');
-        if ($scopedUserIds !== null && !in_array($order->user_id, $scopedUserIds, true)) {
+        if (!DataScope::canAction('orders', $order->user_id)) {
             abort(403, 'Unauthorized access to this order.');
         }
 
@@ -185,8 +170,7 @@ class OrderController extends Controller
             abort(403, 'Unauthorized: You do not have permission to change order statuses.');
         }
 
-        $scopedUserIds = DataScope::visibleUserIds('orders');
-        if ($scopedUserIds !== null && !in_array($order->user_id, $scopedUserIds, true)) {
+        if (!DataScope::canAction('orders', $order->user_id, $user)) {
             abort(403, 'Unauthorized to update status for this order.');
         }
 
