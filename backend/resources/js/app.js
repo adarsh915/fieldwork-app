@@ -1,22 +1,36 @@
+/**
+ * AMPL Fieldwork - Main Application JavaScript
+ * Entry point for all JavaScript utilities
+ */
+
 import './bootstrap';
-
-// Alpine.js
 import Alpine from 'alpinejs';
-import Persist from '@alpinejs/persist';
 
-Alpine.plugin(Persist);
+// Import utilities
+import { ajax } from './utils/ajax-helper';
+import { toast } from './utils/toast';
+import { route } from './utils/routes';
+import { dom } from './utils/dom-helper';
 
-// Make Alpine globally accessible (for legacy inline x-data on Blade pages)
+// Make utilities globally available
 window.Alpine = Alpine;
+window.ajax = ajax;
+window.toast = toast;
+window.route = route;
+window.dom = dom;
+
+// Initialize Alpine.js
 Alpine.start();
 
-// DataTables (imported here so Vite bundles them; pages that need DT
-// should call `import('datatables.net-dt')` lazily or rely on this init)
-import DataTable from 'datatables.net-dt';
+// Initialize application on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('AMPL Fieldwork Application Initialized');
+    
+    // Cancel all pending AJAX requests when leaving page
+    window.addEventListener('beforeunload', () => {
+        ajax.cancelAll();
+    });
+});
 
-// Export to global for inline scripts that call `new DataTable(...)` or
-// `$('#table').DataTable(...)` — works with vanilla JS approach.
-window.DataTable = DataTable;
-
-// Admin UI helpers (mock localStorage CRUD for frontend-only pages)
-import './admin-ui';
+// Export for module usage
+export { ajax, toast, route, dom, Alpine };

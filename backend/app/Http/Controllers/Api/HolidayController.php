@@ -49,8 +49,15 @@ class HolidayController extends Controller
      * DELETE /api/admin/holidays/{id}
      * Remove a holiday (admin only).
      */
-    public function destroy(int $id): JsonResponse
+    public function destroy(Request $request, int $id): JsonResponse
     {
+        $user = $request->user();
+
+        // Authorization: Only users with master-data.manage permission can delete holidays
+        if (!$user || (!$user->can('master-data.manage') && !$user->hasRole(['Super Admin', 'Admin']))) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized: You do not have permission to delete holidays.'], 403);
+        }
+
         $holiday = Holiday::find($id);
 
         if (! $holiday) {

@@ -399,6 +399,16 @@ class PaymentController extends Controller
             ], 422);
         }
 
+        // Hierarchy Scope Check: Ensure the payment is from a user within your visible scope
+        $scopedIds = DataScope::visibleUserIds('payments');
+        if ($scopedIds !== null && !in_array($payment->collected_by, $scopedIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized: This payment is outside your organizational scope.',
+            ], 403);
+        }
+
+        // Conflict of Interest: Users cannot confirm payments they collected themselves (unless Super Admin)
         if ($payment->collected_by === $request->user()->id && !$request->user()->hasRole(['Super Admin', 'super_admin'])) {
             return response()->json([
                 'success' => false,
@@ -490,6 +500,15 @@ class PaymentController extends Controller
                 'success' => false,
                 'message' => "This payment has already been processed (Current status: {$payment->status}).",
             ], 422);
+        }
+
+        // Hierarchy Scope Check: Ensure the payment is from a user within your visible scope
+        $scopedIds = DataScope::visibleUserIds('payments');
+        if ($scopedIds !== null && !in_array($payment->collected_by, $scopedIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized: This payment is outside your organizational scope.',
+            ], 403);
         }
 
         try {

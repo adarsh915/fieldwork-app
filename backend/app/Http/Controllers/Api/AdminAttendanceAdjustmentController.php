@@ -24,6 +24,29 @@ class AdminAttendanceAdjustmentController extends Controller
      */
     public function adjustAttendance(Request $request, int $userId, string $date): JsonResponse
     {
+        // Authorization: Check if user has permission to adjust attendance
+        $user = $request->user();
+        $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
+        $canAdjust = $user->can('attendance.adjust') || $user->can('attendance.manage') || $isSuperAdmin;
+
+        if (!$canAdjust) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized: You do not have permission to adjust attendance.',
+            ], 403);
+        }
+
+        // Hierarchy Scope Check: Ensure target user is within visible scope
+        if (!$isSuperAdmin) {
+            $scopedIds = DataScope::visibleUserIds('attendance');
+            if ($scopedIds !== null && !in_array($userId, $scopedIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized: This user is outside your organizational scope.',
+                ], 403);
+            }
+        }
+
         $request->validate([
             'new_status' => 'required|string|in:present,half_day_present,short_shift,on_leave,holiday,weekly_off,absent',
             'reason'     => 'required|string|min:3',
@@ -79,6 +102,31 @@ class AdminAttendanceAdjustmentController extends Controller
      */
     public function editLeave(Request $request, int $id): JsonResponse
     {
+        // Authorization: Check if user has permission to edit leaves
+        $user = $request->user();
+        $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
+        $canEdit = $user->can('leaves.manage') || $user->can('leaves.edit') || $isSuperAdmin;
+
+        if (!$canEdit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized: You do not have permission to edit leave applications.',
+            ], 403);
+        }
+
+        $leave = Leave::findOrFail($id);
+
+        // Hierarchy Scope Check: Ensure leave owner is within visible scope
+        if (!$isSuperAdmin) {
+            $scopedIds = DataScope::visibleUserIds('leaves');
+            if ($scopedIds !== null && !in_array($leave->user_id, $scopedIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized: This leave application is outside your organizational scope.',
+                ], 403);
+            }
+        }
+
         $request->validate([
             'reason'    => 'required|string|min:3',
             'from_date' => 'sometimes|date',
@@ -87,8 +135,7 @@ class AdminAttendanceAdjustmentController extends Controller
             'status'    => 'sometimes|string|in:pending,approved,rejected,cancelled',
         ]);
 
-        $leave = Leave::findOrFail($id);
-        $old   = $leave->toArray();
+        $old = $leave->toArray();
 
         DB::transaction(function () use ($leave, $request, $old) {
             $leave->update($request->only(['from_date', 'to_date', 'duration', 'status', 'leave_type_id']));
@@ -116,14 +163,38 @@ class AdminAttendanceAdjustmentController extends Controller
      */
     public function adjustBalance(Request $request, int $id): JsonResponse
     {
+        // Authorization: Check if user has permission to adjust leave balances
+        $user = $request->user();
+        $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
+        $canAdjust = $user->can('leave-balance.adjust') || $user->can('leaves.manage') || $isSuperAdmin;
+
+        if (!$canAdjust) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized: You do not have permission to adjust leave balances.',
+            ], 403);
+        }
+
+        $balance = LeaveBalance::findOrFail($id);
+
+        // Hierarchy Scope Check: Ensure leave balance owner is within visible scope
+        if (!$isSuperAdmin) {
+            $scopedIds = DataScope::visibleUserIds('leaves');
+            if ($scopedIds !== null && !in_array($balance->user_id, $scopedIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized: This leave balance is outside your organizational scope.',
+                ], 403);
+            }
+        }
+
         $request->validate([
             'allocated' => 'required|numeric|min:0',
             'used'      => 'required|numeric|min:0',
             'reason'    => 'required|string|min:3',
         ]);
 
-        $balance = LeaveBalance::findOrFail($id);
-        $old     = $balance->toArray();
+        $old = $balance->toArray();
 
         DB::transaction(function () use ($balance, $request, $old) {
             $balance->update([

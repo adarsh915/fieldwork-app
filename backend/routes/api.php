@@ -124,51 +124,78 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ─── Admin Routes ───────────────────────────────────────────────────────
     Route::prefix('admin')->name('api.admin.')->group(function () {
-        // Payment Management
-        Route::get('/payments/pending',        [\App\Http\Controllers\Api\PaymentController::class, 'pendingQueue'])->name('payments.pending');
-        Route::get('/payments',                [\App\Http\Controllers\Api\PaymentController::class, 'adminIndex'])->name('payments.index');
-        Route::patch('/payments/{id}/confirm', [\App\Http\Controllers\Api\PaymentController::class, 'confirm'])->name('payments.confirm');
-        Route::patch('/payments/{id}/reject',  [\App\Http\Controllers\Api\PaymentController::class, 'reject'])->name('payments.reject');
+        
+        // Payment Management (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|payments.manage'])->group(function () {
+            Route::get('/payments/pending',        [\App\Http\Controllers\Api\PaymentController::class, 'pendingQueue'])->name('payments.pending');
+            Route::get('/payments',                [\App\Http\Controllers\Api\PaymentController::class, 'adminIndex'])->name('payments.index');
+            Route::patch('/payments/{id}/confirm', [\App\Http\Controllers\Api\PaymentController::class, 'confirm'])->name('payments.confirm');
+            Route::patch('/payments/{id}/reject',  [\App\Http\Controllers\Api\PaymentController::class, 'reject'])->name('payments.reject');
+        });
 
-        // Leave management
-        Route::get('/leaves',                          [\App\Http\Controllers\Api\LeaveController::class, 'adminIndex'])->middleware('role_or_permission:Super Admin|leaves.view')->name('leaves.index');
-        Route::get('/leaves/conflicts',                [\App\Http\Controllers\Api\LeaveController::class, 'indexConflicts'])->middleware('role_or_permission:Super Admin|leaves.view')->name('leaves.conflicts');
-        Route::post('/leaves/{id}/approve',            [\App\Http\Controllers\Api\LeaveController::class, 'approve'])->middleware('role_or_permission:Super Admin|leaves.approve|leaves.manage')->name('leaves.approve');
-        Route::post('/leaves/{id}/reject',             [\App\Http\Controllers\Api\LeaveController::class, 'reject'])->middleware('role_or_permission:Super Admin|leaves.reject|leaves.manage')->name('leaves.reject');
-        Route::patch('/leaves/{id}/resolve-conflict',  [\App\Http\Controllers\Api\LeaveController::class, 'resolveConflict'])->middleware('role_or_permission:Super Admin|leaves.manage|leaves.approve')->name('leaves.resolve-conflict');
+        // Leave Management (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|leaves.view'])->group(function () {
+            Route::get('/leaves',           [\App\Http\Controllers\Api\LeaveController::class, 'adminIndex'])->name('leaves.index');
+            Route::get('/leaves/conflicts', [\App\Http\Controllers\Api\LeaveController::class, 'indexConflicts'])->name('leaves.conflicts');
+        });
+        
+        Route::middleware(['role_or_permission:Super Admin|Admin|leaves.approve|leaves.manage'])->group(function () {
+            Route::post('/leaves/{id}/approve',           [\App\Http\Controllers\Api\LeaveController::class, 'approve'])->name('leaves.approve');
+            Route::post('/leaves/{id}/reject',            [\App\Http\Controllers\Api\LeaveController::class, 'reject'])->name('leaves.reject');
+            Route::patch('/leaves/{id}/resolve-conflict', [\App\Http\Controllers\Api\LeaveController::class, 'resolveConflict'])->name('leaves.resolve-conflict');
+        });
 
-        // Attendance
-        Route::get('/attendance',           [\App\Http\Controllers\Api\AttendanceController::class, 'adminCalendar'])->name('attendance.calendar');
-        Route::get('/attendance/team',      [\App\Http\Controllers\Api\AttendanceController::class, 'teamSummary'])->name('attendance.team');
+        // Attendance Management (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|attendance.view-team|attendance.view-all'])->group(function () {
+            Route::get('/attendance',      [\App\Http\Controllers\Api\AttendanceController::class, 'adminCalendar'])->name('attendance.calendar');
+            Route::get('/attendance/team', [\App\Http\Controllers\Api\AttendanceController::class, 'teamSummary'])->name('attendance.team');
+        });
 
-        // Holidays (write)
-        Route::post('/holidays',            [\App\Http\Controllers\Api\HolidayController::class, 'store'])->name('holidays.store');
-        Route::delete('/holidays/{id}',     [\App\Http\Controllers\Api\HolidayController::class, 'destroy'])->name('holidays.destroy');
+        // Holidays - Master Data (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|master-data.manage'])->group(function () {
+            Route::post('/holidays',        [\App\Http\Controllers\Api\HolidayController::class, 'store'])->name('holidays.store');
+            Route::delete('/holidays/{id}', [\App\Http\Controllers\Api\HolidayController::class, 'destroy'])->name('holidays.destroy');
+        });
 
-        // System Settings
-        Route::get('/settings',             [\App\Http\Controllers\Api\AdminSettingsController::class, 'index'])->name('settings.index');
-        Route::patch('/settings/{key}',     [\App\Http\Controllers\Api\AdminSettingsController::class, 'update'])->name('settings.update');
+        // System Settings (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|settings.manage'])->group(function () {
+            Route::get('/settings',         [\App\Http\Controllers\Api\AdminSettingsController::class, 'index'])->name('settings.index');
+            Route::patch('/settings/{key}', [\App\Http\Controllers\Api\AdminSettingsController::class, 'update'])->name('settings.update');
+        });
 
-        // Admin Manual Overrides & Audit Trail
-        Route::patch('/attendance/{user_id}/{date}/adjust', [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'adjustAttendance'])->name('attendance.adjust');
-        Route::patch('/leaves/{id}/edit',                   [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'editLeave'])->name('leaves.edit');
-        Route::patch('/leave-balances/{id}/adjust',          [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'adjustBalance'])->name('leave-balances.adjust');
-        Route::get('/audit-logs',                           [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'auditLogs'])->name('audit-logs.index');
+        // Admin Manual Overrides (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|attendance.manage|leaves.manage'])->group(function () {
+            Route::patch('/attendance/{user_id}/{date}/adjust', [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'adjustAttendance'])->name('attendance.adjust');
+            Route::patch('/leaves/{id}/edit',                   [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'editLeave'])->name('leaves.edit');
+            Route::patch('/leave-balances/{id}/adjust',         [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'adjustBalance'])->name('leave-balances.adjust');
+        });
+        
+        // Audit Logs (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|audit-logs.view'])->group(function () {
+            Route::get('/audit-logs', [\App\Http\Controllers\Api\AdminAttendanceAdjustmentController::class, 'auditLogs'])->name('audit-logs.index');
+        });
 
-        // Fuel / Petrol Allowance Rate Management
-        Route::get('/fuel-rates',             [\App\Http\Controllers\Admin\FuelRateController::class, 'index'])->name('fuel-rates.index');
-        Route::post('/fuel-rates',            [\App\Http\Controllers\Admin\FuelRateController::class, 'store'])->name('fuel-rates.store');
-        Route::delete('/fuel-rates/{id}',     [\App\Http\Controllers\Admin\FuelRateController::class, 'destroy'])->name('fuel-rates.destroy');
-        Route::post('/fuel-rates/resolve',    [\App\Http\Controllers\Admin\FuelRateController::class, 'resolve'])->name('fuel-rates.resolve');
+        // Fuel Rates Management (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|fuel-rates.view|fuel-rates.manage'])->group(function () {
+            Route::get('/fuel-rates', [\App\Http\Controllers\Admin\FuelRateController::class, 'index'])->name('fuel-rates.index');
+        });
+        
+        Route::middleware(['role_or_permission:Super Admin|Admin|fuel-rates.manage'])->group(function () {
+            Route::post('/fuel-rates',         [\App\Http\Controllers\Admin\FuelRateController::class, 'store'])->name('fuel-rates.store');
+            Route::delete('/fuel-rates/{id}',  [\App\Http\Controllers\Admin\FuelRateController::class, 'destroy'])->name('fuel-rates.destroy');
+            Route::post('/fuel-rates/resolve', [\App\Http\Controllers\Admin\FuelRateController::class, 'resolve'])->name('fuel-rates.resolve');
+        });
 
-        // Manager & VP Approvals Hub
-        Route::get('/approvals/counts',                  [\App\Http\Controllers\Api\AdminApprovalController::class, 'counts'])->name('approvals.counts');
-        Route::get('/approvals/team',                    [\App\Http\Controllers\Api\AdminApprovalController::class, 'teamMembers'])->name('approvals.team');
-        Route::get('/approvals/day-starts',              [\App\Http\Controllers\Api\AdminApprovalController::class, 'dayStarts'])->name('approvals.day-starts');
-        Route::patch('/approvals/day-starts/{id}',       [\App\Http\Controllers\Api\AdminApprovalController::class, 'updateDayStart'])->name('approvals.day-starts.update');
-        Route::post('/approvals/day-starts/{id}/action', [\App\Http\Controllers\Api\AdminApprovalController::class, 'actOnDayStart'])->name('approvals.day-starts.action');
-        Route::get('/approvals/expenses',                [\App\Http\Controllers\Api\AdminApprovalController::class, 'expenses'])->name('approvals.expenses');
-        Route::patch('/approvals/expenses/{id}',         [\App\Http\Controllers\Api\AdminApprovalController::class, 'updateExpense'])->name('approvals.expenses.update');
-        Route::post('/approvals/expenses/{id}/action',   [\App\Http\Controllers\Api\AdminApprovalController::class, 'actOnExpense'])->name('approvals.expenses.action');
+        // Approvals Hub (permission-based with Super Admin/Admin fallback)
+        Route::middleware(['role_or_permission:Super Admin|Admin|day-start.approve|expenses.approve|expenses.final_approve'])->group(function () {
+            Route::get('/approvals/counts',                  [\App\Http\Controllers\Api\AdminApprovalController::class, 'counts'])->name('approvals.counts');
+            Route::get('/approvals/team',                    [\App\Http\Controllers\Api\AdminApprovalController::class, 'teamMembers'])->name('approvals.team');
+            Route::get('/approvals/day-starts',              [\App\Http\Controllers\Api\AdminApprovalController::class, 'dayStarts'])->name('approvals.day-starts');
+            Route::patch('/approvals/day-starts/{id}',       [\App\Http\Controllers\Api\AdminApprovalController::class, 'updateDayStart'])->name('approvals.day-starts.update');
+            Route::post('/approvals/day-starts/{id}/action', [\App\Http\Controllers\Api\AdminApprovalController::class, 'actOnDayStart'])->name('approvals.day-starts.action');
+            Route::get('/approvals/expenses',                [\App\Http\Controllers\Api\AdminApprovalController::class, 'expenses'])->name('approvals.expenses');
+            Route::patch('/approvals/expenses/{id}',         [\App\Http\Controllers\Api\AdminApprovalController::class, 'updateExpense'])->name('approvals.expenses.update');
+            Route::post('/approvals/expenses/{id}/action',   [\App\Http\Controllers\Api\AdminApprovalController::class, 'actOnExpense'])->name('approvals.expenses.action');
+        });
     });
 });

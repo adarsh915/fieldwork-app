@@ -1101,6 +1101,16 @@ class PartyController extends Controller
             return response()->json(['success' => false, 'message' => 'This party is not pending approval.'], 400);
         }
 
+        // Conflict of Interest: Users cannot approve parties they submitted themselves (unless Super Admin)
+        $user = auth()->user();
+        $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
+        if (!$isSuperAdmin && $party->submitted_by === $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Conflict of Interest: You cannot approve a party that you submitted yourself.',
+            ], 403);
+        }
+
         DB::beginTransaction();
         try {
             // Update party status
@@ -1137,6 +1147,16 @@ class PartyController extends Controller
 
         if ($party->approval_status !== 'pending') {
             return response()->json(['success' => false, 'message' => 'This party is not pending approval.'], 400);
+        }
+
+        // Conflict of Interest: Users cannot reject parties they submitted themselves (unless Super Admin)
+        $user = auth()->user();
+        $isSuperAdmin = $user->hasRole(['Super Admin', 'super_admin']);
+        if (!$isSuperAdmin && $party->submitted_by === $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Conflict of Interest: You cannot reject a party that you submitted yourself.',
+            ], 403);
         }
 
         DB::beginTransaction();

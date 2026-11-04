@@ -146,9 +146,9 @@ document.addEventListener('DOMContentLoaded', function () {
         e.preventDefault();
 
         const submitBtn = form.querySelector('button[type="submit"]');
-        const origText = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="inline-block animate-spin mr-1">↻</span> Saving...';
+        
+        // Use DOM helper for XSS-safe button update
+        const restore = window.dom.updateButton(submitBtn, 'Saving...', true);
 
         const row = form.closest('tr');
         const badgeContainer = row ? row.querySelector('.roles-badges-container') : null;
@@ -166,11 +166,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await res.json();
             if (res.ok && data.success) {
                 if (window.toast) window.toast(data.message || 'User role updated successfully.', 'success');
+                
+                // Use DOM helper for XSS-safe badge rendering
                 if (badgeContainer && data.roles) {
                     if (data.roles.length > 0) {
-                        badgeContainer.innerHTML = data.roles.map(r => `<span class="badge badge-info">${r}</span>`).join(' ');
+                        window.dom.appendBadges(badgeContainer, data.roles, 'badge badge-info');
                     } else {
-                        badgeContainer.innerHTML = '<span class="badge badge-neutral">No role</span>';
+                        window.dom.appendBadges(badgeContainer, ['No role'], 'badge badge-neutral');
                     }
                 }
             } else {
@@ -182,8 +184,8 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error(err);
             if (window.toast) window.toast('Network error.', 'error');
         } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = origText;
+            // Restore button to original state
+            restore();
         }
     });
 });
