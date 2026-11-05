@@ -267,16 +267,18 @@ export default function ExpenseListScreen() {
                 : new Date(item.created_at).toLocaleDateString()}
             </Text>
             {item.is_after_day_end && (
-              <Text
-                style={{
-                  fontSize: 10,
-                  color: "#D97706",
-                  fontWeight: "700",
-                  marginTop: 2,
-                }}
-              >
-                ⚠️ Post Day-End
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+                <MaterialIcons name="warning-amber" size={12} color="#D97706" />
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: "#D97706",
+                    fontWeight: "700",
+                  }}
+                >
+                  Post Day-End
+                </Text>
+              </View>
             )}
           </View>
 
@@ -307,9 +309,10 @@ export default function ExpenseListScreen() {
 
         {/* Quick Itemized Preview for Stationery / Multi-item Expenses */}
         {item.items && item.items.length > 0 && (
-          <View style={styles.itemsQuickPreviewWrap}>
-            <Text style={styles.itemsQuickPreviewText} numberOfLines={1}>
-              📋 {item.items.map((it) => `${it.item_name} (x${it.quantity})`).join(", ")}
+          <View style={[styles.itemsQuickPreviewWrap, { flexDirection: "row", alignItems: "center", gap: 5 }]}>
+            <MaterialCommunityIcons name="format-list-bulleted" size={13} color="#64748B" />
+            <Text style={[styles.itemsQuickPreviewText, { flex: 1 }]} numberOfLines={1}>
+              {item.items.map((it) => `${it.item_name} (x${it.quantity})`).join(", ")}
             </Text>
           </View>
         )}
@@ -641,7 +644,10 @@ export default function ExpenseListScreen() {
                   )}
 
                   {/* Bill / Receipt Photo Proof */}
-                  <Text style={styles.modalSectionHeading}>🧾 Receipt Voucher / Photo Proof</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 8 }}>
+                    <MaterialCommunityIcons name="receipt-text-outline" size={16} color="#4F46E5" />
+                    <Text style={[styles.modalSectionHeading, { marginTop: 0, marginBottom: 0 }]}>Receipt Voucher / Photo Proof</Text>
+                  </View>
                   {selectedExpense.bill_photo_url ? (
                     <TouchableOpacity
                       style={styles.modalPhotoViewerBtn}
@@ -692,9 +698,12 @@ export default function ExpenseListScreen() {
                   {/* Stationery / Itemized Breakdown */}
                   {selectedExpense.items && selectedExpense.items.length > 0 && (
                     <View style={styles.modalItemsSection}>
-                      <Text style={styles.modalSectionHeading}>
-                        📝 Itemized Breakdown ({selectedExpense.items.length} items)
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 8 }}>
+                        <MaterialCommunityIcons name="format-list-checks" size={16} color="#4F46E5" />
+                        <Text style={[styles.modalSectionHeading, { marginTop: 0, marginBottom: 0 }]}>
+                          Itemized Breakdown ({selectedExpense.items.length} items)
+                        </Text>
+                      </View>
                       <View style={styles.itemsTable}>
                         {selectedExpense.items.map((it, idx) => (
                           <View key={idx} style={styles.itemsTableRow}>
@@ -716,7 +725,10 @@ export default function ExpenseListScreen() {
                   {/* System Travel Details (if auto-travel claim) */}
                   {selectedExpense.is_system_generated && selectedExpense.day_start && (
                     <View style={styles.systemTravelDetailCard}>
-                      <Text style={styles.modalSectionHeading}>🚗 Travel & Route Verification</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 8 }}>
+                        <MaterialCommunityIcons name="car-outline" size={16} color="#4F46E5" />
+                        <Text style={[styles.modalSectionHeading, { marginTop: 0, marginBottom: 0 }]}>Travel & Route Verification</Text>
+                      </View>
                       <View style={styles.systemTravelGrid}>
                         <View style={styles.systemTravelCol}>
                           <Text style={styles.systemTravelLabel}>Vehicle</Text>
@@ -781,7 +793,10 @@ export default function ExpenseListScreen() {
 
                   {/* Verification & Approval History */}
                   <View style={styles.auditSection}>
-                    <Text style={styles.modalSectionHeading}>🛡️ Approval Status & Audit Trail</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 8 }}>
+                      <MaterialCommunityIcons name="shield-check-outline" size={16} color="#4F46E5" />
+                      <Text style={[styles.modalSectionHeading, { marginTop: 0, marginBottom: 0 }]}>Approval Status & Audit Trail</Text>
+                    </View>
                     {selectedExpense.temp_approved_by ? (
                       <View style={styles.auditCard}>
                         <MaterialIcons name="verified" size={16} color="#2563EB" />

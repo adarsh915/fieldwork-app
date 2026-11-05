@@ -33,7 +33,7 @@ const PERIODS: { key: ReportPeriod; label: string; icon: keyof typeof MaterialIc
   { key: "week",  label: "This Week", icon: "date-range" },
   { key: "month", label: "This Month", icon: "calendar-month" },
   { key: "year",  label: "Yearly", icon: "timeline" },
-  { key: "custom", label: "Custom 📅", icon: "edit-calendar" },
+  { key: "custom", label: "Custom", icon: "edit-calendar" },
 ];
 
 export default function ReportScreen() {
@@ -466,7 +466,10 @@ export default function ReportScreen() {
                             {act.party_name || act.title}
                           </Text>
                           {act.party_city ? (
-                            <Text style={styles.visitPartyCity}>📍 {act.party_city}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                              <MaterialIcons name="place" size={12} color="#6B7280" />
+                              <Text style={styles.visitPartyCity}>{act.party_city}</Text>
+                            </View>
                           ) : null}
                         </View>
                         <View

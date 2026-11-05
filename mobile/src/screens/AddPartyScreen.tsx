@@ -116,7 +116,7 @@ export default function AddPartyScreen() {
 
       if (res.success) {
         showSuccess(
-          "Party Registered! 🎉",
+          "Party Registered Successfully",
           res.message || "New party created and assigned to your territory successfully.",
           () => navigation.goBack()
         );

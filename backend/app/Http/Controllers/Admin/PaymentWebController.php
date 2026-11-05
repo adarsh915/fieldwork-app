@@ -80,8 +80,6 @@ class PaymentWebController extends Controller
         $repsQuery = User::with('roles')->where('is_active', true);
         if ($scopedUserIds !== null) {
             $repsQuery->whereIn('id', $scopedUserIds);
-        } else {
-            $repsQuery->whereHas('roles', fn($q) => $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']));
         }
         $reps = $repsQuery->orderBy('name')->get();
 

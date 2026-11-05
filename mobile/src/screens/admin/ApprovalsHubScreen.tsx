@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -142,6 +142,9 @@ export default function ApprovalsHubScreen() {
   const [editDsTourPurpose, setEditDsTourPurpose] = useState("");
   const [editDsRemarks, setEditDsRemarks] = useState("");
   const [editDsReason, setEditDsReason] = useState("");
+  const [editDsTotalOrders, setEditDsTotalOrders] = useState("");
+  const [editDsTotalSales, setEditDsTotalSales] = useState("");
+  const [editDsTotalCollection, setEditDsTotalCollection] = useState("");
   const [savingDsEdit, setSavingDsEdit] = useState(false);
 
   // ─── Expense Edit Modal State ────────────────────────────────────────────────
@@ -441,6 +444,9 @@ export default function ApprovalsHubScreen() {
     setEditDsTourPurpose(item.tour_purpose || "");
     setEditDsRemarks(item.remarks || "");
     setEditDsReason("");
+    setEditDsTotalOrders(item.total_orders !== null && item.total_orders !== undefined ? String(item.total_orders) : "");
+    setEditDsTotalSales(item.total_sales !== null && item.total_sales !== undefined ? String(item.total_sales) : "");
+    setEditDsTotalCollection(item.total_collection !== null && item.total_collection !== undefined ? String(item.total_collection) : "");
     setEditDayStartModalVisible(true);
   }
 
@@ -463,6 +469,23 @@ export default function ApprovalsHubScreen() {
       return;
     }
 
+    const parsedOrders = editDsTotalOrders.trim() ? parseInt(editDsTotalOrders, 10) : null;
+    const parsedSales = editDsTotalSales.trim() ? parseFloat(editDsTotalSales) : null;
+    const parsedCollection = editDsTotalCollection.trim() ? parseFloat(editDsTotalCollection) : null;
+
+    if (parsedOrders !== null && (isNaN(parsedOrders) || parsedOrders < 0)) {
+      Alert.alert("Validation Error", "Total Orders must be a valid non-negative integer.");
+      return;
+    }
+    if (parsedSales !== null && (isNaN(parsedSales) || parsedSales < 0)) {
+      Alert.alert("Validation Error", "Total Sales must be a valid non-negative number.");
+      return;
+    }
+    if (parsedCollection !== null && (isNaN(parsedCollection) || parsedCollection < 0)) {
+      Alert.alert("Validation Error", "Total Collection must be a valid non-negative number.");
+      return;
+    }
+
     setSavingDsEdit(true);
     try {
       const res = await updateDayStartApproval(editingDayStart.id, {
@@ -474,6 +497,9 @@ export default function ApprovalsHubScreen() {
         tour_purpose: editDsTourPurpose.trim() || null,
         remarks: editDsRemarks.trim() || null,
         reason: editDsReason.trim() || undefined,
+        total_orders: parsedOrders,
+        total_sales: parsedSales,
+        total_collection: parsedCollection,
       });
 
       if (res.success) {
@@ -968,7 +994,8 @@ export default function ApprovalsHubScreen() {
                     <Text style={[styles.thCell, { width: 95 }]}>DATE</Text>
                     <Text style={[styles.thCell, { width: 175 }]}>VISIT / TOUR PLAN</Text>
                     <Text style={[styles.thCell, { width: 120 }]}>VEHICLE</Text>
-                    <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>DISTANCE</Text>
+                    <Text style={[styles.thCell, { width: 105, textAlign: "right" }]}>DISTANCE</Text>
+                    <Text style={[styles.thCell, { width: 135, textAlign: "right" }]}>ORDERS / SALES</Text>
                     <Text style={[styles.thCell, { width: 100, textAlign: "center" }]}>STATUS</Text>
                     <Text style={[styles.thCell, { width: 155, textAlign: "center" }]}>ACTIONS</Text>
                   </View>
@@ -1012,17 +1039,20 @@ export default function ApprovalsHubScreen() {
                             {item.visit_place || item.area || item.party_name || "—"}
                           </Text>
                           {Boolean(item.remarks) && (
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                color: "#B45309",
-                                fontWeight: "600",
-                                marginTop: 2,
-                              }}
-                              numberOfLines={1}
-                            >
-                              📋 {item.remarks}
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <MaterialIcons name="notes" size={12} color="#B45309" />
+                              <Text
+                                style={{
+                                  fontSize: 11,
+                                  color: "#B45309",
+                                  fontWeight: "600",
+                                  flex: 1,
+                                }}
+                                numberOfLines={1}
+                              >
+                                {item.remarks}
+                              </Text>
+                            </View>
                           )}
                         </View>
 
@@ -1037,12 +1067,24 @@ export default function ApprovalsHubScreen() {
                         </View>
 
                         {/* Distance Cell */}
-                        <View style={[styles.tdCell, { width: 110, alignItems: "flex-end" }]}>
+                        <View style={[styles.tdCell, { width: 105, alignItems: "flex-end" }]}>
                           <Text style={[styles.tdPrimaryText, { color: PURPLE, fontWeight: "800" }]}>
                             {totalKm !== null ? `${totalKm.toFixed(1)} KM` : item.closing_km ? "Done" : "Active"}
                           </Text>
                           <Text style={styles.tdSecondaryText}>
                             {item.opening_km !== null ? `${item.opening_km} st` : "—"}
+                          </Text>
+                        </View>
+
+                        {/* Orders, Sales & Collection Cell */}
+                        <View style={[styles.tdCell, { width: 135, alignItems: "flex-end" }]}>
+                          <Text style={[styles.tdPrimaryText, { color: "#0F766E", fontWeight: "700" }]} numberOfLines={1}>
+                            {item.total_sales_formatted ? `₹${item.total_sales_formatted}` : item.closing_km !== null ? "₹0.00" : "—"}
+                          </Text>
+                          <Text style={styles.tdSecondaryText} numberOfLines={1}>
+                            {item.total_orders !== null && item.total_orders !== undefined ? `${item.total_orders} Ord` : item.closing_km !== null ? "0 Ord" : "Active"}
+                            {" • "}
+                            {item.total_collection_formatted ? `₹${item.total_collection_formatted}` : item.closing_km !== null ? "₹0" : "—"}
                           </Text>
                         </View>
 
@@ -1407,7 +1449,10 @@ export default function ApprovalsHubScreen() {
                   {/* Remarks / Tour Plan */}
                   {selectedDayStart.remarks && (
                     <View style={styles.remarksBox}>
-                      <Text style={styles.remarksTitle}>📋 Tour Plan / Start Notes:</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <MaterialCommunityIcons name="clipboard-text-outline" size={15} color="#4338CA" />
+                        <Text style={styles.remarksTitle}>Tour Plan / Start Notes:</Text>
+                      </View>
                       <Text style={styles.remarksContent}>{selectedDayStart.remarks}</Text>
                     </View>
                   )}
@@ -1415,10 +1460,53 @@ export default function ApprovalsHubScreen() {
                   {/* Day End Remarks / Summary */}
                   {selectedDayStart.end_remarks && (
                     <View style={[styles.remarksBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
-                      <Text style={[styles.remarksTitle, { color: "#92400E" }]}>🏁 Day End Summary / Closing Notes:</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <MaterialCommunityIcons name="flag-checkered" size={15} color="#92400E" />
+                        <Text style={[styles.remarksTitle, { color: "#92400E" }]}>Day End Summary / Closing Notes:</Text>
+                      </View>
                       <Text style={[styles.remarksContent, { color: "#78350F" }]}>{selectedDayStart.end_remarks}</Text>
                     </View>
                   )}
+
+                  {/* Daily Work / Business Performance Card (Orders, Sales, Collection) */}
+                  <View style={styles.businessSummaryCard}>
+                    <View style={styles.businessSummaryHeader}>
+                      <Ionicons name="bar-chart-outline" size={15} color="#0F766E" />
+                      <Text style={styles.businessSummaryHeaderText}>Reported Day Work Summary</Text>
+                    </View>
+                    <View style={styles.businessSummaryRow}>
+                      <View style={styles.businessSummaryCol}>
+                        <Text style={styles.businessSummaryLabel}>Orders</Text>
+                        <Text style={styles.businessSummaryVal}>
+                          {selectedDayStart.total_orders !== null && selectedDayStart.total_orders !== undefined
+                            ? `${selectedDayStart.total_orders}`
+                            : selectedDayStart.closing_km !== null ? "0" : "—"}
+                        </Text>
+                      </View>
+                      <View style={styles.businessSummaryDivider} />
+                      <View style={styles.businessSummaryCol}>
+                        <Text style={styles.businessSummaryLabel}>Total Sales</Text>
+                        <Text style={[styles.businessSummaryVal, { color: "#2563EB" }]}>
+                          {selectedDayStart.total_sales_formatted
+                            ? `₹${selectedDayStart.total_sales_formatted}`
+                            : (selectedDayStart.total_sales !== null && selectedDayStart.total_sales !== undefined
+                                ? `₹${Number(selectedDayStart.total_sales).toFixed(2)}`
+                                : selectedDayStart.closing_km !== null ? "₹0.00" : "—")}
+                        </Text>
+                      </View>
+                      <View style={styles.businessSummaryDivider} />
+                      <View style={styles.businessSummaryCol}>
+                        <Text style={styles.businessSummaryLabel}>Collection</Text>
+                        <Text style={[styles.businessSummaryVal, { color: "#059669" }]}>
+                          {selectedDayStart.total_collection_formatted
+                            ? `₹${selectedDayStart.total_collection_formatted}`
+                            : (selectedDayStart.total_collection !== null && selectedDayStart.total_collection !== undefined
+                                ? `₹${Number(selectedDayStart.total_collection).toFixed(2)}`
+                                : selectedDayStart.closing_km !== null ? "₹0.00" : "—")}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
 
                   {/* Travel & Fuel Allowance Calculation Card */}
                   <View style={styles.travelCalcCard}>
@@ -1484,9 +1572,19 @@ export default function ApprovalsHubScreen() {
                               <Text style={styles.dayExpenseAmount}>₹{exp.amount_formatted}</Text>
                             </View>
                             <View style={styles.dayExpenseBtmRow}>
-                              <Text style={styles.dayExpenseTiming}>
-                                {exp.is_after_day_end ? "⚠️ After Day End" : "✓ During Shift"}
-                              </Text>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                                {exp.is_after_day_end ? (
+                                  <>
+                                    <MaterialIcons name="warning" size={12} color="#D97706" />
+                                    <Text style={[styles.dayExpenseTiming, { color: "#D97706" }]}>After Day End</Text>
+                                  </>
+                                ) : (
+                                  <>
+                                    <MaterialIcons name="check-circle" size={12} color="#16A34A" />
+                                    <Text style={[styles.dayExpenseTiming, { color: "#16A34A" }]}>During Shift</Text>
+                                  </>
+                                )}
+                              </View>
                               {renderStatusPill(exp.status)}
                             </View>
                           </View>
@@ -2051,6 +2149,43 @@ export default function ApprovalsHubScreen() {
                 onChangeText={setEditDsRemarks}
                 multiline
                 numberOfLines={2}
+              />
+
+              {/* Day Work Summary (Orders, Sales, Collection) */}
+              <Text style={styles.formSectionTitle}>Day Work Summary</Text>
+              <View style={styles.formRowSplit}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formFieldLabel}>Total Orders</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    keyboardType="numeric"
+                    placeholder="e.g. 5"
+                    placeholderTextColor="#9CA3AF"
+                    value={editDsTotalOrders}
+                    onChangeText={setEditDsTotalOrders}
+                  />
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formFieldLabel}>Total Sales (₹)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    keyboardType="decimal-pad"
+                    placeholder="e.g. 15000"
+                    placeholderTextColor="#9CA3AF"
+                    value={editDsTotalSales}
+                    onChangeText={setEditDsTotalSales}
+                  />
+                </View>
+              </View>
+
+              <Text style={[styles.formFieldLabel, { marginTop: 10 }]}>Total Collection (₹)</Text>
+              <TextInput
+                style={styles.formInput}
+                keyboardType="decimal-pad"
+                placeholder="e.g. 10000"
+                placeholderTextColor="#9CA3AF"
+                value={editDsTotalCollection}
+                onChangeText={setEditDsTotalCollection}
               />
 
               {/* Audit Reason */}
@@ -3363,6 +3498,60 @@ const styles = StyleSheet.create({
   emptyEmployeeText: {
     fontSize: 12,
     color: "#9CA3AF",
+  },
+
+  // Business performance summary card (orders, sales, collection)
+  businessSummaryCard: {
+    backgroundColor: "#F0FDFA",
+    borderWidth: 1,
+    borderColor: "#99F6E4",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  businessSummaryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#CCFBF1",
+    paddingBottom: 4,
+  },
+  businessSummaryHeaderText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0F766E",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  businessSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+  },
+  businessSummaryCol: {
+    alignItems: "center",
+    flex: 1,
+  },
+  businessSummaryLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  businessSummaryVal: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F766E",
+  },
+  businessSummaryDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: "#CCFBF1",
   },
 
   // Travel calculation highlight card

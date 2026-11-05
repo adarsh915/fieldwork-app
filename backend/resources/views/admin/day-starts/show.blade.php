@@ -733,6 +733,23 @@
                                 <div class="text-xs font-bold uppercase tracking-wide text-slate-500">Closing Remarks / Day Summary</div>
                                 <div class="mt-1 text-slate-900" x-text="dayEndData.remarks || '—'">{{ $dayStart->end_remarks ?? '—' }}</div>
                             </div>
+                            <div>
+                                <div class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Reported Day Summary</div>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                        <div class="text-[10px] font-bold uppercase text-slate-500">Orders</div>
+                                        <div class="text-sm font-bold text-slate-900 mt-0.5">{{ $dayStart->total_orders ?? 0 }}</div>
+                                    </div>
+                                    <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                        <div class="text-[10px] font-bold uppercase text-slate-500">Sales</div>
+                                        <div class="text-sm font-bold text-emerald-700 mt-0.5">₹{{ number_format((float)($dayStart->total_sales ?? 0), 2) }}</div>
+                                    </div>
+                                    <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                        <div class="text-[10px] font-bold uppercase text-slate-500">Collection</div>
+                                        <div class="text-sm font-bold text-blue-700 mt-0.5">₹{{ number_format((float)($dayStart->total_collection ?? 0), 2) }}</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="space-y-4">
                             <div>

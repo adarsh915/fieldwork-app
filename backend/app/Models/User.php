@@ -97,6 +97,11 @@ class User extends Authenticatable
         return $this->hasMany(Trip::class);
     }
 
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+
     public function fuelRateOverrides()
     {
         return $this->hasMany(FuelAllowanceRate::class, 'scope_id')->where('scope_type', 'user');

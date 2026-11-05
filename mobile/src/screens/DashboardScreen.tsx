@@ -350,7 +350,10 @@ export default function DashboardScreen() {
 
               {Boolean(todayDayStart.remarks) && (
                 <View style={styles.tourPlanBox}>
-                  <Text style={styles.tourPlanBoxLabel}>📋 Tour Plan / Notes:</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                    <MaterialCommunityIcons name="clipboard-text-outline" size={14} color="#6366F1" />
+                    <Text style={styles.tourPlanBoxLabel}>Tour Plan / Notes:</Text>
+                  </View>
                   <Text style={styles.tourPlanBoxText}>{todayDayStart.remarks}</Text>
                 </View>
               )}

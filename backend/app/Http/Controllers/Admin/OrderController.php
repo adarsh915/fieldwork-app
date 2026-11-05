@@ -14,15 +14,17 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $fwQuery = User::visibleToUser()
-            ->with('roles')
-            ->where('is_active', true);
         $scopedUserIds = DataScope::visibleUserIds('orders');
-        if ($scopedUserIds === null) {
-            $fwQuery->whereHas('roles', function($q) {
-                $q->whereIn('name', ['Field Worker', 'field_worker', 'Employee']);
+        $fwQuery = User::with('roles')
+            ->where(function ($q) {
+                $q->where('is_active', true)
+                  ->orWhereHas('orders');
             });
+
+        if ($scopedUserIds !== null) {
+            $fwQuery->whereIn('id', $scopedUserIds);
         }
+
         $fieldWorkers = $fwQuery->orderBy('name')->get();
 
         $baseQuery = Order::visibleToUser();

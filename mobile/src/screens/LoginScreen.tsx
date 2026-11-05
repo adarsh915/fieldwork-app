@@ -53,7 +53,7 @@ export default function LoginScreen() {
         <View style={styles.card}>
           <View style={styles.heroWrap}>
             <MaterialIcons name="terrain" size={48} color="#7367F0" />
-            <Text style={styles.cardTitle}>Welcome back 👋</Text>
+            <Text style={styles.cardTitle}>Welcome Back</Text>
             <Text style={styles.cardSubtitle}>Sign in to your account</Text>
           </View>
 

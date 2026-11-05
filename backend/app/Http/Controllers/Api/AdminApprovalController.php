@@ -259,6 +259,11 @@ class AdminApprovalController extends Controller
                 'approved_by_name' => $ds->approvedBy?->name,
                 'remarks' => $ds->remarks,
                 'end_remarks' => $ds->end_remarks,
+                'total_orders' => $ds->total_orders !== null ? (int) $ds->total_orders : null,
+                'total_sales' => $ds->total_sales !== null ? (float) $ds->total_sales : null,
+                'total_sales_formatted' => $ds->total_sales !== null ? number_format((float) $ds->total_sales, 2) : null,
+                'total_collection' => $ds->total_collection !== null ? (float) $ds->total_collection : null,
+                'total_collection_formatted' => $ds->total_collection !== null ? number_format((float) $ds->total_collection, 2) : null,
                 'can_action' => $canAction,
                 'can_edit' => $canEdit,
                 'created_at' => $ds->created_at?->diffForHumans(),
@@ -375,6 +380,9 @@ class AdminApprovalController extends Controller
             'tour_type_id' => 'nullable|exists:tour_types,id',
             'remarks' => 'nullable|string|max:1000',
             'reason' => 'nullable|string|max:500',
+            'total_orders' => 'nullable|integer|min:0',
+            'total_sales' => 'nullable|numeric|min:0',
+            'total_collection' => 'nullable|numeric|min:0',
         ]);
 
         $openingKm = $request->filled('opening_km') ? (float) $request->opening_km : $dayStart->opening_km;
@@ -389,7 +397,8 @@ class AdminApprovalController extends Controller
 
         $oldValues = $dayStart->only([
             'opening_km', 'closing_km', 'visit_place', 'vehicle_no',
-            'vehicle_type_id', 'tour_purpose_id', 'tour_type_id', 'remarks'
+            'vehicle_type_id', 'tour_purpose_id', 'tour_type_id', 'remarks',
+            'total_orders', 'total_sales', 'total_collection',
         ]);
 
         $updateData = [];
@@ -401,6 +410,9 @@ class AdminApprovalController extends Controller
         if ($request->has('tour_purpose_id')) $updateData['tour_purpose_id'] = $request->tour_purpose_id;
         if ($request->has('tour_type_id')) $updateData['tour_type_id'] = $request->tour_type_id;
         if ($request->has('remarks')) $updateData['remarks'] = $request->remarks;
+        if ($request->has('total_orders')) $updateData['total_orders'] = $request->filled('total_orders') ? (int) $request->total_orders : null;
+        if ($request->has('total_sales')) $updateData['total_sales'] = $request->filled('total_sales') ? (float) $request->total_sales : null;
+        if ($request->has('total_collection')) $updateData['total_collection'] = $request->filled('total_collection') ? (float) $request->total_collection : null;
 
         $dayStart->update($updateData);
 

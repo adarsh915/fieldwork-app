@@ -24,6 +24,9 @@ export type DayStartData = {
   remarks?: string | null;
   start_time?: string | null;
   end_time: string | null;
+  total_orders?: number | null;
+  total_sales?: number | null;
+  total_collection?: number | null;
 };
 
 type DayStatusResponse = {
@@ -51,7 +54,7 @@ export async function submitDayStart(payload: {
   tour_purpose_id: number;
   tour_type_id: number;
   vehicle_type_id: number;
-  vehicle_no?: string;
+  vehicle_no: string;
   opening_km?: string;
   opening_km_image_uri?: string | null; // local file URI from camera
   district_id?: number;
@@ -144,6 +147,9 @@ export async function submitDayEnd(payload: {
   closing_km?: string;
   closing_km_image_uri?: string | null;
   remarks?: string;
+  total_orders?: string | number;
+  total_sales?: string | number;
+  total_collection?: string | number;
 }): Promise<{ success: boolean; message: string }> {
   const token = await getAuthToken();
   const url = `${API_BASE_URL}${API_PREFIX}/day/end`;
@@ -151,6 +157,15 @@ export async function submitDayEnd(payload: {
   const form = new FormData();
   if (payload.closing_km) form.append("closing_km", payload.closing_km);
   if (payload.remarks) form.append("remarks", payload.remarks);
+  if (payload.total_orders !== undefined && payload.total_orders !== "") {
+    form.append("total_orders", String(payload.total_orders));
+  }
+  if (payload.total_sales !== undefined && payload.total_sales !== "") {
+    form.append("total_sales", String(payload.total_sales));
+  }
+  if (payload.total_collection !== undefined && payload.total_collection !== "") {
+    form.append("total_collection", String(payload.total_collection));
+  }
 
   // Attach photo if selected
   if (payload.closing_km_image_uri) {

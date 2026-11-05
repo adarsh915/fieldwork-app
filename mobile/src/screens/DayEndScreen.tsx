@@ -26,6 +26,9 @@ export default function DayEndScreen() {
   const navigation = useNavigation<Nav>();
 
   const [closingKm, setClosingKm] = useState("");
+  const [totalOrders, setTotalOrders] = useState("");
+  const [totalSales, setTotalSales] = useState("");
+  const [totalCollection, setTotalCollection] = useState("");
   const [remarks, setRemarks] = useState("");
   const [kmPhotoUri, setKmPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -73,15 +76,51 @@ export default function DayEndScreen() {
       return;
     }
 
+    if (!totalOrders.trim()) {
+      Alert.alert("Required", "Total Orders booked today is required.");
+      return;
+    }
+
+    const ordersVal = parseInt(totalOrders.trim(), 10);
+    if (isNaN(ordersVal) || ordersVal < 0) {
+      Alert.alert("Invalid Orders", "Please enter a valid count for Total Orders.");
+      return;
+    }
+
+    if (!totalSales.trim()) {
+      Alert.alert("Required", "Total Sales amount for today is required.");
+      return;
+    }
+
+    const salesVal = parseFloat(totalSales.trim());
+    if (isNaN(salesVal) || salesVal < 0) {
+      Alert.alert("Invalid Sales", "Please enter a valid positive amount for Total Sales.");
+      return;
+    }
+
+    if (!totalCollection.trim()) {
+      Alert.alert("Required", "Total Collection amount for today is required.");
+      return;
+    }
+
+    const collectionVal = parseFloat(totalCollection.trim());
+    if (isNaN(collectionVal) || collectionVal < 0) {
+      Alert.alert("Invalid Collection", "Please enter a valid positive amount for Total Collection.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await submitDayEnd({
         closing_km: closingKm,
+        total_orders: ordersVal,
+        total_sales: salesVal,
+        total_collection: collectionVal,
         remarks: remarks || undefined,
         closing_km_image_uri: kmPhotoUri ?? undefined,
       });
 
-      Alert.alert("🎉 Day Ended!", "Your day has been successfully ended.", [
+      Alert.alert("Day Ended Successfully", "Your day has been successfully ended.", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (err: any) {
@@ -102,12 +141,47 @@ export default function DayEndScreen() {
         <View style={styles.card}>
           {/* Closing KM */}
           <FieldInput
-            label="Closing K.M."
+            label="Closing K.M. *"
             value={closingKm}
             onChangeText={(v) => setClosingKm(v.replace(/[^0-9.]/g, ""))}
             keyboardType="numeric"
             placeholder="e.g. 12450"
           />
+
+          {/* Business Summary Section */}
+          <View style={styles.summaryBox}>
+            <View style={styles.summaryTitleRow}>
+              <MaterialCommunityIcons name="clipboard-text-clock-outline" size={18} color="#D97706" />
+              <Text style={styles.summaryTitle}>Today's Work Summary</Text>
+            </View>
+
+            {/* Total Orders */}
+            <FieldInput
+              label="Total Orders *"
+              value={totalOrders}
+              onChangeText={(v) => setTotalOrders(v.replace(/[^0-9]/g, ""))}
+              keyboardType="number-pad"
+              placeholder="e.g. 5"
+            />
+
+            {/* Total Sales */}
+            <FieldInput
+              label="Total Sales (₹) *"
+              value={totalSales}
+              onChangeText={(v) => setTotalSales(v.replace(/[^0-9.]/g, ""))}
+              keyboardType="numeric"
+              placeholder="e.g. 25000"
+            />
+
+            {/* Total Collection */}
+            <FieldInput
+              label="Total Collection (₹) *"
+              value={totalCollection}
+              onChangeText={(v) => setTotalCollection(v.replace(/[^0-9.]/g, ""))}
+              keyboardType="numeric"
+              placeholder="e.g. 10000"
+            />
+          </View>
 
           {/* Remarks */}
           <FieldInput
@@ -198,7 +272,7 @@ function FieldInput({
   label: string;
   value: string;
   onChangeText: (v: string) => void;
-  keyboardType?: "default" | "numeric";
+  keyboardType?: "default" | "numeric" | "number-pad" | "decimal-pad";
   placeholder?: string;
   multiline?: boolean;
 }) {
@@ -247,6 +321,28 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 14,
     elevation: 6,
+  },
+
+  summaryBox: {
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+  },
+  summaryTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  summaryTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#B45309",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 
   field: {

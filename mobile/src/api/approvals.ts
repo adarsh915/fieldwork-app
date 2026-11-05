@@ -54,6 +54,11 @@ export interface DayStartApprovalItem {
   approved_by_name: string | null;
   remarks: string | null;
   end_remarks?: string | null;
+  total_orders?: number | null;
+  total_sales?: number | null;
+  total_sales_formatted?: string | null;
+  total_collection?: number | null;
+  total_collection_formatted?: string | null;
   can_action: boolean;
   can_edit: boolean;
   created_at: string;
@@ -252,6 +257,9 @@ export interface UpdateDayStartPayload {
   tour_type?: string | null;
   remarks?: string | null;
   reason?: string | null;
+  total_orders?: number | null;
+  total_sales?: number | null;
+  total_collection?: number | null;
 }
 
 /**

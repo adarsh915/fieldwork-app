@@ -208,6 +208,14 @@ export default function DayStartScreen() {
       return;
     }
 
+    if (!vehicleNo.trim()) {
+      Alert.alert(
+        "Vehicle Number Required",
+        "Please enter your Vehicle Number to start your day.",
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const chosenDistrictId = selectedDistrictsList.length > 0 ? selectedDistrictsList[0].id : undefined;
@@ -228,7 +236,7 @@ export default function DayStartScreen() {
         area_name_custom: areaCustomNames || undefined,
         visit_place: visitPlaceStr || undefined,
         remarks: purposeDetails.trim() || undefined,
-        vehicle_no: vehicleNo || undefined,
+        vehicle_no: vehicleNo.trim(),
         opening_km: openingKm || undefined,
         opening_km_image_uri: kmPhotoUri ?? undefined,
         party_ids: Object.entries(selectedPartyIds)
@@ -237,7 +245,7 @@ export default function DayStartScreen() {
       });
 
       Alert.alert(
-        "🎉 Day Started!",
+        "Day Started Successfully",
         "Your day has been started successfully.",
         [{ text: "OK", onPress: () => navigation.goBack() }],
       );
@@ -307,15 +315,14 @@ export default function DayStartScreen() {
             onPress={() => setPickerOpen("vehicleType")}
           />
 
-          {/* Vehicle No — only if vehicle type requires it */}
-          {vehicleType?.requires_vehicle_no && (
-            <FieldInput
-              label="Vehicle No."
-              value={vehicleNo}
-              onChangeText={setVehicleNo}
-              placeholder="e.g. GJ01AB1234"
-            />
-          )}
+          {/* Vehicle No — Required */}
+          <FieldInput
+            label="Vehicle No. *"
+            value={vehicleNo}
+            onChangeText={(v) => setVehicleNo(v.toUpperCase())}
+            placeholder="e.g. GJ01AB1234 / MH12AB1234"
+            autoCapitalize="characters"
+          />
 
           {/* Destination / Tour Territory */}
           <View style={styles.sectionDivider}>
@@ -595,12 +602,14 @@ function FieldInput({
   onChangeText,
   keyboardType,
   placeholder,
+  autoCapitalize,
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   keyboardType?: "default" | "numeric";
   placeholder?: string;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }) {
   return (
     <View style={styles.field}>
@@ -612,6 +621,7 @@ function FieldInput({
         keyboardType={keyboardType}
         placeholder={placeholder}
         placeholderTextColor="#c7d2fe"
+        autoCapitalize={autoCapitalize}
       />
     </View>
   );

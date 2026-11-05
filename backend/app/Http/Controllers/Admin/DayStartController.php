@@ -363,14 +363,26 @@ class DayStartController extends Controller
             $openingKm = (float) ($dayStart->opening_km ?? 0);
             $claimedKm = max(0, $newClosingKm - $openingKm);
 
-            $dayStart->update([
+            $updateFields = [
                 'closing_km' => $newClosingKm,
                 'closing_km_photo' => $closingImagePath,
                 'end_time' => $endTime,
                 'end_remarks' => $request->remarks,
                 'is_auto_closed' => false,
                 'flagged_reason' => null, // Clear auto-close flag as admin manually corrected it
-            ]);
+            ];
+
+            if ($request->has('total_orders')) {
+                $updateFields['total_orders'] = (int) $request->total_orders;
+            }
+            if ($request->has('total_sales')) {
+                $updateFields['total_sales'] = (float) $request->total_sales;
+            }
+            if ($request->has('total_collection')) {
+                $updateFields['total_collection'] = (float) $request->total_collection;
+            }
+
+            $dayStart->update($updateFields);
 
             // Calculate distance & fuel allowance
             if ($dayStart->vehicle_type_id && $claimedKm > 0) {

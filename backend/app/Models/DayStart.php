@@ -36,6 +36,9 @@ class DayStart extends Model
         'approved_by',
         'remarks',
         'end_remarks',
+        'total_orders',
+        'total_sales',
+        'total_collection',
         'party_id',
         'district_id',
         'area_id',
@@ -52,6 +55,9 @@ class DayStart extends Model
         'gps_calculated_km'   => 'decimal:2',
         'start_lat'           => 'decimal:7',
         'start_lng'           => 'decimal:7',
+        'total_orders'        => 'integer',
+        'total_sales'         => 'decimal:2',
+        'total_collection'    => 'decimal:2',
     ];
 
     protected $appends = [

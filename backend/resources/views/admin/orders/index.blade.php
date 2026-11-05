@@ -45,7 +45,68 @@
                 </div>
             </div>
 
-            {{-- Status Pills / Tabs --}}
+            {{-- Quick Search & Filter Controls (Top position matching Parties & Day-Start) --}}
+            <div class="mt-4">
+                <div class="flex flex-wrap gap-3 items-end">
+                    {{-- Search --}}
+                    <div class="relative flex-1 min-w-[220px]">
+                        <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
+                        <input x-model="search" @input.debounce.400ms="window.ordersTable.search(search).draw()"
+                            class="form-input pl-9" placeholder="Search order no, customer name, employee...">
+                    </div>
+
+                    {{-- Toggle Filters Button --}}
+                    <x-button type="button" variant="secondary" @click="filtersVisible = !filtersVisible">
+                        <x-lucide-filter class="w-4 h-4" />
+                        <span x-text="filtersVisible ? 'Hide Filters' : 'Show Filters'"></span>
+                    </x-button>
+
+                    {{-- Clear All --}}
+                    <x-button type="button" variant="secondary"
+                        @click="resetFilters()"
+                        x-show="search || userId || orderSource || timing || status" style="display: none;">
+                        <x-lucide-x class="w-4 h-4" />
+                        Clear
+                    </x-button>
+                </div>
+
+                {{-- Advanced Filters --}}
+                <div x-show="filtersVisible" x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+                    class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3" style="display: none;">
+                    <div>
+                        <label class="text-xs font-medium text-ink-600 mb-1 block">Employee / Worker</label>
+                        <select x-model="userId" @change="window.ordersTable.draw()" class="form-input">
+                            <option value="">All Employees / Workers</option>
+                            @foreach($fieldWorkers as $worker)
+                                <option value="{{ $worker->id }}">
+                                    {{ $worker->name_with_role ?? ($worker->name . ' (' . ($worker->role_name ?? ($worker->roles->first()?->name ?? 'Employee')) . ')') }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-medium text-ink-600 mb-1 block">Order Source</label>
+                        <select x-model="orderSource" @change="window.ordersTable.draw()" class="form-input">
+                            <option value="">All Sources</option>
+                            <option value="visit">📍 Physical Visit</option>
+                            <option value="phone">📞 Phone / Direct</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-medium text-ink-600 mb-1 block">Shift Timing</label>
+                        <select x-model="timing" @change="window.ordersTable.draw()" class="form-input">
+                            <option value="">All Timings</option>
+                            <option value="during_shift">During Active Shift</option>
+                            <option value="after_day_end">After Day End (Off-Shift)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Status Tabs (Positioned right above table) --}}
             <div class="flex flex-wrap gap-2 mt-4 pt-3 border-t border-surface-border">
                 <button type="button" @click="setStatus('')" 
                    class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center gap-1.5" 
@@ -77,67 +138,6 @@
                    :class="status === 'cancelled' ? 'bg-rose-50 border-rose-300 text-rose-800 shadow-xs' : 'bg-white border-surface-border text-ink-600 hover:bg-surface-muted'">
                     Cancelled <span class="px-1.5 py-0.2 rounded-md text-[11px]" :class="status === 'cancelled' ? 'bg-rose-200 text-rose-900 font-bold' : 'bg-surface-muted text-ink-500'" x-text="counts.cancelled ?? 0"></span>
                 </button>
-            </div>
-
-            {{-- Quick Search & Filter Controls --}}
-            <div class="mt-4">
-                <div class="flex flex-wrap gap-3 items-end">
-                    {{-- Search --}}
-                    <div class="relative flex-1 min-w-[220px]">
-                        <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
-                        <input x-model="search" @input.debounce.400ms="window.ordersTable.search(search).draw()"
-                            class="form-input pl-9" placeholder="Search order no, customer name, employee...">
-                    </div>
-
-                    {{-- Toggle Filters Button --}}
-                    <x-button type="button" variant="secondary" @click="filtersVisible = !filtersVisible">
-                        <x-lucide-filter class="w-4 h-4" />
-                        <span x-text="filtersVisible ? 'Hide Filters' : 'Show Filters'"></span>
-                    </x-button>
-
-                    {{-- Clear All --}}
-                    <x-button type="button" variant="secondary"
-                        @click="resetFilters()"
-                        x-show="search || userId || orderSource || timing || status" style="display: none;">
-                        <x-lucide-x class="w-4 h-4" />
-                        Clear
-                    </x-button>
-                </div>
-
-                {{-- Advanced Filters --}}
-                <div x-show="filtersVisible" x-transition:enter="transition ease-out duration-200"
-                    x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
-                    class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3" style="display: none;">
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Field Worker</label>
-                        <select x-model="userId" @change="window.ordersTable.draw()" class="form-input">
-                            <option value="">All Field Workers</option>
-                            @foreach($fieldWorkers as $worker)
-                                <option value="{{ $worker->id }}">
-                                    {{ $worker->name }} ({{ $worker->role_name ?? ($worker->roles->first()?->name ?? 'Field Worker') }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Order Source</label>
-                        <select x-model="orderSource" @change="window.ordersTable.draw()" class="form-input">
-                            <option value="">All Sources</option>
-                            <option value="visit">📍 Physical Visit</option>
-                            <option value="phone">📞 Phone / Direct</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Shift Timing</label>
-                        <select x-model="timing" @change="window.ordersTable.draw()" class="form-input">
-                            <option value="">All Timings</option>
-                            <option value="during_shift">During Active Shift</option>
-                            <option value="after_day_end">After Day End (Off-Shift)</option>
-                        </select>
-                    </div>
-                </div>
             </div>
         </div>
 

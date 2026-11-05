@@ -218,18 +218,24 @@ function BalanceCard({ item }: { item: LeaveBalance }) {
       <View style={styles.balanceHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.balanceName}>{item.leave_type.name}</Text>
-          <Text
-            style={{
-              fontSize: 11,
-              color: isMonthly ? "#f59e0b" : "#64748b",
-              fontWeight: "600",
-              marginTop: 2,
-            }}
-          >
-            {isMonthly
-              ? `📅 Monthly Accrual (+${item.leave_type.days_per_month ?? 0}/mo)`
-              : "🗓️ Annual Upfront Policy"}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+            <MaterialIcons
+              name={isMonthly ? "event-repeat" : "calendar-today"}
+              size={12}
+              color={isMonthly ? "#f59e0b" : "#64748b"}
+            />
+            <Text
+              style={{
+                fontSize: 11,
+                color: isMonthly ? "#f59e0b" : "#64748b",
+                fontWeight: "600",
+              }}
+            >
+              {isMonthly
+                ? `Monthly Accrual (+${item.leave_type.days_per_month ?? 0}/mo)`
+                : "Annual Upfront Policy"}
+            </Text>
+          </View>
         </View>
         <Text style={styles.balanceCode}>{item.leave_type.code}</Text>
       </View>

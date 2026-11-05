@@ -114,7 +114,7 @@ class DayController extends Controller
                 'tour_purpose_id' => 'required|exists:tour_purposes,id',
                 'tour_type_id' => 'required|exists:tour_types,id',
                 'vehicle_type_id' => 'required|exists:vehicle_types,id',
-                'vehicle_no' => 'nullable|string|max:20',
+                'vehicle_no' => 'required|string|max:50',
                 'opening_km' => 'nullable|numeric|min:0',
                 'opening_km_photo' => 'nullable|image|max:20480', // max 20MB
                 'district_id' => 'nullable|exists:districts,id',
@@ -271,6 +271,9 @@ class DayController extends Controller
             'closing_km' => 'nullable|numeric|min:0',
             'closing_km_photo' => 'nullable|image|max:20480',
             'remarks' => 'nullable|string|max:1000',
+            'total_orders' => 'nullable|integer|min:0',
+            'total_sales' => 'nullable|numeric|min:0',
+            'total_collection' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -297,13 +300,25 @@ class DayController extends Controller
             }
         }
 
-        $dayStart->update([
+        $updateData = [
             'closing_km' => $request->closing_km,
             'closing_km_photo' => $closingImagePath,
             'end_remarks' => $request->remarks,
             'end_time' => Carbon::now()->toTimeString(),
             // status can remain pending until approved by admin
-        ]);
+        ];
+
+        if ($request->has('total_orders')) {
+            $updateData['total_orders'] = (int) $request->total_orders;
+        }
+        if ($request->has('total_sales')) {
+            $updateData['total_sales'] = (float) $request->total_sales;
+        }
+        if ($request->has('total_collection')) {
+            $updateData['total_collection'] = (float) $request->total_collection;
+        }
+
+        $dayStart->update($updateData);
 
         // --- Fraud Prevention & Automated Expense Generation ---
         if ($request->closing_km && $dayStart->opening_km) {
