@@ -13,6 +13,7 @@ use App\Notifications\PaymentConfirmedNotification;
 use App\Notifications\PaymentRecordedNotification;
 use App\Notifications\PaymentRejectedNotification;
 use App\Services\DataScope;
+use App\Services\SecureFileUploadService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,12 @@ use Illuminate\Support\Str;
 
 class PaymentController extends Controller
 {
+    private SecureFileUploadService $uploadService;
+
+    public function __construct(SecureFileUploadService $uploadService)
+    {
+        $this->uploadService = $uploadService;
+    }
     /**
      * Helper to verify if user has authority to confirm/manage payments.
      * Designed to support Accountant, Finance, Admin, Super Admin or custom permission.
@@ -77,13 +84,23 @@ class PaymentController extends Controller
             ], 200);
         }
 
-        // 2. Handle Proof Photo Upload
+        // 2. Handle Proof Photo Upload with Security Validation
         $proofPhotoUrl = null;
         if ($request->hasFile('proof_photo')) {
-            $file = $request->file('proof_photo');
-            $fileName = 'payment_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('uploads/payments', $fileName, 'public');
-            $proofPhotoUrl = '/storage/' . $path;
+            try {
+                // Secure upload: validates type (image/PDF), size (10MB max), MIME type
+                $path = $this->uploadService->upload(
+                    $request->file('proof_photo'),
+                    'uploads/payments',
+                    'document'  // Allows images and PDFs
+                );
+                $proofPhotoUrl = '/storage/' . $path;
+            } catch (\InvalidArgumentException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
         }
 
         // 3. Generate unique Receipt No

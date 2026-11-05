@@ -8,13 +8,25 @@ use App\Models\DayStart;
 use App\Models\Order;
 use App\Models\Visit;
 use App\Services\ActivityNotificationService;
+use App\Services\SecureFileUploadService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class VisitController extends Controller
 {
+    private SecureFileUploadService $uploadService;
+
+    public function __construct(SecureFileUploadService $uploadService)
+    {
+        $this->uploadService = $uploadService;
+    }
     /**
      * Get active visit for the day or list of visits.
+     * 
+     * PERFORMANCE FIX: Added pagination to handle large daily visit counts
+     * - Supports pagination (default 20 visits, max 50)
+     * - Optimized with selective column fetching
+     * - Handles 100+ daily visits efficiently
      */
     public function index(Request $request)
     {
@@ -29,15 +41,41 @@ class VisitController extends Controller
             return response()->json(['success' => false, 'message' => 'Day not started.']);
         }
 
-        // Return today's visits
+        // Pagination with reasonable limits (max 50 visits per page)
+        $perPage = min(50, max(1, $request->get('per_page', 20)));
+        
+        // Support for "all visits" if explicitly requested (with safety limit)
+        if ($request->get('all') === 'true' || $request->get('all') === '1') {
+            // Still enforce a reasonable limit even for "all"
+            $visits = Visit::where('day_start_id', $dayStart->id)
+                ->with(['party:id,name,mobile,address,city'])
+                ->orderByDesc('created_at')
+                ->limit(100)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $visits,
+                'total' => $visits->count(),
+            ]);
+        }
+        
+        // Paginated response (default)
         $visits = Visit::where('day_start_id', $dayStart->id)
-            ->with('party')
+            ->with(['party:id,name,mobile,address,city'])
             ->orderByDesc('created_at')
-            ->get();
+            ->paginate($perPage);
 
         return response()->json([
             'success' => true,
-            'data' => $visits,
+            'data' => $visits->items(),
+            'pagination' => [
+                'current_page' => $visits->currentPage(),
+                'last_page' => $visits->lastPage(),
+                'per_page' => $visits->perPage(),
+                'total' => $visits->total(),
+                'has_more' => $visits->hasMorePages(),
+            ],
         ]);
     }
 
@@ -222,10 +260,21 @@ class VisitController extends Controller
             }
         }
 
-        // Handle check_in_photo upload
+        // Handle check_in_photo upload with security validation
         $imagePath = null;
         if ($request->hasFile('check_in_photo')) {
-            $imagePath = $request->file('check_in_photo')->store('visits/check-in-photos', 'public');
+            try {
+                $imagePath = $this->uploadService->upload(
+                    $request->file('check_in_photo'),
+                    'visits/check-in-photos',
+                    'image'  // Images only (5MB max)
+                );
+            } catch (\InvalidArgumentException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
         }
 
         $visit = Visit::create([

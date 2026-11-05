@@ -14,18 +14,38 @@
     status: '{{ request('status') }}',
     search: '{{ request('search') }}',
     loading: false,
-    records: {{ Js::from($visits->map(fn($visit) => [
-        'id'             => $visit->id,
-        'party_name'     => $visit->party?->name ?? '—',
-        'party_code'     => $visit->party?->party_code ?? $visit->party?->code ?? '',
-        'user_name'      => $visit->user?->name ?? 'Unknown',
-        'check_in_time'  => $visit->check_in_time ? $visit->check_in_time->format('d M Y, h:i A') : 'Pending',
-        'check_out_time' => $visit->check_out_time ? $visit->check_out_time->format('d M Y, h:i A') : '—',
-        'status'         => $visit->status,
-        'purpose'        => $visit->purpose ?? '',
-        'notes'          => $visit->notes ?? '',
-        'check_in_photo' => $visit->check_in_photo_url,
-    ])) }},
+    records: {{ Js::from($visits->map(function($visit) {
+        $distance = '—';
+        if ($visit->check_in_lat && $visit->check_in_lng && $visit->party?->latitude && $visit->party?->longitude) {
+            $earthRadius = 6371000;
+            $latDelta = deg2rad((float)$visit->party->latitude - (float)$visit->check_in_lat);
+            $lonDelta = deg2rad((float)$visit->party->longitude - (float)$visit->check_in_lng);
+            $a = sin($latDelta / 2) * sin($latDelta / 2) + cos(deg2rad((float)$visit->check_in_lat)) * cos(deg2rad((float)$visit->party->latitude)) * sin($lonDelta / 2) * sin($lonDelta / 2);
+            $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+            $m = round($earthRadius * $c);
+            $distance = $m < 1000 ? "{$m} m" : round($m / 1000, 2) . " km";
+        }
+
+        return [
+            'id'             => $visit->id,
+            'party_name'     => $visit->party?->name ?? '—',
+            'party_code'     => $visit->party?->party_code ?? $visit->party?->code ?? '',
+            'party_lat'      => $visit->party?->latitude,
+            'party_lng'      => $visit->party?->longitude,
+            'user_name'      => $visit->user?->name ?? 'Unknown',
+            'check_in_time'  => $visit->check_in_time ? $visit->check_in_time->format('d M Y, h:i A') : 'Pending',
+            'check_in_lat'   => $visit->check_in_lat,
+            'check_in_lng'   => $visit->check_in_lng,
+            'check_out_time' => $visit->check_out_time ? $visit->check_out_time->format('d M Y, h:i A') : '—',
+            'check_out_lat'  => $visit->check_out_lat,
+            'check_out_lng'  => $visit->check_out_lng,
+            'distance'       => $distance,
+            'status'         => $visit->status,
+            'purpose'        => $visit->purpose ?? '',
+            'notes'          => $visit->notes ?? '',
+            'check_in_photo' => $visit->check_in_photo_url,
+        ];
+    })) }},
     pagination: {
         current_page: {{ $visits->currentPage() }},
         last_page: {{ $visits->lastPage() }},
@@ -71,6 +91,17 @@
         this.status = '';
         this.search = '';
         this.fetchRecords(1);
+    },
+
+    exportUrl() {
+        const params = new URLSearchParams();
+        if (this.dateFrom) params.append('date_from', this.dateFrom);
+        if (this.dateTo) params.append('date_to', this.dateTo);
+        if (this.employeeId) params.append('employee_id', this.employeeId);
+        if (this.status) params.append('status', this.status);
+        if (this.search) params.append('search', this.search);
+        const query = params.toString();
+        return `{{ route('admin.visits.export') }}${query ? '?' + query : ''}`;
     }
 }">
     <!-- Lightbox Modal -->
@@ -87,6 +118,16 @@
             <div>
                 <h2 class="text-section-title">Visit Records</h2>
                 <p class="text-caption mt-1">Real-time dealer and store check-ins logged by field workers.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                @canany(['visits.view', 'visits.view-team', 'visits.view-all', 'visits.view-own', 'visits.manage'])
+                    <a :href="exportUrl()"
+                       class="btn-primary text-xs py-2 px-3.5 inline-flex items-center gap-1.5 shadow-sm bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white font-medium rounded-lg transition"
+                       title="Export filtered visits to Excel">
+                        <x-lucide-download class="w-4 h-4" />
+                        <span>Export Excel</span>
+                    </a>
+                @endcanany
             </div>
         </div>
 
@@ -177,10 +218,33 @@
                             <template x-if="visit.party_code">
                                 <div class="text-xs text-ink-400 font-mono" x-text="visit.party_code"></div>
                             </template>
+                            <template x-if="visit.party_lat && visit.party_lng">
+                                <div class="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-1" title="Mart Actual Coordinates">
+                                    <span class="text-emerald-600 font-sans font-medium text-[10px]">Mart:</span>
+                                    <span x-text="`${parseFloat(visit.party_lat).toFixed(5)}, ${parseFloat(visit.party_lng).toFixed(5)}`"></span>
+                                </div>
+                            </template>
                         </td>
                         <td class="text-body font-medium" x-text="visit.user_name"></td>
-                        <td class="text-caption" x-text="visit.check_in_time"></td>
-                        <td class="text-caption" x-text="visit.check_out_time"></td>
+                        <td class="text-caption">
+                            <span x-text="visit.check_in_time"></span>
+                            <template x-if="visit.check_in_lat && visit.check_in_lng">
+                                <div class="text-[11px] text-slate-500 font-mono mt-0.5" title="Check-In Coordinates">
+                                    <span x-text="`${parseFloat(visit.check_in_lat).toFixed(5)}, ${parseFloat(visit.check_in_lng).toFixed(5)}`"></span>
+                                    <template x-if="visit.distance && visit.distance !== '—'">
+                                        <span class="text-brand-600 font-sans font-medium text-[10px] block" x-text="`(${visit.distance} away)`"></span>
+                                    </template>
+                                </div>
+                            </template>
+                        </td>
+                        <td class="text-caption">
+                            <span x-text="visit.check_out_time"></span>
+                            <template x-if="visit.check_out_lat && visit.check_out_lng">
+                                <div class="text-[11px] text-slate-500 font-mono mt-0.5" title="Check-Out Coordinates">
+                                    <span x-text="`${parseFloat(visit.check_out_lat).toFixed(5)}, ${parseFloat(visit.check_out_lng).toFixed(5)}`"></span>
+                                </div>
+                            </template>
+                        </td>
                         <td>
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
                                 :class="{

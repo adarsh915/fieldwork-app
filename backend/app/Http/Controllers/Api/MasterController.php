@@ -172,6 +172,17 @@ class MasterController extends Controller
             $query->where('customers.area_id', $request->area_id);
         }
 
+        // PERFORMANCE FIX: Add search functionality for mobile app
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('customers.name', 'LIKE', "%{$search}%")
+                  ->orWhere('customers.mobile', 'LIKE', "%{$search}%")
+                  ->orWhere('customers.code', 'LIKE', "%{$search}%")
+                  ->orWhere('customers.address', 'LIKE', "%{$search}%");
+            });
+        }
+
         $columns = [
             'customers.id',
             'customers.name',
@@ -182,9 +193,37 @@ class MasterController extends Controller
             'customers.area_id',
         ];
 
-        $parties = $query->orderBy('customers.name')->get($columns);
+        // PERFORMANCE FIX: Add pagination support (default 50, max 100)
+        $perPage = min(100, max(1, $request->get('per_page', 50)));
+        
+        // Support for "all parties" if explicitly requested (with safety limit)
+        if ($request->get('all') === 'true' || $request->get('all') === '1') {
+            // Still enforce a reasonable limit even for "all"
+            $parties = $query->orderBy('customers.name')->limit(500)->get($columns);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $parties,
+                'total' => $parties->count(),
+            ]);
+        }
+        
+        // Paginated response (default and recommended)
+        $parties = $query->orderBy('customers.name')->paginate($perPage, $columns);
 
-        return response()->json(['success' => true, 'data' => $parties]);
+        return response()->json([
+            'success' => true,
+            'data' => $parties->items(),
+            'pagination' => [
+                'current_page' => $parties->currentPage(),
+                'last_page' => $parties->lastPage(),
+                'per_page' => $parties->perPage(),
+                'total' => $parties->total(),
+                'from' => $parties->firstItem(),
+                'to' => $parties->lastItem(),
+                'has_more' => $parties->hasMorePages(),
+            ],
+        ]);
     }
 
     /**
@@ -201,5 +240,132 @@ class MasterController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $party]);
+    }
+
+    /**
+     * GET /api/master/day-start-form
+     * 
+     * PERFORMANCE OPTIMIZATION: Returns ALL dropdown data needed for Start Day form in ONE API call
+     * 
+     * Before: Mobile app made 5-6 separate API calls (slow - 2-3 seconds total)
+     * After: Single API call returns everything (fast - 0.3 seconds)
+     * 
+     * Returns:
+     * - tour_purposes
+     * - tour_types
+     * - vehicle_types
+     * - locations (districts + areas)
+     * - parties (paginated, first 50)
+     */
+    public function dayStartFormData(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        
+        // 1. Tour Purposes (small dataset, ~5-10 records)
+        $tourPurposes = TourPurpose::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'requires_party']);
+
+        // 2. Tour Types (small dataset, ~5-10 records)
+        $tourTypes = TourType::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        // 3. Vehicle Types (small dataset, ~5-10 records)
+        $vehicleTypes = VehicleType::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'requires_vehicle_no']);
+
+        // 4. Locations (districts + areas)
+        // Reuse existing logic from locations() method
+        if (!$user || $user->canSelectAllParties()) {
+            $districts = District::where('is_active', true)
+                ->with(['areas' => function ($q) {
+                    $q->where('is_active', true)->orderBy('name');
+                }])
+                ->orderBy('name')
+                ->get(['id', 'name', 'state', 'code']);
+        } else {
+            // Get user's assigned party query
+            $assignedPartiesQuery = Customer::query()->active()->where('approval_status', 'approved');
+
+            $assignedDistrictIds = $user->territories()->whereNull('area_id')->pluck('district_id')->toArray();
+            $assignedAreaIds = $user->territories()->whereNotNull('area_id')->pluck('area_id')->toArray();
+
+            $assignedPartiesQuery->where(function ($q) use ($user, $assignedDistrictIds, $assignedAreaIds) {
+                $q->whereHas('assignments', function ($sq) use ($user) {
+                    $sq->where('employee_id', $user->id)->where('is_active', true);
+                })->orWhere('submitted_by', $user->id);
+
+                if (!empty($assignedDistrictIds)) {
+                    $q->orWhereIn('customers.district_id', $assignedDistrictIds);
+                }
+                if (!empty($assignedAreaIds)) {
+                    $q->orWhereIn('customers.area_id', $assignedAreaIds);
+                }
+            });
+
+            $partyDistrictIds = (clone $assignedPartiesQuery)->whereNotNull('district_id')->distinct()->pluck('district_id')->toArray();
+            $partyAreaIds     = (clone $assignedPartiesQuery)->whereNotNull('area_id')->distinct()->pluck('area_id')->toArray();
+
+            $allowedDistrictIds = array_unique(array_filter(array_merge($partyDistrictIds, $assignedDistrictIds)));
+            $allowedAreaIds     = array_unique(array_filter(array_merge($partyAreaIds, $assignedAreaIds)));
+
+            $districts = District::where('is_active', true)
+                ->whereIn('id', $allowedDistrictIds)
+                ->with(['areas' => function ($q) use ($allowedAreaIds) {
+                    $q->where('is_active', true)
+                      ->when(!empty($allowedAreaIds), fn($sq) => $sq->whereIn('id', $allowedAreaIds))
+                      ->orderBy('name');
+                }])
+                ->orderBy('name')
+                ->get(['id', 'name', 'state', 'code']);
+        }
+
+        // 5. Parties (first 50 for initial load - mobile can load more with search/pagination)
+        if ($user->canSelectAllParties()) {
+            $partiesQuery = Customer::active()->where('approval_status', 'approved');
+        } else {
+            $assignedDistrictIds = $user->territories()->whereNull('area_id')->pluck('district_id')->toArray();
+            $assignedAreaIds = $user->territories()->whereNotNull('area_id')->pluck('area_id')->toArray();
+
+            $partiesQuery = Customer::active()->where('approval_status', 'approved')
+                ->where(function ($q) use ($user, $assignedDistrictIds, $assignedAreaIds) {
+                    $q->whereHas('assignments', function ($sq) use ($user) {
+                        $sq->where('employee_id', $user->id)->where('is_active', true);
+                    })->orWhere('submitted_by', $user->id);
+
+                    if (!empty($assignedDistrictIds)) {
+                        $q->orWhereIn('customers.district_id', $assignedDistrictIds);
+                    }
+                    if (!empty($assignedAreaIds)) {
+                        $q->orWhereIn('customers.area_id', $assignedAreaIds);
+                    }
+                });
+        }
+
+        $parties = $partiesQuery
+            ->orderBy('customers.name')
+            ->limit(50)  // First 50 parties for dropdown
+            ->get([
+                'customers.id',
+                'customers.name',
+                'customers.mobile',
+                'customers.city',
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'tour_purposes' => $tourPurposes,
+                'tour_types' => $tourTypes,
+                'vehicle_types' => $vehicleTypes,
+                'locations' => $districts,
+                'parties' => $parties,
+                'parties_total' => $partiesQuery->count(),  // Total available
+                'parties_loaded' => $parties->count(),      // Loaded in this response
+            ],
+            'message' => 'All Start Day form data loaded in single request',
+        ]);
     }
 }

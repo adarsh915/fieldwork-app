@@ -16,6 +16,10 @@
                 <x-button type="submit" variant="primary">Generate Summary</x-button>
             </div>
         </form>
+        <div class="mt-3 text-xs text-ink-500 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <strong class="text-blue-700">Note:</strong> "Total Payable" includes only <strong>Final Approved</strong> expenses (status: approved). 
+            Expenses with status "temp_approved" (verified by manager) are shown separately as "Verified (Pending Final)" and are NOT included in payable amount until HR final approval.
+        </div>
     </div>
     <div class="ml-4">
         <a href="{{ route('admin.expenses.index') }}" class="btn-secondary">Back to Expenses</a>
@@ -28,10 +32,10 @@
             <thead>
                 <tr>
                     <th>Field Worker</th>
-                    <th class="text-right">Travel (Auto)</th>
-                    <th class="text-right">Final Approved</th>
-                    <th class="text-right">Total Payable</th>
-                    <th class="text-right text-blue-700">Verified (L1)</th>
+                    <th class="text-right">Travel (Final Approved)</th>
+                    <th class="text-right">Manual (Final Approved)</th>
+                    <th class="text-right font-bold text-emerald-700">Total Payable</th>
+                    <th class="text-right text-blue-700">Verified (Pending Final)</th>
                     <th class="text-right text-ink-500">Pending L1</th>
                     <th class="text-right">Action</th>
                 </tr>

@@ -11,6 +11,7 @@ use App\Models\Trip;
 use App\Models\VehicleType;
 use App\Services\ActivityNotificationService;
 use App\Services\FuelRateResolverService;
+use App\Services\SecureFileUploadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -28,6 +29,12 @@ use Carbon\Carbon;
  */
 class DayController extends Controller
 {
+    private SecureFileUploadService $uploadService;
+
+    public function __construct(SecureFileUploadService $uploadService)
+    {
+        $this->uploadService = $uploadService;
+    }
     /**
      * GET /api/day/status
      *
@@ -135,13 +142,24 @@ class DayController extends Controller
                 ], 422);
             }
 
-            // Handle opening KM image upload
+            // Handle opening KM image upload with security validation
             $imagePath = null;
             if ($request->hasFile('opening_km_photo')) {
                 Log::info('Storing opening KM photo');
-                $imagePath = $request->file('opening_km_photo')
-                    ->store('day-starts/km-images', 'public');
-                Log::info('Opening KM photo stored', ['path' => $imagePath]);
+                try {
+                    $imagePath = $this->uploadService->upload(
+                        $request->file('opening_km_photo'),
+                        'day-starts/km-images',
+                        'image'  // Images only (5MB max)
+                    );
+                    Log::info('Opening KM photo stored', ['path' => $imagePath]);
+                } catch (\InvalidArgumentException $e) {
+                    Log::error('Opening KM photo upload failed', ['error' => $e->getMessage()]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => $e->getMessage()
+                    ], 422);
+                }
             }
 
             $partyId = $request->filled('party_ids') && count($request->party_ids) > 0 ? $request->party_ids[0] : null;
@@ -262,11 +280,21 @@ class DayController extends Controller
             ], 422);
         }
 
-        // Handle closing KM image
+        // Handle closing KM image with security validation
         $closingImagePath = null;
         if ($request->hasFile('closing_km_photo')) {
-            $closingImagePath = $request->file('closing_km_photo')
-                ->store('day-starts/km-images', 'public');
+            try {
+                $closingImagePath = $this->uploadService->upload(
+                    $request->file('closing_km_photo'),
+                    'day-starts/km-images',
+                    'image'  // Images only (5MB max)
+                );
+            } catch (\InvalidArgumentException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
         }
 
         $dayStart->update([

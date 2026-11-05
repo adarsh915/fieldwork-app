@@ -43,6 +43,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Master Data (dropdowns / pickers)
     Route::prefix('master')->name('api.master.')->group(function () {
+        // PERFORMANCE OPTIMIZATION: Single endpoint for Start Day form (all dropdowns in one call)
+        Route::get('day-start-form', [MasterController::class, 'dayStartFormData'])->name('day-start-form');
+        
+        // Individual endpoints (kept for backward compatibility and specific use cases)
         Route::get('tour-purposes',  [MasterController::class, 'tourPurposes'])->name('tour-purposes');
         Route::get('tour-types',     [MasterController::class, 'tourTypes'])->name('tour-types');
         Route::get('vehicle-types',  [MasterController::class, 'vehicleTypes'])->name('vehicle-types');

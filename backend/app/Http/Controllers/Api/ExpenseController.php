@@ -8,6 +8,7 @@ use App\Models\ExpenseCategory;
 use App\Models\DayStart;
 use App\Services\ActivityNotificationService;
 use App\Services\DataScope;
+use App\Services\SecureFileUploadService;
 use App\Services\SettingsService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,12 @@ use Illuminate\Support\Facades\Validator;
 
 class ExpenseController extends Controller
 {
+    private SecureFileUploadService $uploadService;
+
+    public function __construct(SecureFileUploadService $uploadService)
+    {
+        $this->uploadService = $uploadService;
+    }
     public function index(Request $request): JsonResponse
     {
         $userId = $request->user()->id;
@@ -118,15 +125,11 @@ class ExpenseController extends Controller
 
     public function monthlySummary(Request $request): JsonResponse
     {
+        // STRICT FINAL APPROVAL ONLY: Only show final approved expenses in monthly summary
+        // Mobile app monthly view should match admin panel behavior
         $expenses = ExpenseBill::query()
             ->where('user_id', $request->user()->id)
-            ->where(function ($query) {
-                $query->where('status', 'approved')
-                    ->orWhere(function ($sq) {
-                        $sq->where('is_system_generated', true)
-                            ->whereNotIn('status', ['rejected', 'manager_rejected']);
-                    });
-            })
+            ->where('status', 'approved')  // Only final approved expenses (both manual and system-generated)
             ->selectRaw('DATE_FORMAT(date, "%Y-%m") as month, SUM(amount) as total_approved')
             ->groupBy('month')
             ->orderBy('month', 'desc')
@@ -141,17 +144,14 @@ class ExpenseController extends Controller
         $month = Carbon::parse($monthInput);
         $user_id = $request->user()->id;
 
+        // STRICT FINAL APPROVAL ONLY: Statement includes ONLY final approved expenses
+        // This ensures mobile app shows the same payable amount as admin panel
+        // Both manual and system-generated expenses must be status = 'approved' to appear
         $expenses = ExpenseBill::with('category')
             ->where('user_id', $user_id)
             ->whereMonth('date', $month->month)
             ->whereYear('date', $month->year)
-            ->where(function ($query) {
-                $query->where('status', 'approved')
-                    ->orWhere(function ($sq) {
-                        $sq->where('is_system_generated', true)
-                            ->whereNotIn('status', ['rejected', 'manager_rejected']);
-                    });
-            })
+            ->where('status', 'approved')  // Only final approved expenses
             ->orderBy('date', 'desc')
             ->get();
 
@@ -288,7 +288,19 @@ class ExpenseController extends Controller
             }
         }
 
-        $imagePath = $request->file('bill_photo')->store('expenses', 'public');
+        // Secure file upload with validation
+        try {
+            $imagePath = $this->uploadService->upload(
+                $request->file('bill_photo'),
+                'expenses',
+                'document'  // Allows images and PDFs (10MB max)
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
 
         $expense = ExpenseBill::create([
             'user_id' => $user->id,
@@ -421,7 +433,18 @@ class ExpenseController extends Controller
         ];
 
         if ($request->hasFile('bill_photo')) {
-            $updateData['bill_photo'] = $request->file('bill_photo')->store('expenses', 'public');
+            try {
+                $updateData['bill_photo'] = $this->uploadService->upload(
+                    $request->file('bill_photo'),
+                    'expenses',
+                    'document'  // Allows images and PDFs
+                );
+            } catch (\InvalidArgumentException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
         }
 
         $oldAmount = (float) $expense->amount;

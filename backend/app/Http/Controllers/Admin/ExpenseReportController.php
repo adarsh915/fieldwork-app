@@ -34,10 +34,20 @@ class ExpenseReportController extends Controller
         }, 'expenses.category'])->get();
 
         $summary = $users->map(function($user) {
-            $totalTravel = $user->expenses->where('is_system_generated', true)->whereNotIn('status', ['rejected', 'manager_rejected'])->sum('amount');
+            // System Travel: Only final approved system-generated expenses are payable
+            $totalTravel = $user->expenses->where('is_system_generated', true)->where('status', 'approved')->sum('amount');
+            
+            // Manual Approved: Only final approved manual expenses are payable
             $totalManualApproved = $user->expenses->where('is_system_generated', false)->where('status', 'approved')->sum('amount');
+            
+            // Manual Verified (Level 1): Manager verified, awaiting HR final approval
             $totalManualVerified = $user->expenses->where('is_system_generated', false)->where('status', 'temp_approved')->sum('amount');
+            
+            // Manual Pending (Level 1): Awaiting manager verification
             $totalManualPending = $user->expenses->where('is_system_generated', false)->where('status', 'pending')->sum('amount');
+            
+            // System Pending: System-generated travel not yet final approved
+            $totalSystemPending = $user->expenses->where('is_system_generated', true)->whereIn('status', ['pending', 'temp_approved'])->sum('amount');
             
             return [
                 'user'                  => $user,
@@ -45,8 +55,9 @@ class ExpenseReportController extends Controller
                 'total_manual_approved' => $totalManualApproved,
                 'total_manual_verified' => $totalManualVerified,
                 'total_manual_pending'  => $totalManualPending,
-                'total_pending_all'     => $totalManualVerified + $totalManualPending,
-                'grand_total'           => $totalTravel + $totalManualApproved, // Only final approved + auto travel are payable
+                'total_system_pending'  => $totalSystemPending,
+                'total_pending_all'     => $totalManualVerified + $totalManualPending + $totalSystemPending,
+                'grand_total'           => $totalTravel + $totalManualApproved, // Only final approved amounts are payable
             ];
         });
 
@@ -57,11 +68,8 @@ class ExpenseReportController extends Controller
     {
         $dayStart = DayStart::with([
             'expenses' => function($q) {
-                $q->where('status', 'approved')
-                  ->orWhere(function($sq) {
-                      $sq->where('is_system_generated', true)
-                         ->whereNotIn('status', ['rejected', 'manager_rejected']);
-                  });
+                // STRICT: Only final approved expenses (both manual and system-generated)
+                $q->where('status', 'approved');
             },
             'expenses.category',
             'expenses.items',
@@ -94,17 +102,14 @@ class ExpenseReportController extends Controller
         
         $user = User::findOrFail($user_id);
 
+        // STRICT FINAL APPROVAL ONLY: Statement includes ONLY final approved expenses
+        // This ensures the statement represents the actual payable amount after full approval workflow
+        // Both manual and system-generated expenses must be status = 'approved' to appear in statement
         $expenses = ExpenseBill::with('category')
             ->where('user_id', $user_id)
             ->whereMonth('date', $month->month)
             ->whereYear('date', $month->year)
-            ->where(function($query) {
-                $query->where('status', 'approved')
-                      ->orWhere(function($sq) {
-                          $sq->where('is_system_generated', true)
-                             ->whereNotIn('status', ['rejected', 'manager_rejected']);
-                      });
-            })
+            ->where('status', 'approved')  // Only final approved expenses (both manual and system-generated)
             ->orderBy('date', 'desc')
             ->get();
 

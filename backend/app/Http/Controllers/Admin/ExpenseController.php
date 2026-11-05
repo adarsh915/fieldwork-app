@@ -29,24 +29,34 @@ class ExpenseController extends Controller
         $canTempApprove = $authUser ? ($authUser->can('expenses.approve') || $isSuperAdmin) : false;
         $canEdit = $authUser ? ($authUser->can('expenses.edit') || $authUser->can('expenses.manage') || $isSuperAdmin) : false;
 
+        // PERFORMANCE FIX: Remove ->get() query, add pagination for JSON response
         if ($request->wantsJson()) {
+            $perPage = min(100, max(1, $request->get('per_page', 50)));
+            
             $expenses = ExpenseBill::visibleToUser()
-                ->with(['user.roles', 'category', 'items'])
+                ->with([
+                    'user:id,name,employee_id,department',
+                    'category:id,name'
+                ])
                 ->orderBy('date', 'desc')
                 ->orderBy('id', 'desc')
-                ->get();
+                ->paginate($perPage);
 
             return response()->json([
                 'success' => true,
-                'records' => $expenses->map(function ($expense) use ($canEdit) {
-                    return [
-                        'id' => $expense->id,
-                        'is_system_generated' => (bool) $expense->is_system_generated,
-                        'can_edit' => $canEdit,
-                        'amount' => (float) $expense->amount,
-                        'status' => $expense->status,
-                    ];
-                }),
+                'records' => $expenses->items(),
+                'pagination' => [
+                    'current_page' => $expenses->currentPage(),
+                    'last_page' => $expenses->lastPage(),
+                    'per_page' => $expenses->perPage(),
+                    'total' => $expenses->total(),
+                    'has_more' => $expenses->hasMorePages(),
+                ],
+                'permissions' => [
+                    'can_edit' => $canEdit,
+                    'can_temp_approve' => $canTempApprove,
+                    'can_final_approve' => $canFinalApprove,
+                ],
             ]);
         }
 

@@ -161,6 +161,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
 
         // ── Visits ────────────────────────────────────────────────────────────
+        Route::get('/visits/export', [\App\Http\Controllers\Admin\VisitController::class, 'export'])->middleware('permission:visits.view|visits.view-team|visits.view-all|visits.view-own|visits.manage')->name('visits.export');
         Route::get('/visits', [\App\Http\Controllers\Admin\VisitController::class, 'index'])->middleware('permission:visits.view|visits.view-team|visits.view-all|visits.view-own|visits.manage')->name('visits.index');
 
         // ── Day Start / Tour Plan ─────────────────────────────────────────────

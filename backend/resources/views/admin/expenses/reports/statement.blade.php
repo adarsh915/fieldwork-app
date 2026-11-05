@@ -104,7 +104,8 @@
     @endif
     
     <div class="mt-16 text-center text-sm text-slate-400 no-print">
-        <p>This statement only includes Approved expenses and System-generated travel calculations.</p>
+        <p>This statement only includes <strong class="text-slate-600">Final Approved</strong> expenses (status: approved) and System-generated travel calculations.</p>
+        <p class="text-xs mt-1">Expenses with status "temp_approved" (verified by manager) are <strong class="text-slate-600">NOT</strong> included until final HR approval.</p>
     </div>
 </div>
 
