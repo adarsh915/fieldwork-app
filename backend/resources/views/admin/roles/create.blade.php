@@ -12,7 +12,7 @@
         </a>
     </div>
 
-    <section class="panel max-w-3xl">
+    <section class="panel ">
         <div class="panel-header">
             <h2 class="font-semibold text-slate-950">Role Information</h2>
             <p class="mt-1 text-sm text-slate-500">Create a new role and assign permissions.</p>

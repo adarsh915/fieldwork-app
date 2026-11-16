@@ -27,15 +27,15 @@
             <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
                 
                 {{-- Employee Select --}}
-                <div class="flex items-center gap-2 min-w-[240px]">
+                <div class="flex items-center gap-2 min-w-[280px]">
                     <label class="form-label text-xs font-bold mb-0 whitespace-nowrap text-ink-700">Employee:</label>
-                    <select x-model="selectedUserId"
-                            @change="switchUser($event.target.value)"
-                            class="form-input text-xs w-full py-2">
-                        <template x-for="u in users" :key="u.id">
-                            <option :value="u.id" :selected="u.id == selectedUserId" x-text="u.name"></option>
-                        </template>
-                    </select>
+                    <x-filter-select
+                        placeholder="Choose Employee"
+                        :options="$users->mapWithKeys(fn($u) => [$u->id => $u->name])"
+                        model="selectedUserId"
+                        change="switchUser(selectedUserId)"
+                        width="w-64"
+                    />
                 </div>
 
                 {{-- Month Controls --}}

@@ -21,18 +21,18 @@
                 <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
                 <input name="q" value="{{ $search }}" class="form-input pl-9" placeholder="Customer, user, notes…">
             </div>
-            <select name="status" class="form-input">
-                <option value="">All statuses</option>
-                @foreach ($statuses as $s)
-                    <option value="{{ $s }}" @selected($selectedStatus === $s)>{{ ucfirst($s) }}</option>
-                @endforeach
-            </select>
-            <select name="type" class="form-input">
-                <option value="">All types</option>
-                @foreach ($types as $t)
-                    <option value="{{ $t }}" @selected($selectedType === $t)>{{ ucfirst($t) }}</option>
-                @endforeach
-            </select>
+            <x-filter-select
+                name="status"
+                placeholder="All Statuses"
+                :options="collect($statuses)->mapWithKeys(fn($s) => [$s => ucfirst($s)])"
+                :selected="$selectedStatus"
+            />
+            <x-filter-select
+                name="type"
+                placeholder="All Types"
+                :options="collect($types)->mapWithKeys(fn($t) => [$t => ucfirst($t)])"
+                :selected="$selectedType"
+            />
             <div class="flex gap-2">
                 <x-button type="submit" variant="primary" class="flex-1 justify-center">
                     <x-lucide-filter class="w-4 h-4" />
@@ -95,8 +95,6 @@
         </table>
     </div>
 
-    <div class="border-t border-surface-border px-6 py-4">
-        {{ $transactions->links() }}
-    </div>
+    {{ $transactions->links() }}
 </div>
 @endsection

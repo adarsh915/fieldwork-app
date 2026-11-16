@@ -43,11 +43,16 @@
                 </div>
 
                 {{-- Status Filter --}}
-                <select x-model="statusFilter" @change="fetchProducts(1)" class="form-input text-xs w-auto">
-                    <option value="">All Status (<span x-text="stats.total"></span>)</option>
-                    <option value="active">Active Only (<span x-text="stats.active"></span>)</option>
-                    <option value="inactive">Inactive Only (<span x-text="stats.inactive"></span>)</option>
-                </select>
+                <x-filter-select
+                    placeholder="All Status"
+                    :options="[
+                        'active' => 'Active Only',
+                        'inactive' => 'Inactive Only'
+                    ]"
+                    model="statusFilter"
+                    change="fetchProducts(1)"
+                    width="w-40"
+                />
 
                 {{-- Add Product Button --}}
                 <button type="button"
@@ -167,29 +172,44 @@
         </div>
 
         {{-- Pagination Footer --}}
-        <div x-show="pagination.last_page > 1" class="p-4 border-t border-surface-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-600">
-            <div>
-                Showing <span class="font-bold text-ink-900" x-text="pagination.from || 0"></span> to
-                <span class="font-bold text-ink-900" x-text="pagination.to || 0"></span> of
-                <span class="font-bold text-ink-900" x-text="pagination.total"></span> products
+        <div x-show="pagination.last_page > 1" class="border-t border-surface-border px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="text-xs text-ink-600">
+                Showing <span class="font-semibold text-ink-900" x-text="pagination.from || 0"></span> to
+                <span class="font-semibold text-ink-900" x-text="pagination.to || 0"></span> of
+                <span class="font-semibold text-ink-900" x-text="pagination.total"></span> results
             </div>
 
-            <div class="inline-flex items-center gap-1.5">
+            <div class="dt-paging flex items-center gap-1">
                 <button type="button"
-                        @click="fetchProducts(pagination.current_page - 1)"
-                        :disabled="pagination.current_page <= 1"
-                        class="p-1.5 rounded-lg border border-surface-border bg-white text-ink-700 hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                    <x-lucide-chevron-left class="w-4 h-4" />
+                    @click="fetchProducts(pagination.current_page - 1)"
+                    :disabled="pagination.current_page <= 1 || loading"
+                    class="dt-paging-button previous"
+                    :class="{ 'disabled': pagination.current_page <= 1 || loading }">
+                    ‹ Prev
                 </button>
 
-                <span class="px-2.5 py-1 font-bold text-ink-900 bg-surface-muted rounded-lg"
-                      x-text="`Page ${pagination.current_page} of ${pagination.last_page}`"></span>
+                <template x-for="(p, idx) in getPages()" :key="idx">
+                    <span>
+                        <template x-if="p === '...'">
+                            <span class="ellipsis">…</span>
+                        </template>
+                        <template x-if="p !== '...'">
+                            <button type="button"
+                                @click="fetchProducts(p)"
+                                :class="p === pagination.current_page ? 'dt-paging-button current' : 'dt-paging-button'"
+                                :disabled="loading"
+                                x-text="p">
+                            </button>
+                        </template>
+                    </span>
+                </template>
 
                 <button type="button"
-                        @click="fetchProducts(pagination.current_page + 1)"
-                        :disabled="pagination.current_page >= pagination.last_page"
-                        class="p-1.5 rounded-lg border border-surface-border bg-white text-ink-700 hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                    <x-lucide-chevron-right class="w-4 h-4" />
+                    @click="fetchProducts(pagination.current_page + 1)"
+                    :disabled="pagination.current_page >= pagination.last_page || loading"
+                    class="dt-paging-button next"
+                    :class="{ 'disabled': pagination.current_page >= pagination.last_page || loading }">
+                    Next ›
                 </button>
             </div>
         </div>
@@ -501,6 +521,35 @@ function productManager(config) {
         search: '',
         statusFilter: '',
         loading: false,
+
+        getPages() {
+            const current = Number(this.pagination.current_page) || 1;
+            const last = Number(this.pagination.last_page) || 1;
+            const delta = 2;
+            const range = [];
+            const rangeWithDots = [];
+            let l;
+
+            for (let i = 1; i <= last; i++) {
+                if (i === 1 || i === last || (i >= current - delta && i <= current + delta)) {
+                    range.push(i);
+                }
+            }
+
+            for (let i of range) {
+                if (l) {
+                    if (i - l === 2) {
+                        rangeWithDots.push(l + 1);
+                    } else if (i - l !== 1) {
+                        rangeWithDots.push('...');
+                    }
+                }
+                rangeWithDots.push(i);
+                l = i;
+            }
+
+            return rangeWithDots;
+        },
 
         createModal: {
             open: false,

@@ -31,57 +31,46 @@
     </div>
 
     {{-- Top Header Action Panel --}}
-    <div class="panel p-6 border border-surface-border shadow-sm rounded-xl">
-        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+    <div class="panel p-5 border border-surface-border shadow-sm rounded-xl space-y-4">
+        {{-- Row 1: Title, Subtitle & Primary Action Button --}}
+        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
-                <h2 class="text-lg font-bold text-ink-900">Per-Kilometer Travel & Fuel Allowances</h2>
-                <p class="text-caption mt-0.5 text-xs text-ink-600">
+                <h2 class="text-section-title font-bold text-ink-900">Per-Kilometer Travel & Fuel Allowances</h2>
+                <p class="text-caption mt-1 text-ink-500">
                     Base rates are set in <a href="{{ route('admin.master-data.index', 'vehicle-types') }}" class="font-semibold text-brand-700 underline hover:text-brand-800">Master Data</a>. 
-                    Configure <span class="font-semibold text-brand-700">Role Defaults</span> and <span class="font-semibold text-brand-700">Employee Overrides</span> below.
+                    Configure Role Defaults and Employee Overrides below.
                 </p>
-
-                {{-- Quick Reference: Master Data Base Rates --}}
-                <div class="flex flex-wrap items-center gap-2 mt-3 pt-2">
-                    <span class="text-[11px] font-semibold text-ink-500 uppercase tracking-wider">Master Data Base Rates:</span>
-                    <template x-for="v in vehicleTypes" :key="v.id">
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-muted border border-surface-border text-xs text-ink-800">
-                            <span class="font-semibold" x-text="v.name + ':'"></span>
-                            <span class="font-bold text-ink-900">₹<span x-text="parseFloat(v.rate_per_km || 0).toFixed(2)"></span>/km</span>
-                        </span>
-                    </template>
-                </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                {{-- Live Search --}}
-                <div class="relative w-full sm:w-60">
-                    <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
-                    <input type="text"
-                           x-model="search"
-                           @input="filterTables()"
-                           placeholder="Search rate records…"
-                           class="form-input text-xs pl-9 w-full">
-                </div>
-
-                {{-- Status Filter --}}
-                <select x-model="statusFilter" @change="filterTables()" class="form-input text-xs w-auto">
-                    <option value="all">All Statuses</option>
-                    <option value="active">Active Only</option>
-                    <option value="archived">Archived Only</option>
-                </select>
-
-                {{-- Add Rate Button --}}
+            <div class="flex items-center gap-2 shrink-0">
                 <button type="button"
                         @click="openAddModal(activeTab === 'users' ? 'user' : 'role')"
-                        class="btn-primary text-xs py-2 px-3.5 inline-flex items-center gap-2">
+                        class="btn-primary h-[38px] px-4 text-xs font-semibold inline-flex items-center gap-2 shadow-2xs">
                     <x-lucide-plus class="w-4 h-4" />
                     <span x-text="activeTab === 'users' ? 'Add Employee Override' : 'Add Role Rate'"></span>
                 </button>
             </div>
         </div>
 
-        {{-- Tab Navigation Buttons --}}
-        <div class="flex flex-wrap items-center gap-2 mt-6 pt-5 border-t border-surface-border">
+        {{-- Row 2: Master Data Base Rates Info Strip --}}
+        <div class="py-2.5 px-3.5 bg-surface-muted/50 rounded-lg border border-surface-border flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[11px] font-bold text-ink-500 uppercase tracking-wider mr-1">Master Data Base Rates:</span>
+                <template x-for="v in vehicleTypes" :key="v.id">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-surface-border text-xs text-ink-800 shadow-2xs">
+                        <span class="font-medium text-ink-600" x-text="v.name + ':'"></span>
+                        <span class="font-bold text-ink-900">₹<span x-text="parseFloat(v.rate_per_km || 0).toFixed(2)"></span>/km</span>
+                    </span>
+                </template>
+            </div>
+            <a href="{{ route('admin.master-data.index', 'vehicle-types') }}" class="text-xs text-brand-700 hover:text-brand-800 font-semibold inline-flex items-center gap-1 shrink-0">
+                <span>Edit Vehicle Rates</span>
+                <x-lucide-arrow-right class="w-3.5 h-3.5" />
+            </a>
+        </div>
+
+        {{-- Row 3: Tab Navigation Buttons --}}
+        <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-surface-border">
             <button type="button"
                     @click="setTab('roles')"
                     class="px-4 py-2 text-xs font-semibold rounded-lg transition-all inline-flex items-center gap-2"
@@ -113,6 +102,76 @@
                 <x-lucide-calculator class="w-4 h-4" />
                 <span>Rate Calculator & Trace</span>
             </button>
+        </div>
+
+        {{-- Row 4: Search & Dropdown Filters (Visible for table tabs) --}}
+        <div x-show="activeTab !== 'inspector'" class="pt-3 border-t border-surface-border space-y-3">
+            {{-- Search & Reset --}}
+            <div class="flex flex-wrap gap-3 items-end">
+                <div class="relative flex-1 min-w-[200px]">
+                    <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
+                    <input type="text"
+                           x-model="search"
+                           @input.debounce.300ms="filterTables()"
+                           placeholder="Search rate records by role, worker, vehicle…"
+                           class="form-input text-xs pl-9 pr-8 h-[38px] w-full">
+                    <button type="button"
+                            x-show="search"
+                            @click="search = ''; filterTables()"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 transition"
+                            style="display: none;"
+                            title="Clear search">
+                        <x-lucide-x class="w-3.5 h-3.5" />
+                    </button>
+                </div>
+
+                <button type="button"
+                        @click="resetFilters()"
+                        class="btn-secondary h-[38px] px-4 text-xs font-semibold inline-flex items-center justify-center gap-1.5 shrink-0"
+                        title="Reset all filters">
+                    <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                    <span>Reset Filters</span>
+                </button>
+            </div>
+
+            {{-- Dropdowns Grid: Worker / Role + Status --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {{-- Field Worker Filter (Active when on Employee Overrides) --}}
+                <div x-show="activeTab === 'users'">
+                    <x-filter-select
+                        label="Field Worker"
+                        placeholder="All Field Workers"
+                        :options="$users->mapWithKeys(fn($u) => [$u->id => $u->name . ($u->employee_id ? ' (' . $u->employee_id . ')' : '')])"
+                        model="userFilter"
+                        change="filterTables()"
+                    />
+                </div>
+
+                {{-- Role Filter (Active when on Role Defaults) --}}
+                <div x-show="activeTab === 'roles'">
+                    <x-filter-select
+                        label="Role"
+                        placeholder="All Roles"
+                        :options="$roles->mapWithKeys(fn($r) => [$r->id => $r->name])"
+                        model="roleFilter"
+                        change="filterTables()"
+                    />
+                </div>
+
+                {{-- Status Filter --}}
+                <div>
+                    <x-filter-select
+                        label="Status"
+                        placeholder="All Statuses"
+                        :options="[
+                            'active' => 'Active Only',
+                            'archived' => 'Archived Only',
+                        ]"
+                        model="statusFilter"
+                        change="filterTables()"
+                    />
+                </div>
+            </div>
         </div>
     </div>
 
@@ -373,7 +432,9 @@ function fuelRatesManager(config) {
     return {
         activeTab: 'roles',
         search: '',
-        statusFilter: 'all',
+        statusFilter: '',
+        userFilter: '',
+        roleFilter: '',
         vehicleTypes: config.initialVehicleTypes || [],
         roleRates: config.initialRoleRates || [],
         userOverrides: config.initialUserOverrides || [],
@@ -441,7 +502,13 @@ function fuelRatesManager(config) {
                 pageLength: 10,
                 lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
                 order: [[0, 'asc']],
-                dom: '<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-b border-surface-border bg-surface-muted/20"<"text-xs text-ink-600 flex items-center gap-2"l><"text-xs text-ink-500 font-medium"i>>rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-t border-surface-border bg-white"<"text-caption text-ink-500 font-medium"i><"text-xs"p>>',
+                dom: 'rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-surface-border bg-white"<"text-xs text-ink-600 font-medium"i><"dt-paging"p>>',
+                layout: {
+                    topStart: null,
+                    topEnd: null,
+                    bottomStart: 'info',
+                    bottomEnd: 'paging'
+                },
                 language: {
                     emptyTable: 'No role-based rates configured. Employees without an override will use Master Data rate.',
                     zeroRecords: 'No matching role rates found.',
@@ -450,10 +517,8 @@ function fuelRatesManager(config) {
                     infoFiltered: '(filtered from _MAX_ total)',
                     lengthMenu: 'Show _MENU_ entries',
                     paginate: {
-                        first: '«',
-                        previous: '‹',
-                        next: '›',
-                        last: '»'
+                        previous: '‹ Prev',
+                        next: 'Next ›'
                     }
                 },
                 columns: [
@@ -480,16 +545,14 @@ function fuelRatesManager(config) {
                     {
                         data: 'effective_from',
                         render: function(data) {
-                            return self.formatDate(data);
+                            if (!data) return '—';
+                            return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-surface-muted border border-surface-border text-ink-800 text-xs font-medium whitespace-nowrap">${self.formatDate(data)}</span>`;
                         }
                     },
                     {
                         data: 'effective_to',
                         render: function(data) {
-                            if (!data) {
-                                return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Active (Ongoing)</span>`;
-                            }
-                            return `<span class="text-xs text-ink-700 font-medium">${self.formatDate(data)}</span>`;
+                            return self.renderEffectiveTo(data);
                         }
                     },
                     {
@@ -541,7 +604,13 @@ function fuelRatesManager(config) {
                 pageLength: 10,
                 lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
                 order: [[0, 'asc']],
-                dom: '<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-b border-surface-border bg-surface-muted/20"<"text-xs text-ink-600 flex items-center gap-2"l><"text-xs text-ink-500 font-medium"i>>rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-t border-surface-border bg-white"<"text-caption text-ink-500 font-medium"i><"text-xs"p>>',
+                dom: 'rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-surface-border bg-white"<"text-xs text-ink-600 font-medium"i><"dt-paging"p>>',
+                layout: {
+                    topStart: null,
+                    topEnd: null,
+                    bottomStart: 'info',
+                    bottomEnd: 'paging'
+                },
                 language: {
                     emptyTable: 'No individual employee overrides configured. Employees will use their Role rate or Master Data base rate.',
                     zeroRecords: 'No matching employee overrides found.',
@@ -550,10 +619,8 @@ function fuelRatesManager(config) {
                     infoFiltered: '(filtered from _MAX_ total)',
                     lengthMenu: 'Show _MENU_ entries',
                     paginate: {
-                        first: '«',
-                        previous: '‹',
-                        next: '›',
-                        last: '»'
+                        previous: '‹ Prev',
+                        next: 'Next ›'
                     }
                 },
                 columns: [
@@ -587,16 +654,14 @@ function fuelRatesManager(config) {
                     {
                         data: 'effective_from',
                         render: function(data) {
-                            return self.formatDate(data);
+                            if (!data) return '—';
+                            return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-surface-muted border border-surface-border text-ink-800 text-xs font-medium whitespace-nowrap">${self.formatDate(data)}</span>`;
                         }
                     },
                     {
                         data: 'effective_to',
                         render: function(data) {
-                            if (!data) {
-                                return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Active (Ongoing)</span>`;
-                            }
-                            return `<span class="text-xs text-ink-700 font-medium">${self.formatDate(data)}</span>`;
+                            return self.renderEffectiveTo(data);
                         }
                     },
                     {
@@ -651,6 +716,15 @@ function fuelRatesManager(config) {
                 } else {
                     this.roleTable.column(5).search('');
                 }
+
+                if (this.roleFilter) {
+                    const selRole = this.roles.find(r => String(r.id) === String(this.roleFilter) || r.name === this.roleFilter);
+                    const roleName = selRole ? selRole.name : this.roleFilter;
+                    this.roleTable.column(0).search(roleName ? '^' + roleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$' : '', true, false);
+                } else {
+                    this.roleTable.column(0).search('');
+                }
+
                 this.roleTable.draw();
             }
 
@@ -663,8 +737,25 @@ function fuelRatesManager(config) {
                 } else {
                     this.userTable.column(6).search('');
                 }
+
+                if (this.userFilter) {
+                    const selUser = this.users.find(u => String(u.id) === String(this.userFilter));
+                    const userName = selUser ? selUser.name : '';
+                    this.userTable.column(0).search(userName ? '^' + userName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$' : '', true, false);
+                } else {
+                    this.userTable.column(0).search('');
+                }
+
                 this.userTable.draw();
             }
+        },
+
+        resetFilters() {
+            this.search = '';
+            this.statusFilter = '';
+            this.userFilter = '';
+            this.roleFilter = '';
+            this.filterTables();
         },
 
         setTab(tab) {
@@ -838,6 +929,20 @@ function fuelRatesManager(config) {
             if (!d) return '—';
             const date = new Date(d);
             return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        },
+
+        renderEffectiveTo(data) {
+            if (!data) {
+                return `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Ongoing</span>`;
+            }
+            const toDate = new Date(data);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const isExpired = toDate < today;
+            if (isExpired) {
+                return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap" title="Expired on ${this.formatDate(data)}"><svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${this.formatDate(data)}</span>`;
+            }
+            return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap" title="Valid until ${this.formatDate(data)}"><svg class="w-3 h-3 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>${this.formatDate(data)}</span>`;
         },
 
         formatSourceLabel(src) {

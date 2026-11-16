@@ -129,11 +129,7 @@
     </div>
 
     {{-- Pagination --}}
-    @if ($users->hasPages())
-        <div class="border-t border-surface-border px-6 py-4">
-            {{ $users->links() }}
-        </div>
-    @endif
+    {{ $users->links() }}
 </div>
 @endsection
 

@@ -31,9 +31,18 @@ export type Party = {
   mobile: string | null;
   address: string | null;
   city?: string | null;
+  state?: string | null;
   district_id?: number | null;
+  district?: {
+    id: number;
+    name: string;
+    state?: string | null;
+  } | null;
   area_id?: number | null;
+  party_type?: string | null;
+  category?: string | null;
   approval_status?: "pending" | "approved" | "rejected";
+  is_active?: boolean;
 };
 
 export type ListResponse<T> = { success: boolean; data: T[] };

@@ -20,7 +20,6 @@
         orderSource: '',
         timing: '',
         counts: {{ Js::from($counts) }},
-        filtersVisible: false,
 
         setStatus(newStatus) {
             this.status = newStatus;
@@ -45,64 +44,65 @@
                 </div>
             </div>
 
-            {{-- Quick Search & Filter Controls (Top position matching Parties & Day-Start) --}}
+            {{-- Quick Search & Filter Controls --}}
             <div class="mt-4">
                 <div class="flex flex-wrap gap-3 items-end">
                     {{-- Search --}}
                     <div class="relative flex-1 min-w-[220px]">
                         <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
                         <input x-model="search" @input.debounce.400ms="window.ordersTable.search(search).draw()"
-                            class="form-input pl-9" placeholder="Search order no, customer name, employee...">
+                            class="form-input pl-9 pr-8" placeholder="Search order no, customer name, employee...">
+                        <button type="button"
+                            x-show="search"
+                            @click="search = ''; window.ordersTable.search('').draw()"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600"
+                            style="display: none;"
+                            title="Clear search">
+                            <x-lucide-x class="w-4 h-4" />
+                        </button>
                     </div>
 
-                    {{-- Toggle Filters Button --}}
-                    <x-button type="button" variant="secondary" @click="filtersVisible = !filtersVisible">
-                        <x-lucide-filter class="w-4 h-4" />
-                        <span x-text="filtersVisible ? 'Hide Filters' : 'Show Filters'"></span>
-                    </x-button>
-
-                    {{-- Clear All --}}
+                    {{-- Reset Filters Button --}}
                     <x-button type="button" variant="secondary"
                         @click="resetFilters()"
-                        x-show="search || userId || orderSource || timing || status" style="display: none;">
-                        <x-lucide-x class="w-4 h-4" />
-                        Clear
+                        class="py-2 px-3.5 text-xs font-semibold gap-1.5 shrink-0"
+                        title="Reset all filters">
+                        <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                        <span>Reset Filters</span>
                     </x-button>
                 </div>
 
-                {{-- Advanced Filters --}}
-                <div x-show="filtersVisible" x-transition:enter="transition ease-out duration-200"
-                    x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
-                    class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3" style="display: none;">
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Employee / Worker</label>
-                        <select x-model="userId" @change="window.ordersTable.draw()" class="form-input">
-                            <option value="">All Employees / Workers</option>
-                            @foreach($fieldWorkers as $worker)
-                                <option value="{{ $worker->id }}">
-                                    {{ $worker->name_with_role ?? ($worker->name . ' (' . ($worker->role_name ?? ($worker->roles->first()?->name ?? 'Employee')) . ')') }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                {{-- Filters Grid (Open by default) --}}
+                <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <x-filter-select
+                        label="Employee / Worker"
+                        placeholder="All Employees / Workers"
+                        :options="$fieldWorkers->mapWithKeys(fn($w) => [$w->id => $w->name_with_role ?? ($w->name . ' (' . ($w->role_name ?? ($w->roles->first()?->name ?? 'Employee')) . ')')])"
+                        model="userId"
+                        change="window.ordersTable.draw()"
+                    />
 
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Order Source</label>
-                        <select x-model="orderSource" @change="window.ordersTable.draw()" class="form-input">
-                            <option value="">All Sources</option>
-                            <option value="visit">📍 Physical Visit</option>
-                            <option value="phone">📞 Phone / Direct</option>
-                        </select>
-                    </div>
+                    <x-filter-select
+                        label="Order Source"
+                        placeholder="All Sources"
+                        :options="[
+                            'visit' => 'Physical Visit',
+                            'phone' => 'Phone / Direct'
+                        ]"
+                        model="orderSource"
+                        change="window.ordersTable.draw()"
+                    />
 
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Shift Timing</label>
-                        <select x-model="timing" @change="window.ordersTable.draw()" class="form-input">
-                            <option value="">All Timings</option>
-                            <option value="during_shift">During Active Shift</option>
-                            <option value="after_day_end">After Day End (Off-Shift)</option>
-                        </select>
-                    </div>
+                    <x-filter-select
+                        label="Shift Timing"
+                        placeholder="All Timings"
+                        :options="[
+                            'during_shift' => 'During Active Shift',
+                            'after_day_end' => 'After Day End (Off-Shift)'
+                        ]"
+                        model="timing"
+                        change="window.ordersTable.draw()"
+                    />
                 </div>
             </div>
 
@@ -234,14 +234,16 @@
                                     `;
                                 }
                                 return `
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200" title="Direct Phone Order placed during active shift">
-                                        📞 Phone (Shift)
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200" title="Direct Phone Order placed during active shift">
+                                        <svg class="w-3 h-3 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                                        Phone (Shift)
                                     </span>
                                 `;
                             }
                             return `
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200" title="Physical Store Visit Order">
-                                    📍 Visit Order
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200" title="Physical Store Visit Order">
+                                    <svg class="w-3 h-3 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    Visit Order
                                 </span>
                             `;
                         }

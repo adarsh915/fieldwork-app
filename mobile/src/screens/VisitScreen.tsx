@@ -194,7 +194,9 @@ export default function VisitScreen() {
         setSubmitting(false);
         return;
       }
-      const location = await Location.getCurrentPositionAsync({});
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
       
       const res = await checkIn({ 
         party_id: partyId,
@@ -221,7 +223,9 @@ export default function VisitScreen() {
       let lat: number | undefined;
       let lng: number | undefined;
       try {
-        const location = await Location.getCurrentPositionAsync({});
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Highest,
+        });
         lat = location.coords.latitude;
         lng = location.coords.longitude;
       } catch (e) {

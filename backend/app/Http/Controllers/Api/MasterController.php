@@ -189,9 +189,14 @@ class MasterController extends Controller
             'customers.mobile',
             'customers.address',
             'customers.city',
+            'customers.state',
             'customers.district_id',
             'customers.area_id',
+            'customers.party_type',
+            'customers.category',
         ];
+
+        $query->with(['district:id,name,state']);
 
         // PERFORMANCE FIX: Add pagination support (default 50, max 100)
         $perPage = min(100, max(1, $request->get('per_page', 50)));
@@ -233,7 +238,7 @@ class MasterController extends Controller
      */
     public function partyDetails($id): JsonResponse
     {
-        $party = Customer::with(['district:id,name', 'area:id,name'])->find($id);
+        $party = Customer::with(['district:id,name,state', 'area:id,name'])->find($id);
         
         if (!$party) {
             return response()->json(['success' => false, 'message' => 'Party not found'], 404);

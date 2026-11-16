@@ -42,6 +42,14 @@ const ACTIONS: {
   */
 ];
 
+const getCategoryColor = (cat?: string | null) => {
+  const c = (cat || "").toUpperCase().trim();
+  if (c === "A") return { bg: "#FEF3C7", text: "#B45309", border: "#FDE68A" };
+  if (c === "B") return { bg: "#EEF2FF", text: "#4338CA", border: "#C7D2FE" };
+  if (c === "C") return { bg: "#ECFDF5", text: "#047857", border: "#A7F3D0" };
+  return { bg: "#F3F4F6", text: "#4B5563", border: "#E5E7EB" };
+};
+
 export default function DealerListScreen() {
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState("");
@@ -161,75 +169,118 @@ export default function DealerListScreen() {
     }
   };
 
-  const renderDealerCard = useCallback(({ item: dealer }: { item: Party }) => (
-    <View style={styles.dealerCard}>
-      <View style={styles.dealerAccent} />
-      <View style={styles.dealerBody}>
-        <View style={styles.dealerHeaderRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.dealerTitle}>{dealer.name}</Text>
-            {dealer.approval_status === "pending" && (
-              <View style={styles.pendingBadge}>
-                <MaterialCommunityIcons name="clock-outline" size={10} color="#D97706" />
-                <Text style={styles.pendingBadgeText}>Pending Approval</Text>
+  const renderDealerCard = useCallback(({ item: dealer }: { item: Party }) => {
+    const districtName = dealer.district?.name || dealer.city || "";
+    const stateName = dealer.state || dealer.district?.state || "";
+    const catStyle = getCategoryColor(dealer.category);
+
+    return (
+      <View style={styles.dealerCard}>
+        <View style={styles.dealerAccent} />
+        <View style={styles.dealerBody}>
+          <View style={styles.dealerHeaderRow}>
+            <View style={{ flex: 1, paddingRight: 6 }}>
+              <Text style={styles.dealerTitle} numberOfLines={2}>{dealer.name}</Text>
+
+              <View style={styles.badgeRow}>
+                {dealer.party_type ? (
+                  <View style={styles.typeBadge}>
+                    <MaterialCommunityIcons name="briefcase-outline" size={11} color="#5B21B6" />
+                    <Text style={styles.typeBadgeText}>{dealer.party_type}</Text>
+                  </View>
+                ) : null}
+
+                {dealer.category ? (
+                  <View style={[styles.categoryBadge, { backgroundColor: catStyle.bg, borderColor: catStyle.border }]}>
+                    <MaterialCommunityIcons name="tag-outline" size={11} color={catStyle.text} />
+                    <Text style={[styles.categoryBadgeText, { color: catStyle.text }]}>
+                      Cat {dealer.category.toUpperCase()}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {dealer.approval_status === "pending" && (
+                  <View style={styles.pendingBadge}>
+                    <MaterialCommunityIcons name="clock-outline" size={10} color="#D97706" />
+                    <Text style={styles.pendingBadgeText}>Pending Approval</Text>
+                  </View>
+                )}
               </View>
+            </View>
+
+            {dealer.approval_status !== "pending" && (
+              <TouchableOpacity
+                style={styles.menuBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={(e) => {
+                  const pageY = e.nativeEvent?.pageY || 120;
+                  const pageX = e.nativeEvent?.pageX || 300;
+                  setMenuPosition({ x: pageX, y: pageY });
+                  setMenuDealer(dealer);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="dots-vertical"
+                  size={18}
+                  color="#7367F0"
+                />
+              </TouchableOpacity>
             )}
           </View>
-          {dealer.approval_status !== "pending" && (
-            <TouchableOpacity
-              style={styles.menuBtn}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              onPress={(e) => {
-                const pageY = e.nativeEvent?.pageY || 120;
-                const pageX = e.nativeEvent?.pageX || 300;
-                setMenuPosition({ x: pageX, y: pageY });
-                setMenuDealer(dealer);
-              }}
-            >
+
+          {dealer.mobile ? (
+            <View style={styles.dealerRow}>
               <MaterialCommunityIcons
-                name="dots-vertical"
-                size={18}
+                name="phone"
+                size={14}
                 color="#7367F0"
               />
-            </TouchableOpacity>
-          )}
-        </View>
+              <Text style={styles.dealerText}>{dealer.mobile}</Text>
+            </View>
+          ) : null}
 
-        {dealer.mobile ? (
+          {(districtName || stateName) ? (
+            <View style={styles.dealerRow}>
+              <MaterialCommunityIcons
+                name="map-marker-outline"
+                size={14}
+                color="#7367F0"
+              />
+              <Text style={styles.locationText} numberOfLines={1}>
+                {districtName ? (
+                  <>
+                    <Text style={styles.locationLabel}>District: </Text>
+                    <Text style={styles.locationValue}>{districtName}</Text>
+                  </>
+                ) : null}
+                {districtName && stateName ? (
+                  <Text style={styles.locationDivider}>  |  </Text>
+                ) : null}
+                {stateName ? (
+                  <>
+                    <Text style={styles.locationLabel}>State: </Text>
+                    <Text style={styles.locationValue}>{stateName}</Text>
+                  </>
+                ) : null}
+              </Text>
+            </View>
+          ) : null}
+
           <View style={styles.dealerRow}>
             <MaterialCommunityIcons
-              name="phone"
-              size={16}
-              color="#111827"
+              name="home-outline"
+              size={14}
+              color="#7367F0"
             />
-            <Text style={styles.dealerText}>{dealer.mobile}</Text>
+            <Text style={styles.dealerAddressText} numberOfLines={2}>
+              {dealer.address || "No address provided"}
+            </Text>
           </View>
-        ) : null}
-
-        <Text style={styles.dealerTextBold}>
-          {dealer.address || "No address"}
-        </Text>
-
-        {/* Hidden: Bal, Whatsapp icon, and Credit Limit per request (hidden, not removed)
-        <View style={styles.dealerFooterRow}>
-          <Text style={styles.balance}>
-            <Text style={{ color: "#ef4444" }}>Bal :</Text>{" "}
-            <Text style={{ color: "#16a34a" }}>0Db</Text>
-          </Text>
-          {dealer.mobile ? (
-            <MaterialCommunityIcons
-              name="whatsapp"
-              size={18}
-              color="#16a34a"
-            />
-          ) : null}
-          <Text style={styles.clText}>CL:0</Text>
         </View>
-        */}
       </View>
-    </View>
-  ), []);
+    );
+  }, []);
 
   const renderHeader = useCallback(
     () => (
@@ -329,7 +380,7 @@ export default function DealerListScreen() {
         <View style={styles.searchWrap}>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search dealers by name, mobile..."
+            placeholder="Search dealers by name, mobile, district, category..."
             placeholderTextColor="#8E8E8E"
             value={query}
             onChangeText={setQuery}
@@ -635,9 +686,46 @@ const styles = StyleSheet.create({
   dealerTitle: {
     flex: 1,
     fontWeight: "900",
-    fontSize: 12,
+    fontSize: 13.5,
     color: "#111827",
-    paddingRight: 10,
+    paddingRight: 8,
+    lineHeight: 18,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  typeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 4,
+  },
+  typeBadgeText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: "#5B21B6",
+  },
+  categoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 4,
+  },
+  categoryBadgeText: {
+    fontSize: 10.5,
+    fontWeight: "800",
   },
   menuBtn: {
     width: 28,
@@ -658,11 +746,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#111827",
   },
-  dealerTextBold: {
-    fontWeight: "800",
+  locationText: {
+    fontSize: 11.5,
+    color: "#374151",
+    flex: 1,
+  },
+  locationLabel: {
     fontSize: 11,
-    color: "#111827",
-    marginBottom: 2,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  locationValue: {
+    fontSize: 11.5,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  locationDivider: {
+    fontSize: 11,
+    color: "#D1D5DB",
+    fontWeight: "700",
+  },
+  dealerAddressText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+    flex: 1,
   },
   dealerFooterRow: {
     marginTop: 6,
@@ -733,11 +841,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: "flex-start",
-    marginTop: 4,
+    borderRadius: 6,
     gap: 3,
   },
   pendingBadgeText: {

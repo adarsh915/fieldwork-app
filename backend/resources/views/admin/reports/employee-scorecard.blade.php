@@ -162,13 +162,15 @@
                                                 🌙 Phone (Night)
                                             </span>
                                         @else
-                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                                                📞 Phone (Shift)
+                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                <x-lucide-phone class="w-3 h-3 text-blue-600" />
+                                                Phone (Shift)
                                             </span>
                                         @endif
                                     @else
-                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                            📍 Visit Order
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <x-lucide-map-pin class="w-3 h-3 text-emerald-600" />
+                                            Visit Order
                                         </span>
                                     @endif
                                 </td>

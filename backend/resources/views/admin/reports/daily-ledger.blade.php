@@ -1,230 +1,380 @@
 @extends('admin.layouts.app')
 
 @section('title', 'Daily Field Operations Ledger')
-@section('breadcrumb', 'Admin / Reports / Daily Ledger')
+@section('breadcrumb', 'ADMIN / REPORTS / DAILY LEDGER')
 @section('page_title', 'Daily Field Operations Ledger')
 
 @section('content')
-<div class="space-y-6">
+<div class="space-y-6" x-data="dailyLedgerManager({
+    initialPreset: '{{ $dateRange['preset'] ?? 'this_month' }}',
+    initialUserId: '{{ $selectedUser ?? '' }}',
+    initialFrom: '{{ $dateRange['from'] ?? '' }}',
+    initialTo: '{{ $dateRange['to'] ?? '' }}',
+    initialLabel: '{{ $dateRange['label'] ?? '' }}'
+})">
 
-    {{-- ── Top Navigation & Header ── --}}
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-            <h1 class="text-2xl font-black tracking-tight text-ink-900">Daily Field Operations Ledger</h1>
-            <p class="text-sm text-ink-500 mt-0.5">
-                Day-by-day audit trail of field employee shifts, odometer travel, visits, and expenses.
-            </p>
-        </div>
-        <div class="flex items-center gap-2">
-            <a href="{{ route('admin.reports.index', request()->query()) }}" 
-               class="btn-secondary text-xs py-2 px-3.5 inline-flex items-center gap-1.5 shadow-sm">
-                <x-lucide-arrow-left class="w-4 h-4" /> Back to Matrix
-            </a>
-        </div>
-    </div>
+    {{-- ── Main Container Panel ── --}}
+    <div class="panel">
 
-    {{-- ── Date Presets & Filter Panel ── --}}
-    <div class="panel p-5 bg-white border border-slate-200 shadow-sm rounded-xl">
-        <form method="GET" action="{{ route('admin.reports.daily-ledger') }}">
-            
-            <div class="flex flex-wrap items-center gap-1.5 pb-4 mb-4 border-b border-slate-100">
-                <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mr-2">Range:</span>
-                @php
-                    $presets = [
-                        'today'      => 'Today',
-                        'yesterday'  => 'Yesterday',
-                        'this_week'  => 'This Week',
-                        'last_week'  => 'Last Week',
-                        'this_month' => 'This Month',
-                        'last_month' => 'Last Month',
-                    ];
-                @endphp
-                @foreach($presets as $key => $name)
-                    <button type="submit" name="preset" value="{{ $key }}"
-                            class="px-3 py-1 text-xs font-semibold rounded-full border transition-all 
-                            {{ $dateRange['preset'] === $key ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50' }}">
-                        {{ $name }}
+        {{-- ── Panel Header ── --}}
+        <div class="panel-header space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                    <h2 class="text-section-title">Daily Field Operations Ledger</h2>
+                    <p class="text-caption mt-1">
+                        Comprehensive day-by-day audit trail of field employee shifts, odometer tracking, client visits, and expenses.
+                    </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('admin.reports.export-csv', request()->query()) }}" 
+                       class="btn-secondary text-xs py-2 px-3.5 inline-flex items-center gap-1.5 shadow-2xs">
+                        <x-lucide-download class="w-4 h-4 text-ink-500" />
+                        <span>Export CSV</span>
+                    </a>
+                    <a href="{{ route('admin.reports.index') }}" 
+                       class="btn-secondary text-xs py-2 px-3.5 inline-flex items-center gap-1.5 shadow-2xs">
+                        <x-lucide-arrow-left class="w-4 h-4 text-ink-500" />
+                        <span>Back to Matrix</span>
+                    </a>
+                </div>
+            </div>
+
+            {{-- ── Date Presets Toolbar ── --}}
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-surface-border">
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-caption uppercase tracking-wider text-ink-500 font-bold mr-1.5 text-[11px]">Quick Range:</span>
+                    @php
+                        $presets = [
+                            'today'      => 'Today',
+                            'yesterday'  => 'Yesterday',
+                            'this_week'  => 'This Week',
+                            'last_week'  => 'Last Week',
+                            'this_month' => 'This Month',
+                            'last_month' => 'Last Month',
+                        ];
+                    @endphp
+                    @foreach($presets as $key => $name)
+                        <button type="button" 
+                                @click="setPreset('{{ $key }}')"
+                                :class="preset === '{{ $key }}' ? 'bg-brand-600 text-white font-bold shadow-xs border-brand-600' : 'bg-surface-muted text-ink-600 hover:bg-slate-200 border-surface-border font-medium'"
+                                class="px-3 py-1 text-xs rounded-full border transition-all">
+                            {{ $name }}
+                        </button>
+                    @endforeach
+                </div>
+                <div class="text-xs text-ink-500 font-medium">
+                    Active Range: <strong class="text-ink-900 font-bold" x-text="dateLabel"></strong>
+                </div>
+            </div>
+
+            {{-- ── Quick Search & Reset Row ── --}}
+            <div class="mt-4 flex flex-wrap gap-3 items-end">
+                {{-- Search --}}
+                <div class="relative flex-1 min-w-[200px]">
+                    <x-lucide-search class="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input type="text" 
+                           x-model="search" 
+                           @input.debounce.350ms="applyFilters()"
+                           placeholder="Search employee, ID, KM, date..." 
+                           class="form-input text-xs pl-9 pr-8 h-[38px] w-full" />
+                    <button type="button" 
+                            x-show="search" 
+                            @click="search = ''; applyFilters()" 
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 transition"
+                            style="display: none;"
+                            title="Clear search">
+                        <x-lucide-x class="w-3.5 h-3.5" />
                     </button>
-                @endforeach
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div class="md:col-span-3">
-                    <label class="form-label text-xs">Filter by Employee</label>
-                    <select name="user_id" class="form-input text-xs py-1.5" onchange="this.form.submit()">
-                        <option value="">All Employees ({{ $employeesList->count() }})</option>
-                        @foreach($employeesList as $emp)
-                            <option value="{{ $emp->id }}" {{ $selectedUser == $emp->id ? 'selected' : '' }}>
-                                {{ $emp->name }} ({{ $emp->role_name }})
-                            </option>
-                        @endforeach
-                    </select>
                 </div>
 
-                <div class="flex gap-2">
-                    <input type="hidden" name="preset" value="{{ $dateRange['preset'] }}" />
-                    <button type="submit" class="btn-primary text-xs py-2 px-4 flex-1">Filter</button>
-                    <a href="{{ route('admin.reports.daily-ledger') }}" class="btn-secondary text-xs py-2 px-3">Reset</a>
+                {{-- Reset Button --}}
+                <button type="button" 
+                        @click="resetFilters()" 
+                        class="btn-secondary h-[38px] px-4 text-xs font-semibold inline-flex items-center justify-center gap-1.5 shrink-0"
+                        title="Reset all filters">
+                    <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                    <span>Reset Filters</span>
+                </button>
+            </div>
+
+            {{-- ── Filters Grid (4 Columns, exactly like Day Starts) ── --}}
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {{-- Date From --}}
+                <div>
+                    <label class="form-label">Date From</label>
+                    <input type="date" 
+                           x-model="dateFrom" 
+                           @change="onCustomDateChange()" 
+                           class="form-input text-xs h-[38px] w-full">
                 </div>
-            </div>
 
-            <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
-                <span>Active Range: <strong class="text-slate-900 font-semibold">{{ $dateRange['label'] }}</strong></span>
-                <span>Total records: <strong>{{ $records->total() }}</strong></span>
-            </div>
-        </form>
-    </div>
+                {{-- Date To --}}
+                <div>
+                    <label class="form-label">Date To</label>
+                    <input type="date" 
+                           x-model="dateTo" 
+                           @change="onCustomDateChange()" 
+                           class="form-input text-xs h-[38px] w-full">
+                </div>
 
-    {{-- ── Daily Ledger Table ── --}}
-    <div class="panel overflow-hidden border border-slate-200 shadow-sm rounded-xl bg-white">
-        {{-- Quick Search Toolbar --}}
-        <div class="p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <div class="relative flex-1 min-w-[200px] max-w-sm">
-                <input type="text" id="ledger-search-input" placeholder="Search employee, date, status..." 
-                       class="form-input text-xs py-2 pl-9 pr-3 w-full rounded-lg border-slate-200 bg-white shadow-2xs focus:border-brand-500" />
-                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-            </div>
-            <div class="text-xs text-slate-500 font-semibold">
-                Showing {{ $records->count() }} of {{ $records->total() }} records
+                {{-- Employee Filter --}}
+                <x-filter-select
+                    label="Employee"
+                    placeholder="All Employees ({{ $employeesList->count() }})"
+                    :options="$employeesList->mapWithKeys(fn($emp) => [$emp->id => $emp->name . ' (' . ($emp->role_name ?? ($emp->roles->first()?->name ?? 'Field Worker')) . ')'])"
+                    model="userId"
+                    change="applyFilters()"
+                />
+
+                {{-- Status Filter --}}
+                <x-filter-select
+                    label="Shift Status"
+                    placeholder="All Statuses"
+                    :options="[
+                        'completed' => 'Completed',
+                        'in_progress' => 'In Progress',
+                        'auto_closed' => 'Auto Closed'
+                    ]"
+                    model="status"
+                    change="applyFilters()"
+                />
             </div>
         </div>
 
-        <div class="table-wrap overflow-x-auto">
-            <table id="daily-ledger-table" class="data-table w-full text-left border-collapse">
+        {{-- ── DataTable Section ── --}}
+        <div class="table-wrap min-h-[420px]">
+            <table id="daily-ledger-table" class="data-table w-full">
                 <thead>
-                    <tr class="bg-slate-50 border-y border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        <th class="py-3 px-4">Date</th>
-                        <th class="py-3 px-4">Employee</th>
-                        <th class="py-3 px-3 text-center">Opening KM</th>
-                        <th class="py-3 px-3 text-center">Closing KM</th>
-                        <th class="py-3 px-3 text-center">Distance</th>
-                        <th class="py-3 px-3 text-center">Visits Done</th>
-                        <th class="py-3 px-4 text-right">Expenses Claimed</th>
-                        <th class="py-3 px-3 text-center">Status</th>
-                        <th class="py-3 px-4 text-right">Action</th>
+                    <tr>
+                        <th class="whitespace-nowrap">Date</th>
+                        <th>Employee</th>
+                        <th class="text-center whitespace-nowrap">Opening KM</th>
+                        <th class="text-center whitespace-nowrap">Closing KM</th>
+                        <th class="text-center whitespace-nowrap">Distance</th>
+                        <th class="text-center whitespace-nowrap">Visits Done</th>
+                        <th class="text-right whitespace-nowrap">Expenses Claimed</th>
+                        <th class="text-center whitespace-nowrap">Shift Status</th>
+                        <th class="text-right whitespace-nowrap w-24">Action</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100 text-xs text-slate-700">
-                    @forelse($records as $rec)
-                        @php
-                            $distance = ($rec->closing_km && $rec->opening_km) ? max(0, $rec->closing_km - $rec->opening_km) : null;
-                        @endphp
-                        <tr class="hover:bg-slate-50/80 transition-colors">
-                            <td class="py-3.5 px-4 font-bold text-slate-900" data-order="{{ $rec->date }}">
-                                {{ \Carbon\Carbon::parse($rec->date)->format('D, d M Y') }}
-                            </td>
-                            <td class="py-3.5 px-4" data-order="{{ $rec->user ? $rec->user->name : '' }}">
-                                <div class="font-bold text-slate-900">{{ $rec->user ? $rec->user->name . ' (' . $rec->user->role_name . ')' : 'N/A' }}</div>
-                            </td>
-                            <td class="py-3.5 px-3 text-center text-slate-600 font-medium" data-order="{{ $rec->opening_km ?? 0 }}">
-                                {{ $rec->opening_km ?? '—' }}
-                            </td>
-                            <td class="py-3.5 px-3 text-center text-slate-600 font-medium" data-order="{{ $rec->closing_km ?? 0 }}">
-                                {{ $rec->closing_km ?? '—' }}
-                            </td>
-                            <td class="py-3.5 px-3 text-center font-bold text-emerald-700" data-order="{{ $distance ?? 0 }}">
-                                {{ $distance !== null ? number_format($distance, 1) . ' KM' : '—' }}
-                            </td>
-                            <td class="py-3.5 px-3 text-center" data-order="{{ $rec->visits->count() }}">
-                                <span class="badge badge-secondary font-bold text-xs">{{ $rec->visits->count() }} visits</span>
-                            </td>
-                            <td class="py-3.5 px-4 text-right font-bold text-slate-900" data-order="{{ $rec->expenses->sum('amount') }}">
-                                ₹{{ number_format($rec->expenses->sum('amount'), 2) }}
-                            </td>
-                            <td class="py-3.5 px-3 text-center" data-order="{{ $rec->status }}">
-                                @if($rec->status === 'auto_closed' || (!$rec->closing_km && $rec->date < \Carbon\Carbon::today()))
-                                    <span class="badge badge-warning text-[10px]">Auto Closed</span>
-                                @elseif($rec->closing_km)
-                                    <span class="badge badge-success text-[10px]">Completed</span>
-                                @else
-                                    <span class="badge badge-primary text-[10px]">In Progress</span>
-                                @endif
-                            </td>
-                            <td class="py-3.5 px-4 text-right">
-                                <a href="{{ route('admin.day-starts.show', $rec->id) }}" class="btn-secondary px-2.5 py-1 text-xs inline-flex items-center gap-1 font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200">
-                                    View Day
-                                </a>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="9" class="text-center py-12 text-slate-400">
-                                <p class="text-sm font-semibold text-slate-600">No shift records found for this period.</p>
-                            </td>
-                        </tr>
-                    @endforelse
+                <tbody>
+                    {{-- DataTables serverSide populates this --}}
                 </tbody>
             </table>
         </div>
 
-        <div class="p-4 border-t border-slate-100">
-            {{ $records->links() }}
-        </div>
     </div>
-
 </div>
 @endsection
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    let ledgerTable = null;
+function dailyLedgerManager(config) {
+    return {
+        search: '',
+        preset: config.initialPreset || 'this_month',
+        userId: config.initialUserId || '',
+        status: '',
+        dateFrom: config.initialFrom || '',
+        dateTo: config.initialTo || '',
+        dateLabel: config.initialLabel || 'This Month',
 
-    function getDT() {
-        return window.DataTable || (typeof DataTable !== 'undefined' ? DataTable : null);
-    }
+        setPreset(p) {
+            this.preset = p;
+            this.dateFrom = '';
+            this.dateTo = '';
+            const labels = {
+                'today': 'Today',
+                'yesterday': 'Yesterday',
+                'this_week': 'This Week',
+                'last_week': 'Last Week',
+                'this_month': 'This Month',
+                'last_month': 'Last Month'
+            };
+            this.dateLabel = labels[p] || p;
+            this.applyFilters();
+        },
 
-    function initLedgerTable() {
-        const tableEl = document.getElementById('daily-ledger-table');
-        if (!tableEl) return;
-        const DT = getDT();
-        if (!DT) return;
-
-        const hasEmpty = tableEl.querySelector('tbody tr td[colspan]') !== null;
-        if (hasEmpty) return;
-
-        ledgerTable = new DT('#daily-ledger-table', {
-            paging: false,
-            order: [[0, 'desc']], // Sort by Date descending
-            columnDefs: [
-                { targets: [8], orderable: false, searchable: false }
-            ],
-            dom: 'rt<"flex items-center justify-between px-6 py-3 border-t border-surface-border"<"text-caption text-ink-500 font-medium"i>>',
-            language: {
-                info: "Showing _TOTAL_ ledger entries on this page",
-                infoEmpty: "Showing 0 entries",
-                emptyTable: "No shift records found for this period."
+        onCustomDateChange() {
+            if (this.dateFrom || this.dateTo) {
+                this.preset = '';
+                this.dateLabel = (this.dateFrom || 'Start') + ' to ' + (this.dateTo || 'End');
             }
-        });
+            this.applyFilters();
+        },
 
-        document.getElementById('ledger-search-input')?.addEventListener('input', function () {
-            if (ledgerTable) {
-                ledgerTable.search(this.value).draw();
+        applyFilters() {
+            if (window.ledgerTable) {
+                window.ledgerTable.draw();
             }
-        });
-    }
+        },
 
-    function ensureLedgerDT() {
-        if (getDT()) {
-            initLedgerTable();
-        } else {
-            let tries = 0;
-            const timer = setInterval(() => {
-                tries++;
-                if (getDT()) {
-                    clearInterval(timer);
-                    initLedgerTable();
-                } else if (tries > 50) {
-                    clearInterval(timer);
-                }
-            }, 50);
+        resetFilters() {
+            this.search = '';
+            this.preset = 'this_month';
+            this.userId = '';
+            this.status = '';
+            this.dateFrom = '';
+            this.dateTo = '';
+            this.dateLabel = 'This Month';
+            if (window.ledgerTable) {
+                window.ledgerTable.draw();
+            }
         }
-    }
+    };
+}
 
-    ensureLedgerDT();
+document.addEventListener('DOMContentLoaded', function () {
+    const tableEl = document.getElementById('daily-ledger-table');
+    if (!tableEl) return;
+
+    window.ledgerTable = new DataTable('#daily-ledger-table', {
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{{ route('admin.reports.daily-ledger.data') }}',
+            data: function (d) {
+                const manager = window.Alpine ? Alpine.$data(tableEl.closest('[x-data]')) : null;
+                if (manager) {
+                    d.search = manager.search || '';
+                    d.preset = manager.preset || '';
+                    d.user_id = manager.userId || '';
+                    d.status = manager.status || '';
+                    d.date_from = manager.dateFrom || '';
+                    d.date_to = manager.dateTo || '';
+                }
+            }
+        },
+        columns: [
+            // Date
+            {
+                data: 'date',
+                className: 'whitespace-nowrap',
+                render: function (data) {
+                    return `
+                        <div class="font-bold text-ink-900 text-xs">${data.formatted}</div>
+                        <div class="text-[11px] text-ink-400 font-medium">${data.day}</div>
+                    `;
+                }
+            },
+            // Employee
+            {
+                data: 'employee',
+                render: function (data) {
+                    return `
+                        <div class="font-bold text-ink-900 text-sm">${data.name}</div>
+                        <div class="text-caption text-ink-400 text-xs flex items-center gap-1.5 mt-0.5">
+                            <span>${data.role}</span>
+                            ${data.employee_id ? `<span class="text-ink-300">•</span><span>${data.employee_id}</span>` : ''}
+                        </div>
+                    `;
+                }
+            },
+            // Opening KM
+            {
+                data: 'opening_km',
+                className: 'text-center font-medium text-ink-700 text-xs',
+                render: function (data) {
+                    return data !== '—' ? `<span class="font-mono">${data}</span>` : `<span class="text-ink-400">—</span>`;
+                }
+            },
+            // Closing KM
+            {
+                data: 'closing_km',
+                className: 'text-center font-medium text-ink-700 text-xs',
+                render: function (data) {
+                    return data !== '—' ? `<span class="font-mono">${data}</span>` : `<span class="text-ink-400">—</span>`;
+                }
+            },
+            // Distance
+            {
+                data: 'distance',
+                className: 'text-center whitespace-nowrap',
+                render: function (data) {
+                    if (!data || data.raw <= 0) {
+                        return `<span class="text-ink-400 text-xs">—</span>`;
+                    }
+                    return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">${data.formatted}</span>`;
+                }
+            },
+            // Visits Done
+            {
+                data: 'visits_count',
+                className: 'text-center whitespace-nowrap',
+                render: function (count) {
+                    if (count > 0) {
+                        return `<span class="badge badge-secondary font-semibold text-xs">${count} visit${count !== 1 ? 's' : ''}</span>`;
+                    }
+                    return `<span class="text-ink-400 text-xs font-normal">0 visits</span>`;
+                }
+            },
+            // Expenses Claimed
+            {
+                data: 'expenses_sum',
+                className: 'text-right whitespace-nowrap font-bold text-xs',
+                render: function (data) {
+                    if (!data || data.raw <= 0) {
+                        return `<span class="text-ink-400 font-normal">₹0.00</span>`;
+                    }
+                    return `<span class="text-ink-900">${data.formatted}</span>`;
+                }
+            },
+            // Shift Status
+            {
+                data: 'status',
+                className: 'text-center whitespace-nowrap',
+                render: function (status) {
+                    let badgeClass = 'badge-neutral';
+                    if (status.code === 'completed') badgeClass = 'badge-success';
+                    else if (status.code === 'in_progress') badgeClass = 'badge-primary';
+                    else if (status.code === 'auto_closed') badgeClass = 'badge-warning';
+
+                    return `<span class="badge ${badgeClass} text-[11px] font-semibold">${status.label}</span>`;
+                }
+            },
+            // Actions (View Button)
+            {
+                data: 'actions',
+                orderable: false,
+                searchable: false,
+                className: 'text-right whitespace-nowrap w-24',
+                render: function (actions) {
+                    return `
+                        <div class="flex items-center justify-end gap-1.5">
+                            <a href="${actions.show_url}" 
+                               class="btn-secondary px-2.5 py-1 text-xs inline-flex items-center gap-1.5 font-semibold text-ink-700 hover:text-brand-600 hover:bg-brand-50 hover:border-brand-300 transition-colors shadow-2xs group"
+                               title="View Tour Day Details">
+                                <svg class="w-3.5 h-3.5 text-ink-500 group-hover:text-brand-600 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                                <span>View</span>
+                            </a>
+                        </div>
+                    `;
+                }
+            }
+        ],
+        order: [[0, 'desc']],
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+        dom: 'rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-surface-border"<"text-caption text-ink-400"i><""p>>',
+        language: {
+            info: "Showing _START_ to _END_ of _TOTAL_ ledger entries",
+            infoEmpty: "Showing 0 records",
+            infoFiltered: "(filtered from _MAX_ total)",
+            emptyTable: "No shift records found for this period.",
+            paginate: {
+                previous: "‹ Prev",
+                next: "Next ›"
+            }
+        },
+        drawCallback: function () {
+            if (window.Alpine) {
+                window.Alpine.initTree(document.getElementById('daily-ledger-table'));
+            }
+        }
+    });
 });
 </script>
 @endpush
-

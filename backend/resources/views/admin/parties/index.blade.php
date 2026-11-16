@@ -61,7 +61,16 @@
                 partyType: '',
                 category: '',
                 status: '',
-                filtersVisible: false
+                resetFilters() {
+                    this.search = '';
+                    this.employeeId = '';
+                    this.partyType = '';
+                    this.category = '';
+                    this.status = '';
+                    if (window.partyTable) {
+                        window.partyTable.search('').draw();
+                    }
+                }
             }" class="mt-4">
                 <div class="flex flex-wrap gap-3 items-end">
                     {{-- Search --}}
@@ -69,68 +78,65 @@
                         <x-lucide-search
                             class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
                         <input x-model="search" @input.debounce.500ms="window.partyTable.search(search).draw()"
-                            class="form-input pl-9" placeholder="Search name, code, mobile, email, city…">
+                            class="form-input pl-9 pr-8" placeholder="Search name, code, mobile, email, city…">
+                        <button type="button"
+                            x-show="search"
+                            @click="search = ''; window.partyTable.search('').draw()"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600"
+                            style="display: none;"
+                            title="Clear search">
+                            <x-lucide-x class="w-4 h-4" />
+                        </button>
                     </div>
 
-                    {{-- Toggle Filters Button --}}
-                    <x-button type="button" variant="secondary" @click="filtersVisible = !filtersVisible">
-                        <x-lucide-filter class="w-4 h-4" />
-                        <span x-text="filtersVisible ? 'Hide Filters' : 'Show Filters'"></span>
-                    </x-button>
-
-                    {{-- Clear All --}}
+                    {{-- Reset Filters Button --}}
                     <x-button type="button" variant="secondary"
-                        @click="search=''; employeeId=''; partyType=''; category=''; status=''; window.partyTable.search('').draw()"
-                        x-show="search || employeeId || partyType || category || status">
-                        <x-lucide-x class="w-4 h-4" />
-                        Clear
+                        @click="resetFilters()"
+                        class="py-2 px-3.5 text-xs font-semibold gap-1.5 shrink-0"
+                        title="Reset all search and dropdown filters">
+                        <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                        <span>Reset Filters</span>
                     </x-button>
                 </div>
 
-                {{-- Advanced Filters --}}
-                <div x-show="filtersVisible" x-transition:enter="transition ease-out duration-200"
-                    x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
-                    class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Assigned Employee</label>
-                        <select x-model="employeeId" @change="window.partyTable.draw()" class="form-input">
-                            <option value="">All Employees</option>
-                            @foreach ($employees as $emp)
-                                <option value="{{ $emp->id }}">{{ $emp->name }} ({{ $emp->role_name }})</option>
-                            @endforeach
-                        </select>
-                    </div>
+                {{-- Filters Grid --}}
+                <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <x-filter-select
+                        label="Assigned Employee"
+                        placeholder="All Employees"
+                        :options="$employees->mapWithKeys(fn($emp) => [$emp->id => $emp->name . ' (' . ($emp->role_name ?? 'Field Worker') . ')'])"
+                        model="employeeId"
+                        change="window.partyTable.draw()"
+                    />
 
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Party Type</label>
-                        <select x-model="partyType" @change="window.partyTable.draw()" class="form-input">
-                            <option value="">All Types</option>
-                            @foreach ($partyTypes as $type)
-                                <option value="{{ $type }}">{{ $type }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    <x-filter-select
+                        label="Party Type"
+                        placeholder="All Types"
+                        :options="collect($partyTypes)->mapWithKeys(fn($t) => [$t => $t])"
+                        model="partyType"
+                        change="window.partyTable.draw()"
+                    />
 
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Category</label>
-                        <select x-model="category" @change="window.partyTable.draw()" class="form-input">
-                            <option value="">All Categories</option>
-                            @foreach ($categories as $cat)
-                                <option value="{{ $cat }}">{{ $cat }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    <x-filter-select
+                        label="Category"
+                        placeholder="All Categories"
+                        :options="collect($categories)->mapWithKeys(fn($c) => [$c => $c])"
+                        model="category"
+                        change="window.partyTable.draw()"
+                    />
 
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Status</label>
-                        <select x-model="status" @change="window.partyTable.draw()" class="form-input">
-                            <option value="">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="pending">Pending Approval</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                    </div>
+                    <x-filter-select
+                        label="Status"
+                        placeholder="All Status"
+                        :options="[
+                            'active' => 'Active',
+                            'inactive' => 'Inactive',
+                            'pending' => 'Pending Approval',
+                            'rejected' => 'Rejected'
+                        ]"
+                        model="status"
+                        change="window.partyTable.draw()"
+                    />
                 </div>
             </div>
         </div>

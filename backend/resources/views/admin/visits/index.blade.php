@@ -102,6 +102,35 @@
         if (this.search) params.append('search', this.search);
         const query = params.toString();
         return `{{ route('admin.visits.export') }}${query ? '?' + query : ''}`;
+    },
+
+    getPages() {
+        const current = Number(this.pagination.current_page) || 1;
+        const last = Number(this.pagination.last_page) || 1;
+        const delta = 2;
+        const range = [];
+        const rangeWithDots = [];
+        let l;
+
+        for (let i = 1; i <= last; i++) {
+            if (i === 1 || i === last || (i >= current - delta && i <= current + delta)) {
+                range.push(i);
+            }
+        }
+
+        for (let i of range) {
+            if (l) {
+                if (i - l === 2) {
+                    rangeWithDots.push(l + 1);
+                } else if (i - l !== 1) {
+                    rangeWithDots.push('...');
+                }
+            }
+            rangeWithDots.push(i);
+            l = i;
+        }
+
+        return rangeWithDots;
     }
 }">
     <!-- Lightbox Modal -->
@@ -131,58 +160,57 @@
             </div>
         </div>
 
-        {{-- AJAX Filters Form --}}
-        <form @submit.prevent="fetchRecords(1)" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        {{-- Search & Reset Controls --}}
+        <div class="mt-4 flex flex-wrap gap-3 items-end">
+            {{-- Search --}}
+            <div class="relative flex-1 min-w-[200px]">
+                <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
+                <input type="text" x-model="search" @input.debounce.350ms="fetchRecords(1)" @keydown.enter.prevent="fetchRecords(1)" placeholder="Search party name, code, purpose, notes..." class="form-input text-xs pl-9 pr-8 h-[38px] w-full">
+                <button type="button"
+                        x-show="search"
+                        @click="search = ''; fetchRecords(1)"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 transition"
+                        style="display: none;"
+                        title="Clear search">
+                    <x-lucide-x class="w-3.5 h-3.5" />
+                </button>
+            </div>
+
+            {{-- Reset Button --}}
+            <button type="button" @click="resetFilters()" class="btn-secondary h-[38px] px-4 text-xs font-semibold flex items-center justify-center gap-1.5 shrink-0" title="Reset all filters">
+                <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                <span>Reset Filters</span>
+            </button>
+        </div>
+
+        {{-- Filters Grid (4 Columns, exactly like Day Starts) --}}
+        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
                 <label class="form-label">Date From</label>
-                <input type="date" x-model="dateFrom" @change="fetchRecords(1)" class="form-input">
+                <input type="date" x-model="dateFrom" @change="fetchRecords(1)" class="form-input text-xs h-[38px] w-full">
             </div>
             <div>
                 <label class="form-label">Date To</label>
-                <input type="date" x-model="dateTo" @change="fetchRecords(1)" class="form-input">
+                <input type="date" x-model="dateTo" @change="fetchRecords(1)" class="form-input text-xs h-[38px] w-full">
             </div>
-            <div>
-                <label class="form-label">Field Worker</label>
-                <select x-model="employeeId" @change="fetchRecords(1)" class="form-input">
-                    <option value="">All Field Workers</option>
-                    @foreach ($employees as $employee)
-                        <option value="{{ $employee->id }}">
-                            {{ $employee->name }} ({{ $employee->role_name }})
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="form-label">Status</label>
-                <select x-model="status" @change="fetchRecords(1)" class="form-input">
-                    <option value="">All Statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="completed">Completed</option>
-                </select>
-            </div>
-            <div>
-                <label class="form-label">Search</label>
-                <input type="text" x-model="search" @keydown.enter.prevent="fetchRecords(1)" placeholder="Party or notes..." class="form-input">
-            </div>
-            <div class="flex items-end gap-2">
-                <button type="submit" :disabled="loading" class="btn-primary flex-1 py-2 text-sm font-semibold">
-                    <span x-show="!loading" class="flex items-center gap-1.5">
-                        <x-lucide-filter class="w-4 h-4" />
-                        Filter
-                    </span>
-                    <span x-show="loading" class="flex items-center gap-1.5">
-                        <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Filtering...
-                    </span>
-                </button>
-                <button type="button" @click="resetFilters" class="btn-secondary px-3 py-2 text-sm">
-                    Reset
-                </button>
-            </div>
-        </form>
+            <x-filter-select
+                label="Field Worker"
+                placeholder="All Field Workers"
+                :options="$employees->mapWithKeys(fn($e) => [$e->id => $e->name . ' (' . ($e->role_name ?? 'Field Worker') . ')'])"
+                model="employeeId"
+                change="fetchRecords(1)"
+            />
+            <x-filter-select
+                label="Status"
+                placeholder="All Statuses"
+                :options="[
+                    'pending' => 'Pending',
+                    'completed' => 'Completed'
+                ]"
+                model="status"
+                change="fetchRecords(1)"
+            />
+        </div>
     </div>
 
     {{-- DataTable Wrap --}}
@@ -288,26 +316,42 @@
         </table>
     </div>
     
-    {{-- AJAX Pagination --}}
+    {{-- AJAX Pagination with Prev, Next & Clickable Page Numbers --}}
     <div x-show="pagination.last_page > 1" class="border-t border-surface-border px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div class="text-xs text-ink-500">
-            Showing <span class="font-semibold text-ink-800" x-text="pagination.from"></span> to <span class="font-semibold text-ink-800" x-text="pagination.to"></span> of <span class="font-semibold text-ink-800" x-text="pagination.total"></span> visits
+        <div class="text-xs text-ink-600">
+            Showing <span class="font-semibold text-ink-900" x-text="pagination.from"></span> to <span class="font-semibold text-ink-900" x-text="pagination.to"></span> of <span class="font-semibold text-ink-900" x-text="pagination.total"></span> results
         </div>
-        <div class="flex items-center gap-1.5">
+        <div class="dt-paging flex items-center gap-1">
             <button type="button"
                 @click="fetchRecords(pagination.current_page - 1)"
                 :disabled="pagination.current_page <= 1 || loading"
-                class="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
-                Previous
+                class="dt-paging-button previous"
+                :class="{ 'disabled': pagination.current_page <= 1 || loading }">
+                ‹ Prev
             </button>
-            <span class="text-xs text-ink-600 px-2 font-medium">
-                Page <span x-text="pagination.current_page"></span> of <span x-text="pagination.last_page"></span>
-            </span>
+
+            <template x-for="(p, idx) in getPages()" :key="idx">
+                <span>
+                    <template x-if="p === '...'">
+                        <span class="ellipsis">…</span>
+                    </template>
+                    <template x-if="p !== '...'">
+                        <button type="button"
+                            @click="fetchRecords(p)"
+                            :class="p === pagination.current_page ? 'dt-paging-button current' : 'dt-paging-button'"
+                            :disabled="loading"
+                            x-text="p">
+                        </button>
+                    </template>
+                </span>
+            </template>
+
             <button type="button"
                 @click="fetchRecords(pagination.current_page + 1)"
                 :disabled="pagination.current_page >= pagination.last_page || loading"
-                class="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
-                Next
+                class="dt-paging-button next"
+                :class="{ 'disabled': pagination.current_page >= pagination.last_page || loading }">
+                Next ›
             </button>
         </div>
     </div>

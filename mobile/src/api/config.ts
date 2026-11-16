@@ -29,7 +29,7 @@ import { Platform } from "react-native";
 
 // --- PRODUCTION SERVER (Live APK / Cloud Backend) ---
 export const API_BASE_URL =
-    (process.env.EXPO_PUBLIC_API_URL ?? "https://amplfiled.codespine.in").replace(/\/+$/, "");
+    (process.env.EXPO_PUBLIC_API_URL ?? "https://amplfield.kisanogram.com").replace(/\/+$/, "");
 
 /** Laravel API prefix */
 export const API_PREFIX = "/api";

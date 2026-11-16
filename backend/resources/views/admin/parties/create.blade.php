@@ -72,6 +72,33 @@
                     </div>
 
                     <div>
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-input @error('category') border-red-500 @enderror">
+                            <option value="">Select Category (Optional)</option>
+                            <option value="A" {{ old('category') == 'A' ? 'selected' : '' }}>Category A</option>
+                            <option value="B" {{ old('category') == 'B' ? 'selected' : '' }}>Category B</option>
+                            <option value="C" {{ old('category') == 'C' ? 'selected' : '' }}>Category C</option>
+                            <option value="D" {{ old('category') == 'D' ? 'selected' : '' }}>Category D</option>
+                        </select>
+                        @error('category')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label class="form-label">Party Type</label>
+                        <select name="party_type" class="form-input @error('party_type') border-red-500 @enderror">
+                            <option value="Retailer" {{ old('party_type', 'Retailer') == 'Retailer' ? 'selected' : '' }}>Retailer</option>
+                            <option value="Distributor" {{ old('party_type') == 'Distributor' ? 'selected' : '' }}>Distributor</option>
+                            <option value="Wholesaler" {{ old('party_type') == 'Wholesaler' ? 'selected' : '' }}>Wholesaler</option>
+                            <option value="End Customer" {{ old('party_type') == 'End Customer' ? 'selected' : '' }}>End Customer</option>
+                        </select>
+                        @error('party_type')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
                         <label class="form-label">Status</label>
                         <div class="mt-2 flex items-center gap-2">
                             <input type="hidden" name="is_active" value="0">

@@ -9,7 +9,9 @@ use App\Models\User;
 use App\Models\Visit;
 use App\Services\DataScope;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Yajra\DataTables\Facades\DataTables;
 
 class ExpenseReportController extends Controller
 {
@@ -22,46 +24,170 @@ class ExpenseReportController extends Controller
             $monthInput = $request->input('month');
         }
         $month = Carbon::parse($monthInput);
+        $selectedUserId = $request->input('user_id');
 
         $scopedUserIds = DataScope::visibleUserIds('expenses');
 
-        // Fetch users and their expenses for the selected month (scoped)
-        $usersQuery = User::visibleToUser()->where('is_active', true);
+        // Calculate aggregated monthly totals for the overview cards / totals
+        $expensesQuery = ExpenseBill::query()
+            ->whereMonth('date', $month->month)
+            ->whereYear('date', $month->year);
 
-        $users = $usersQuery->with(['expenses' => function($q) use ($month) {
-            $q->whereMonth('date', $month->month)
-              ->whereYear('date', $month->year);
-        }, 'expenses.category'])->get();
+        if ($scopedUserIds !== null) {
+            $expensesQuery->whereIn('user_id', $scopedUserIds);
+        }
 
-        $summary = $users->map(function($user) {
-            // System Travel: Only final approved system-generated expenses are payable
-            $totalTravel = $user->expenses->where('is_system_generated', true)->where('status', 'approved')->sum('amount');
-            
-            // Manual Approved: Only final approved manual expenses are payable
-            $totalManualApproved = $user->expenses->where('is_system_generated', false)->where('status', 'approved')->sum('amount');
-            
-            // Manual Verified (Level 1): Manager verified, awaiting HR final approval
-            $totalManualVerified = $user->expenses->where('is_system_generated', false)->where('status', 'temp_approved')->sum('amount');
-            
-            // Manual Pending (Level 1): Awaiting manager verification
-            $totalManualPending = $user->expenses->where('is_system_generated', false)->where('status', 'pending')->sum('amount');
-            
-            // System Pending: System-generated travel not yet final approved
-            $totalSystemPending = $user->expenses->where('is_system_generated', true)->whereIn('status', ['pending', 'temp_approved'])->sum('amount');
-            
-            return [
-                'user'                  => $user,
-                'total_travel'          => $totalTravel,
-                'total_manual_approved' => $totalManualApproved,
-                'total_manual_verified' => $totalManualVerified,
-                'total_manual_pending'  => $totalManualPending,
-                'total_system_pending'  => $totalSystemPending,
-                'total_pending_all'     => $totalManualVerified + $totalManualPending + $totalSystemPending,
-                'grand_total'           => $totalTravel + $totalManualApproved, // Only final approved amounts are payable
-            ];
-        });
+        if ($selectedUserId) {
+            $expensesQuery->where('user_id', $selectedUserId);
+        }
 
-        return view('admin.expenses.reports.monthly', compact('summary', 'monthInput'));
+        $allTravel = (float) (clone $expensesQuery)->where('is_system_generated', true)->where('status', 'approved')->sum('amount');
+        $allManualApproved = (float) (clone $expensesQuery)->where('is_system_generated', false)->where('status', 'approved')->sum('amount');
+        $allManualVerified = (float) (clone $expensesQuery)->where('is_system_generated', false)->where('status', 'temp_approved')->sum('amount');
+        $allManualPending = (float) (clone $expensesQuery)->where('is_system_generated', false)->where('status', 'pending')->sum('amount');
+        $allGrandTotal = $allTravel + $allManualApproved;
+
+        $totals = [
+            'allTravel' => $allTravel,
+            'allManualApproved' => $allManualApproved,
+            'allGrandTotal' => $allGrandTotal,
+            'allManualVerified' => $allManualVerified,
+            'allManualPending' => $allManualPending,
+        ];
+
+        $workersQuery = User::visibleToUser()
+            ->where('is_active', true)
+            ->select('id', 'name', 'employee_id')
+            ->with('roles:id,name');
+
+        if ($scopedUserIds !== null) {
+            $workersQuery->whereIn('id', $scopedUserIds);
+        }
+        $workers = $workersQuery->orderBy('name')->get();
+
+        return view('admin.expenses.reports.monthly', compact('monthInput', 'totals', 'workers', 'selectedUserId'));
+    }
+
+    /**
+     * AJAX endpoint for Monthly Expense Summary DataTable (Server-Side).
+     */
+    public function monthlySummaryData(Request $request): JsonResponse
+    {
+        $monthInput = $request->input('month');
+        if (!$monthInput) {
+            $latestDate = ExpenseBill::max('date');
+            $monthInput = $latestDate ? Carbon::parse($latestDate)->format('Y-m') : Carbon::now()->format('Y-m');
+        }
+        $month = Carbon::parse($monthInput);
+
+        $scopedUserIds = DataScope::visibleUserIds('expenses');
+
+        $travelSub = ExpenseBill::selectRaw('COALESCE(SUM(amount), 0)')
+            ->whereColumn('expense_bills.user_id', 'users.id')
+            ->whereMonth('expense_bills.date', $month->month)
+            ->whereYear('expense_bills.date', $month->year)
+            ->where('expense_bills.is_system_generated', true)
+            ->where('expense_bills.status', 'approved');
+
+        $manualApprovedSub = ExpenseBill::selectRaw('COALESCE(SUM(amount), 0)')
+            ->whereColumn('expense_bills.user_id', 'users.id')
+            ->whereMonth('expense_bills.date', $month->month)
+            ->whereYear('expense_bills.date', $month->year)
+            ->where('expense_bills.is_system_generated', false)
+            ->where('expense_bills.status', 'approved');
+
+        $manualVerifiedSub = ExpenseBill::selectRaw('COALESCE(SUM(amount), 0)')
+            ->whereColumn('expense_bills.user_id', 'users.id')
+            ->whereMonth('expense_bills.date', $month->month)
+            ->whereYear('expense_bills.date', $month->year)
+            ->where('expense_bills.is_system_generated', false)
+            ->where('expense_bills.status', 'temp_approved');
+
+        $manualPendingSub = ExpenseBill::selectRaw('COALESCE(SUM(amount), 0)')
+            ->whereColumn('expense_bills.user_id', 'users.id')
+            ->whereMonth('expense_bills.date', $month->month)
+            ->whereYear('expense_bills.date', $month->year)
+            ->where('expense_bills.is_system_generated', false)
+            ->where('expense_bills.status', 'pending');
+
+        $query = User::visibleToUser()
+            ->where('is_active', true)
+            ->select('users.id', 'users.name', 'users.employee_id')
+            ->selectSub($travelSub, 'total_travel')
+            ->selectSub($manualApprovedSub, 'total_manual_approved')
+            ->selectRaw('((' . $travelSub->toSql() . ') + (' . $manualApprovedSub->toSql() . ')) as grand_total', array_merge($travelSub->getBindings(), $manualApprovedSub->getBindings()))
+            ->selectSub($manualVerifiedSub, 'total_manual_verified')
+            ->selectSub($manualPendingSub, 'total_manual_pending');
+
+        if ($scopedUserIds !== null) {
+            $query->whereIn('users.id', $scopedUserIds);
+        }
+
+        $selectedUserId = $request->input('user_id');
+        if ($selectedUserId) {
+            $query->where('users.id', $selectedUserId);
+        }
+
+        $search = $request->input('search.value');
+        if (empty($search) && is_string($request->input('search'))) {
+            $search = $request->input('search');
+        }
+        if (!empty($search) && is_string($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'like', "%{$search}%")
+                  ->orWhere('users.employee_id', 'like', "%{$search}%");
+            });
+        }
+
+        return DataTables::of($query)
+            ->editColumn('worker', function ($user) {
+                return [
+                    'name' => $user->name,
+                    'employee_id' => $user->employee_id && $user->employee_id !== '—' ? $user->employee_id : null,
+                ];
+            })
+            ->editColumn('total_travel', function ($user) {
+                $val = (float) $user->total_travel;
+                return [
+                    'formatted' => '₹' . number_format($val, 2),
+                    'raw' => $val,
+                ];
+            })
+            ->editColumn('total_manual_approved', function ($user) {
+                $val = (float) $user->total_manual_approved;
+                return [
+                    'formatted' => '₹' . number_format($val, 2),
+                    'raw' => $val,
+                ];
+            })
+            ->editColumn('grand_total', function ($user) {
+                $val = (float) $user->grand_total;
+                return [
+                    'formatted' => '₹' . number_format($val, 2),
+                    'raw' => $val,
+                ];
+            })
+            ->editColumn('total_manual_verified', function ($user) {
+                $val = (float) $user->total_manual_verified;
+                return [
+                    'formatted' => $val > 0 ? '₹' . number_format($val, 2) : '—',
+                    'raw' => $val,
+                ];
+            })
+            ->editColumn('total_manual_pending', function ($user) {
+                $val = (float) $user->total_manual_pending;
+                return [
+                    'formatted' => $val > 0 ? '₹' . number_format($val, 2) : '—',
+                    'raw' => $val,
+                ];
+            })
+            ->addColumn('actions', function ($user) use ($monthInput) {
+                return [
+                    'statement_url' => route('admin.expenses.reports.statement', ['user_id' => $user->id, 'month' => $monthInput]),
+                ];
+            })
+            ->orderColumn('worker', 'users.name $1')
+            ->make(true);
     }
 
     public function dailyReceipt(Request $request, $day_start_id)

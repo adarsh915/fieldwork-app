@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\DayStart;
 use App\Models\User;
 use App\Services\DataScope;
 use App\Services\ReportingService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Yajra\DataTables\Facades\DataTables;
 
 class ReportController extends Controller
 {
@@ -136,6 +139,148 @@ class ReportController extends Controller
             'employeesList' => $employeesList,
             'selectedUser'  => $selectedUserId,
         ]);
+    }
+
+    /**
+     * AJAX endpoint for Daily Field Operations Ledger DataTable.
+     */
+    public function dailyLedgerData(Request $request): JsonResponse
+    {
+        $scopedUserIds = DataScope::visibleUserIds('reports');
+        $dateRange = $this->reportingService->resolveDateRange(
+            $request->input('preset', 'this_month'),
+            $request->input('date_from', $request->input('from')),
+            $request->input('date_to', $request->input('to'))
+        );
+
+        $startDate = $dateRange['start_date']->format('Y-m-d');
+        $endDate   = $dateRange['end_date']->format('Y-m-d');
+
+        $query = DayStart::query()
+            ->with([
+                'user:id,name,employee_id',
+                'user.roles:id,name',
+                'expenses:id,day_start_id,amount',
+                'visits:id,day_start_id',
+            ])
+            ->whereBetween('date', [$startDate, $endDate])
+            ->select('day_starts.*')
+            ->orderBy('date', 'desc')
+            ->orderBy('id', 'desc');
+
+        if ($scopedUserIds !== null) {
+            $query->whereIn('user_id', $scopedUserIds);
+        }
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', (int) $request->user_id);
+        }
+
+        if ($request->filled('status')) {
+            $status = $request->status;
+            if ($status === 'auto_closed') {
+                $query->where(function ($q) {
+                    $q->where('status', 'auto_closed')
+                      ->orWhere(function ($sq) {
+                          $sq->whereNull('closing_km')->whereDate('date', '<', Carbon::today());
+                      });
+                });
+            } elseif ($status === 'completed') {
+                $query->where(function ($q) {
+                    $q->where('status', 'completed')
+                      ->orWhereNotNull('closing_km');
+                });
+            } elseif ($status === 'in_progress') {
+                $query->whereNull('closing_km')
+                      ->where('status', '!=', 'auto_closed')
+                      ->whereDate('date', '>=', Carbon::today());
+            }
+        }
+
+        $search = $request->input('search.value');
+        if (empty($search) && is_string($request->input('search'))) {
+            $search = $request->input('search');
+        }
+        if (!empty($search) && is_string($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('user', function ($uq) use ($search) {
+                    $uq->where('name', 'like', "%{$search}%")
+                       ->orWhere('employee_id', 'like', "%{$search}%");
+                })->orWhere('opening_km', 'like', "%{$search}%")
+                  ->orWhere('closing_km', 'like', "%{$search}%")
+                  ->orWhere('date', 'like', "%{$search}%");
+            });
+        }
+
+        return DataTables::of($query)
+            ->addColumn('date', function ($ds) {
+                return [
+                    'formatted' => $ds->date ? $ds->date->format('d M Y') : '—',
+                    'day' => $ds->date ? $ds->date->format('D') : '',
+                    'raw' => $ds->date ? $ds->date->format('Y-m-d') : '',
+                ];
+            })
+            ->addColumn('employee', function ($ds) {
+                return [
+                    'name' => $ds->user?->name ?? 'Unknown',
+                    'employee_id' => $ds->user?->employee_id && $ds->user->employee_id !== '—' ? $ds->user->employee_id : null,
+                    'role' => $ds->user?->role_name ?? ($ds->user?->roles->first()?->name ?? 'Field Worker'),
+                ];
+            })
+            ->addColumn('opening_km', function ($ds) {
+                return $ds->opening_km !== null ? number_format((float) $ds->opening_km, 1) : '—';
+            })
+            ->addColumn('closing_km', function ($ds) {
+                return $ds->closing_km !== null ? number_format((float) $ds->closing_km, 1) : '—';
+            })
+            ->addColumn('distance', function ($ds) {
+                $dist = ($ds->closing_km !== null && $ds->opening_km !== null)
+                    ? max(0, (float)$ds->closing_km - (float)$ds->opening_km)
+                    : null;
+                return [
+                    'formatted' => $dist !== null ? number_format($dist, 1) . ' KM' : '—',
+                    'raw' => $dist ?? 0,
+                ];
+            })
+            ->addColumn('visits_count', function ($ds) {
+                return $ds->visits->count();
+            })
+            ->addColumn('expenses_sum', function ($ds) {
+                $sum = (float) $ds->expenses->sum('amount');
+                return [
+                    'formatted' => '₹' . number_format($sum, 2),
+                    'raw' => $sum,
+                ];
+            })
+            ->addColumn('status', function ($ds) {
+                if ($ds->status === 'auto_closed' || (!$ds->closing_km && $ds->date < Carbon::today())) {
+                    return [
+                        'code' => 'auto_closed',
+                        'label' => 'Auto Closed',
+                        'badge' => 'badge-warning',
+                    ];
+                } elseif ($ds->closing_km || $ds->status === 'completed') {
+                    return [
+                        'code' => 'completed',
+                        'label' => 'Completed',
+                        'badge' => 'badge-success',
+                    ];
+                } else {
+                    return [
+                        'code' => 'in_progress',
+                        'label' => 'In Progress',
+                        'badge' => 'badge-primary',
+                    ];
+                }
+            })
+            ->addColumn('actions', function ($ds) {
+                return [
+                    'id' => $ds->id,
+                    'show_url' => route('admin.day-starts.show', $ds->id),
+                    'receipt_url' => route('admin.expenses.reports.daily', $ds->id),
+                ];
+            })
+            ->make(true);
     }
 
     /**

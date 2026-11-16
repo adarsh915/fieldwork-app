@@ -17,7 +17,7 @@
     class="min-h-screen lg:flex"
     x-data="{
         sidebarOpen: false,
-        sidebarCollapsed: $persist(false).as('sidebar_collapsed')
+        sidebarCollapsed: false
     }"
 >
     {{-- ════════════════════════════════════════════════════════════ --}}
@@ -53,7 +53,7 @@
             </div>
 
             {{-- Nav --}}
-            <nav class="flex-1 overflow-y-auto overflow-x-hidden py-3 space-y-0.5">
+            <nav id="admin-sidebar-nav" class="flex-1 overflow-y-auto overflow-x-hidden py-3 space-y-0.5">
 
                 {{-- 1. Overview & Analytics --}}
                 <p x-show="!sidebarCollapsed" class="sidebar-section-label uppercase tracking-wider">Overview & Analytics</p>
@@ -228,7 +228,7 @@
                     <a href="{{ route('admin.fuel-rates.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.fuel-rates.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Fuel Rates' : ''">
-                        <x-lucide-fuel class="w-5 h-5 shrink-0 text-amber-500" />
+                        <x-lucide-fuel class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Fuel Rates (Per KM)</span>
                     </a>
                     @endcanany
@@ -325,7 +325,7 @@
                     <a href="{{ route('admin.notifications.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.notifications.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'All Notifications' : ''">
-                        <x-lucide-bell class="w-5 h-5 shrink-0 text-blue-500" />
+                        <x-lucide-bell class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">All Notifications</span>
                     </a>
 
@@ -333,7 +333,7 @@
                     <a href="{{ route('admin.push-notifications.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.push-notifications.*') ? 'sidebar-link-active' : '' }}"
                        :title="sidebarCollapsed ? 'Push Notifications' : ''">
-                        <x-lucide-bell-ring class="w-5 h-5 shrink-0 text-indigo-500" />
+                        <x-lucide-bell-ring class="w-5 h-5 shrink-0" />
                         <span x-show="!sidebarCollapsed" class="truncate">Push Notifications</span>
                     </a>
                     @endcanany
@@ -358,6 +358,40 @@
                 </div>
 
             </nav>
+            <script>
+                (function() {
+                    const nav = document.getElementById('admin-sidebar-nav');
+                    if (!nav) return;
+
+                    // Immediately restore scroll position before initial render/paint
+                    const saved = sessionStorage.getItem('admin_sidebar_scroll');
+                    if (saved !== null) {
+                        nav.scrollTop = parseInt(saved, 10);
+                    }
+
+                    // If active link is outside visible area, bring it into view
+                    const active = nav.querySelector('.sidebar-link-active');
+                    if (active) {
+                        const navRect = nav.getBoundingClientRect();
+                        const activeRect = active.getBoundingClientRect();
+                        if (activeRect.top < navRect.top || activeRect.bottom > navRect.bottom) {
+                            active.scrollIntoView({ block: 'nearest' });
+                        }
+                    }
+
+                    // Save scroll position when clicking any sidebar link
+                    nav.addEventListener('click', function(e) {
+                        if (e.target.closest('.sidebar-link')) {
+                            sessionStorage.setItem('admin_sidebar_scroll', nav.scrollTop);
+                        }
+                    });
+
+                    // Also save on window unload
+                    window.addEventListener('beforeunload', function() {
+                        sessionStorage.setItem('admin_sidebar_scroll', nav.scrollTop);
+                    });
+                })();
+            </script>
 
             {{-- User profile block (bottom-pinned) --}}
             <div class="border-t border-surface-border p-3" x-data="{ userMenuOpen: false }">

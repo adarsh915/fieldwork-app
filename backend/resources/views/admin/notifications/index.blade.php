@@ -92,39 +92,47 @@
             @endphp
             <div class="flex items-center gap-1.5 overflow-x-auto pt-4 border-t border-slate-100 mt-4 text-xs font-semibold no-scrollbar">
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap {{ $currentCat === 'all' ? 'bg-brand-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
-                    All Activities
+                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'all' ? 'bg-brand-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                    <x-lucide-activity class="w-3.5 h-3.5" />
+                    <span>All Activities</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['status' => 'unread', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 {{ $currentStatus === 'unread' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-700 hover:bg-rose-100' }}">
+                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentStatus === 'unread' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-700 hover:bg-rose-100' }}">
+                    <x-lucide-bell class="w-3.5 h-3.5" />
                     <span>Unread Alerts</span>
                     @if($stats['unread'] > 0)
                         <span class="px-1.5 py-0.2 rounded-full text-[10px] {{ $currentStatus === 'unread' ? 'bg-rose-800 text-white' : 'bg-rose-200 text-rose-900' }}">{{ $stats['unread'] }}</span>
                     @endif
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'visit', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap {{ $currentCat === 'visit' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
-                    📍 Visits
+                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'visit' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                    <x-lucide-map-pin class="w-3.5 h-3.5" />
+                    <span>Visits</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'order', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap {{ $currentCat === 'order' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
-                    🛒 Orders
+                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'order' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                    <x-lucide-shopping-cart class="w-3.5 h-3.5" />
+                    <span>Orders</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'day_start', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap {{ $currentCat === 'day_start' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
-                    🚗 Day Starts / Ends
+                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'day_start' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                    <x-lucide-calendar-clock class="w-3.5 h-3.5" />
+                    <span>Day Starts / Ends</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'expense', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap {{ $currentCat === 'expense' ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
-                    🧾 Expenses
+                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'expense' ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                    <x-lucide-receipt class="w-3.5 h-3.5" />
+                    <span>Expenses</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'payment', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap {{ $currentCat === 'payment' ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
-                    💰 Payments
+                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'payment' ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                    <x-lucide-banknote class="w-3.5 h-3.5" />
+                    <span>Payments</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'leave', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap {{ $currentCat === 'leave' ? 'bg-purple-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
-                    🏖️ Leaves
+                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'leave' ? 'bg-purple-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                    <x-lucide-calendar-off class="w-3.5 h-3.5" />
+                    <span>Leaves</span>
                 </a>
             </div>
 
@@ -290,12 +298,8 @@
             @endforelse
         </div>
 
-        {{-- Pagination --}}
-        @if ($notifications->hasPages())
-            <div class="p-4 border-t border-slate-200">
-                {{ $notifications->links() }}
-            </div>
-        @endif
+        {{-- Unified Server-Side Pagination --}}
+        {{ $notifications->links() }}
     </div>
 
 </div>

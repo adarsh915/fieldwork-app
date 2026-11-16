@@ -55,7 +55,13 @@ class PartyController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
                   ->orWhere('mobile', 'LIKE', "%{$search}%")
-                  ->orWhere('city', 'LIKE', "%{$search}%");
+                  ->orWhere('city', 'LIKE', "%{$search}%")
+                  ->orWhere('state', 'LIKE', "%{$search}%")
+                  ->orWhere('party_type', 'LIKE', "%{$search}%")
+                  ->orWhere('category', 'LIKE', "%{$search}%")
+                  ->orWhereHas('district', function ($dq) use ($search) {
+                      $dq->where('name', 'LIKE', "%{$search}%");
+                  });
             });
         }
 
@@ -73,11 +79,13 @@ class PartyController extends Controller
             $query->where('customers.area_id', $request->area_id);
         }
 
-        $columns = ['id', 'name', 'mobile', 'address', 'city', 'district_id', 'area_id', 'approval_status', 'is_active'];
+        $columns = ['id', 'name', 'mobile', 'address', 'city', 'state', 'district_id', 'area_id', 'approval_status', 'is_active', 'party_type', 'category'];
 
         $completedVisitsCount = Visit::where('user_id', $user->id)
             ->where('status', 'completed')
             ->count();
+
+        $query->with(['district:id,name,state']);
 
         if ($request->has('page')) {
             $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
@@ -115,6 +123,7 @@ class PartyController extends Controller
             'name'        => 'required|string|max:255',
             'mobile'      => 'required|string|max:15',
             'party_type'  => 'nullable|string|max:50',
+            'category'    => 'nullable|string|in:A,B,C,D',
             'owner_name'  => 'nullable|string|max:255',
             'state'       => 'nullable|string|max:100',
             'district'    => 'nullable|string|max:100',
@@ -193,6 +202,7 @@ class PartyController extends Controller
                 'name'            => $request->name,
                 'mobile'          => $request->mobile,
                 'party_type'      => $request->party_type ?? 'Retailer',
+                'category'        => $request->category ?? 'A',
                 'owner_name'      => $request->owner_name,
                 'district_id'     => $districtId,
                 'area_id'         => $areaId,

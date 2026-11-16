@@ -82,12 +82,12 @@
                 <div>
                     <label class="form-label font-semibold text-ink-800">Tap Action / Open Screen</label>
                     <select name="screen" class="form-select w-full border-ink-300 rounded-lg py-2.5">
-                        <option value="Home">🏠 App Dashboard / Home</option>
-                        <option value="DayStart">⏱️ Day Start / Tour Plan</option>
-                        <option value="Visits">📍 Customer Visits</option>
-                        <option value="Orders">🛒 Orders Screen</option>
-                        <option value="Expenses">💵 Expenses Screen</option>
-                        <option value="Leaves">🏖️ Leave Applications</option>
+                        <option value="Home">App Dashboard / Home</option>
+                        <option value="DayStart">Day Start / Tour Plan</option>
+                        <option value="Visits">Customer Visits</option>
+                        <option value="Orders">Orders Screen</option>
+                        <option value="Expenses">Expenses Screen</option>
+                        <option value="Leaves">Leave Applications</option>
                     </select>
                     <p class="text-xs text-ink-500 mt-1">When the user taps the notification on their phone, it will open this screen directly.</p>
                 </div>
@@ -150,6 +150,126 @@
 
 </div>
 
+{{-- ── Bottom Section: Sent Notification History ── --}}
+<div class="mt-8">
+    <div class="panel p-6 border shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-surface-200 gap-3">
+            <div>
+                <h3 class="text-base font-bold text-ink-900 flex items-center gap-2">
+                    <x-lucide-history class="w-5 h-5 text-indigo-600" />
+                    Sent Notification History
+                </h3>
+                <p class="text-xs text-ink-500 mt-1">Chronological audit log of all broadcast campaigns and direct mobile alerts.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Total Sent: {{ $logs->total() }}
+                </span>
+            </div>
+        </div>
+
+        @if($logs->isEmpty())
+            <div class="py-12 flex flex-col items-center justify-center text-center">
+                <div class="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-ink-400 mb-3">
+                    <x-lucide-bell-off class="w-6 h-6" />
+                </div>
+                <h4 class="text-sm font-semibold text-ink-800">No Notifications Sent Yet</h4>
+                <p class="text-xs text-ink-500 mt-1 max-w-sm">When you compose and broadcast push notifications from the form above, their delivery logs will appear here.</p>
+            </div>
+        @else
+            <div class="overflow-x-auto mt-4">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="border-b border-surface-200 bg-surface-50 text-ink-500 uppercase font-semibold text-[11px] tracking-wider">
+                            <th class="py-3 px-3">Date & Time</th>
+                            <th class="py-3 px-3">Target Audience</th>
+                            <th class="py-3 px-3">Notification Content</th>
+                            <th class="py-3 px-3">Target Screen</th>
+                            <th class="py-3 px-3 text-center">Recipients / Reach</th>
+                            <th class="py-3 px-3">Sent By</th>
+                            <th class="py-3 px-3 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-surface-100 text-ink-700">
+                        @foreach($logs as $log)
+                            <tr class="hover:bg-surface-50 transition-colors">
+                                {{-- Date & Time --}}
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="font-semibold text-ink-900">{{ $log->created_at->format('M d, Y') }}</div>
+                                    <div class="text-[11px] text-ink-500">{{ $log->created_at->format('h:i A') }} ({{ $log->created_at->diffForHumans() }})</div>
+                                </td>
+
+                                {{-- Target Audience --}}
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    @if($log->recipient_type === 'all')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                            📢 All Active Users
+                                        </span>
+                                    @elseif($log->recipient_type === 'field_workers')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                            🏃 Field Workers
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                                            👤 {{ $log->recipientUser?->name ?? 'Single User' }}
+                                        </span>
+                                    @endif
+                                </td>
+
+                                {{-- Notification Content --}}
+                                <td class="py-3 px-3 max-w-xs">
+                                    <div class="font-bold text-ink-900 truncate">{{ $log->title }}</div>
+                                    <div class="text-[11px] text-ink-500 line-clamp-2 mt-0.5">{{ $log->body }}</div>
+                                </td>
+
+                                {{-- Target Screen --}}
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-surface-100 text-ink-700 border border-surface-200">
+                                        {{ $log->screen ?? 'Home' }}
+                                    </span>
+                                </td>
+
+                                {{-- Recipients / Reach --}}
+                                <td class="py-3 px-3 whitespace-nowrap text-center">
+                                    <div class="font-semibold text-ink-900">{{ $log->total_recipients }} {{ \Illuminate\Support\Str::plural('user', $log->total_recipients) }}</div>
+                                    <div class="text-[11px] text-emerald-700 font-medium">{{ $log->devices_reached }} devices active</div>
+                                </td>
+
+                                {{-- Sent By --}}
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="font-medium text-ink-800">{{ $log->sender?->name ?? 'Administrator' }}</div>
+                                </td>
+
+                                {{-- Status Badge --}}
+                                <td class="py-3 px-3 whitespace-nowrap text-center">
+                                    @if($log->status === 'delivered')
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                                            Delivered
+                                        </span>
+                                    @elseif($log->status === 'partial')
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300" title="{{ $log->error_message }}">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                                            Partial (No Token)
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300" title="{{ $log->error_message }}">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                                            Failed
+                                        </span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            {{ $logs->links() }}
+        @endif
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -181,6 +301,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Clear message fields but preserve recipient selection
                 form.querySelector('input[name="title"]').value = '';
                 form.querySelector('textarea[name="body"]').value = '';
+                // Reload after brief delay to show new entry in history table
+                setTimeout(() => window.location.reload(), 1200);
             } else {
                 let msg = data.message || 'Failed to send notification';
                 if (data.errors) msg = Object.values(data.errors).flat().join('<br>');

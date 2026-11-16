@@ -9,7 +9,7 @@
         userId: '{{ request('user_id') }}',
         status: '{{ request('status') }}',
         timing: '{{ request('timing') }}',
-        month: '{{ request('month') }}',
+        month: '{{ request('month', now()->format('Y-m')) }}',
         search: '{{ request('search') }}',
         canTempApprove: {{ $canTempApprove ? 'true' : 'false' }},
         canFinalApprove: {{ $canFinalApprove ? 'true' : 'false' }},
@@ -196,26 +196,26 @@
                 promptLabel = 'Verification Remark (Optional)';
                 confirmButtonClass = 'text-white';
                 confirmButtonStyle = 'background-color: #2563eb !important; color: #ffffff !important;';
-                confirmButtonText = '✓ Verify (Level 1)';
+                confirmButtonText = 'Verify Claim (Level 1)';
             } else if (action === 'final_approve') {
                 title = 'Final Approval (HR / Admin / Finance)';
                 promptLabel = 'Approval Note (Optional)';
                 confirmButtonClass = 'text-white';
                 confirmButtonStyle = 'background-color: #16a34a !important; color: #ffffff !important;';
-                confirmButtonText = '★ Confirm Final Approval';
+                confirmButtonText = 'Confirm Final Approval';
             } else if (action === 'manager_reject') {
                 title = 'Reject Claim (Manager Level)';
                 promptLabel = 'Reason for Rejection *';
                 confirmButtonClass = 'text-white';
                 confirmButtonStyle = 'background-color: #dc2626 !important; color: #ffffff !important;';
-                confirmButtonText = '✕ Reject Claim';
+                confirmButtonText = 'Reject Claim';
                 isRejection = true;
             } else if (action === 'final_reject') {
                 title = 'Permanent Rejection (Final Decision)';
                 promptLabel = 'Reason for Rejection *';
                 confirmButtonClass = 'text-white';
                 confirmButtonStyle = 'background-color: #b91c1c !important; color: #ffffff !important;';
-                confirmButtonText = '✕ Permanently Reject';
+                confirmButtonText = 'Permanently Reject';
                 isRejection = true;
             }
 
@@ -326,92 +326,112 @@
             <div class="flex items-center gap-2 overflow-x-auto pb-1 text-xs border-b border-surface-border">
                 <button type="button" @click="setStatus('')"
                     :class="status === '' ? 'bg-ink-900 text-white font-bold shadow-sm' : 'bg-surface-muted text-ink-600 hover:bg-surface-border'"
-                    class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                    All Claims
+                    class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5">
+                    <x-lucide-layers class="w-3.5 h-3.5" />
+                    <span>All Claims</span>
                 </button>
                 <button type="button" @click="setStatus('pending')"
                     :class="status === 'pending' ? 'bg-amber-600 text-white font-bold shadow-sm' : 'bg-surface-muted text-ink-600 hover:bg-amber-50 hover:text-amber-700'"
                     class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
-                    Pending Level 1
+                    <x-lucide-clock class="w-3.5 h-3.5 text-amber-500" />
+                    <span>Pending Level 1</span>
                 </button>
                 <button type="button" @click="setStatus('temp_approved')"
                     :class="status === 'temp_approved' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'bg-surface-muted text-ink-600 hover:bg-blue-50 hover:text-blue-700'"
                     class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
-                    Verified / Ready for Final (HR)
+                    <x-lucide-check-circle-2 class="w-3.5 h-3.5 text-blue-500" />
+                    <span>Verified / Ready for Final (HR)</span>
                 </button>
                 <button type="button" @click="setStatus('manager_rejected')"
                     :class="status === 'manager_rejected' ? 'bg-rose-600 text-white font-bold shadow-sm' : 'bg-surface-muted text-ink-600 hover:bg-rose-50 hover:text-rose-700'"
                     class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-rose-400 inline-block"></span>
-                    Manager Rejected (Review)
+                    <x-lucide-alert-circle class="w-3.5 h-3.5 text-rose-500" />
+                    <span>Manager Rejected (Review)</span>
                 </button>
                 <button type="button" @click="setStatus('approved')"
                     :class="status === 'approved' ? 'bg-emerald-600 text-white font-bold shadow-sm' : 'bg-surface-muted text-ink-600 hover:bg-emerald-50 hover:text-emerald-700'"
                     class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
-                    Final Approved
+                    <x-lucide-check-check class="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Final Approved</span>
                 </button>
                 <button type="button" @click="setStatus('rejected')"
                     :class="status === 'rejected' ? 'bg-rose-800 text-white font-bold shadow-sm' : 'bg-surface-muted text-ink-600 hover:bg-rose-50 hover:text-rose-800'"
                     class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-rose-700 inline-block"></span>
-                    Final Rejected
+                    <x-lucide-x-circle class="w-3.5 h-3.5 text-rose-400" />
+                    <span>Final Rejected</span>
                 </button>
             </div>
 
-            {{-- Filter Form --}}
-            <form @submit.prevent="applyFilters()" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 items-end">
-                <div>
-                    <label class="form-label">Field Worker</label>
-                    <select x-model="userId" @change="applyFilters()" class="form-input">
-                        <option value="">All Workers</option>
-                        @foreach($users as $user)
-                            <option value="{{ $user->id }}">
-                                {{ $user->name }} ({{ $user->role_name }})
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Status</label>
-                    <select x-model="status" @change="applyFilters()" class="form-input">
-                        <option value="">All Statuses</option>
-                        <option value="pending">Pending Level 1</option>
-                        <option value="temp_approved">Verified / Ready for Final</option>
-                        <option value="manager_rejected">Manager Rejected</option>
-                        <option value="approved">Final Approved</option>
-                        <option value="rejected">Final Rejected</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Timing</label>
-                    <select x-model="timing" @change="applyFilters()" class="form-input">
-                        <option value="">All Timings</option>
-                        <option value="during_shift">During Shift</option>
-                        <option value="after_day_end">After Day End</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Month</label>
-                    <input type="month" x-model="month" @change="applyFilters()" class="form-input">
-                </div>
-                <div>
-                    <label class="form-label">Search</label>
-                    <input type="text" x-model="search" @keydown.enter.prevent="applyFilters()"
-                        placeholder="Category, worker, amount..." class="form-input">
-                </div>
-                <div class="flex items-end gap-2">
-                    <button type="submit" class="btn-primary flex-1 py-2 text-sm font-semibold">
-                        <span class="flex items-center justify-center gap-1.5">
+            {{-- Quick Search & Actions Row --}}
+            <form @submit.prevent="applyFilters()" class="mt-4 space-y-3">
+                <div class="flex flex-wrap gap-3 items-end">
+                    {{-- Search --}}
+                    <div class="relative flex-1 min-w-[200px]">
+                        <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
+                        <input type="text" x-model="search" @keydown.enter.prevent="applyFilters()"
+                            placeholder="Search category, worker, amount, note..." class="form-input text-xs pl-9 pr-8 h-[38px] w-full">
+                        <button type="button"
+                                x-show="search"
+                                @click="search = ''; applyFilters()"
+                                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 transition"
+                                style="display: none;"
+                                title="Clear search">
+                            <x-lucide-x class="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    {{-- Actions --}}
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="submit" class="btn-primary h-[38px] px-4 text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs">
                             <x-lucide-filter class="w-4 h-4" />
-                            Filter
-                        </span>
-                    </button>
-                    <button type="button" @click="resetFilters()" class="btn-secondary px-3 py-2 text-sm">
-                        Reset
-                    </button>
+                            <span>Filter</span>
+                        </button>
+                        <button type="button" @click="resetFilters()" class="btn-secondary h-[38px] px-4 text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs">
+                            <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                            <span>Reset</span>
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Filters Grid (4 Columns, exactly like Day Starts) --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <x-filter-select
+                        label="Field Worker"
+                        placeholder="All Workers"
+                        :options="$users->mapWithKeys(fn($u) => [$u->id => $u->name . ' (' . ($u->role_name ?? 'Employee') . ')'])"
+                        model="userId"
+                        change="applyFilters()"
+                    />
+
+                    <x-filter-select
+                        label="Status"
+                        placeholder="All Statuses"
+                        :options="[
+                            'pending' => 'Pending Level 1',
+                            'temp_approved' => 'Verified / Ready for Final',
+                            'manager_rejected' => 'Manager Rejected',
+                            'approved' => 'Final Approved',
+                            'rejected' => 'Final Rejected'
+                        ]"
+                        model="status"
+                        change="applyFilters()"
+                    />
+
+                    <x-filter-select
+                        label="Timing"
+                        placeholder="All Timings"
+                        :options="[
+                            'during_shift' => 'During Shift',
+                            'after_day_end' => 'After Day End'
+                        ]"
+                        model="timing"
+                        change="applyFilters()"
+                    />
+
+                    <div>
+                        <label class="form-label">Month</label>
+                        <input type="month" x-model="month" @change="applyFilters()" class="form-input text-xs h-[38px] w-full">
+                    </div>
                 </div>
             </form>
         </div>
@@ -432,7 +452,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {{-- DataTables serverSide will populate this --}}
+                    {{-- DataTables serverSide + RowGroup will populate this --}}
                 </tbody>
             </table>
         </div>
@@ -559,18 +579,23 @@
                                     <div class="mt-2 flex items-center gap-2 text-[11px]">
                                         <template x-if="historyModal.record.is_after_day_end">
                                             <span
-                                                class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">⚠️
-                                                Submitted after day end</span>
+                                                class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                                                <x-lucide-alert-triangle class="w-3 h-3 text-amber-600" />
+                                                <span>Submitted after day end</span>
+                                            </span>
                                         </template>
                                         <template x-if="!historyModal.record.is_after_day_end">
                                             <span
-                                                class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">✓
-                                                Submitted during shift</span>
+                                                class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                                                <x-lucide-check class="w-3 h-3 text-emerald-600" />
+                                                <span>Submitted during shift</span>
+                                            </span>
                                         </template>
                                         <template x-if="historyModal.record.bill_photo_url">
                                             <a :href="historyModal.record.bill_photo_url" target="_blank"
                                                 class="text-brand-600 hover:underline font-medium inline-flex items-center gap-1">
-                                                <span>📷 View Attached Bill Photo</span>
+                                                <x-lucide-image class="w-3.5 h-3.5" />
+                                                <span>View Attached Bill Photo</span>
                                             </a>
                                         </template>
                                     </div>
@@ -610,8 +635,9 @@
                                     {{-- Temp Approved --}}
                                     <template x-if="historyModal.record.temp_approved_by">
                                         <div class="mt-1 text-xs">
-                                            <div class="text-blue-700 font-semibold flex items-center gap-1">
-                                                <span>✓ Verified & Forwarded for Final Approval</span>
+                                            <div class="text-blue-700 font-semibold flex items-center gap-1.5">
+                                                <x-lucide-check-circle-2 class="w-3.5 h-3.5 text-blue-600" />
+                                                <span>Verified & Forwarded for Final Approval</span>
                                             </div>
                                             <div class="text-ink-600 mt-0.5">
                                                 Verified by: <strong class="text-ink-900"
@@ -627,8 +653,9 @@
                                     {{-- Manager Rejected --}}
                                     <template x-if="historyModal.record.status === 'manager_rejected'">
                                         <div class="mt-1 text-xs">
-                                            <div class="text-rose-700 font-semibold flex items-center gap-1">
-                                                <span>✕ Rejected at Manager Review</span>
+                                            <div class="text-rose-700 font-semibold flex items-center gap-1.5">
+                                                <x-lucide-x-circle class="w-3.5 h-3.5 text-rose-600" />
+                                                <span>Rejected at Manager Review</span>
                                             </div>
                                             <div class="text-ink-600 mt-0.5">
                                                 Rejected by: <strong class="text-ink-900"
@@ -648,8 +675,9 @@
                                     {{-- Pending L1 --}}
                                     <template
                                         x-if="!historyModal.record.temp_approved_by && historyModal.record.status === 'pending'">
-                                        <div class="mt-1 text-xs text-amber-700 font-medium">
-                                            ⏳ Waiting for Level 1 Manager Verification
+                                        <div class="mt-1 text-xs text-amber-700 font-medium flex items-center gap-1.5">
+                                            <x-lucide-clock class="w-3.5 h-3.5 text-amber-600" />
+                                            <span>Waiting for Level 1 Manager Verification</span>
                                         </div>
                                     </template>
 
@@ -695,8 +723,9 @@
                                     {{-- Final Approved --}}
                                     <template x-if="historyModal.record.status === 'approved'">
                                         <div class="mt-1 text-xs">
-                                            <div class="text-emerald-700 font-bold flex items-center gap-1">
-                                                <span>★ Final Approved & Cleared for Settlement</span>
+                                            <div class="text-emerald-700 font-bold flex items-center gap-1.5">
+                                                <x-lucide-badge-check class="w-3.5 h-3.5 text-emerald-600" />
+                                                <span>Final Approved & Cleared for Settlement</span>
                                             </div>
                                             <div class="text-ink-600 mt-0.5">
                                                 Signed off by: <strong class="text-ink-900"
@@ -712,8 +741,9 @@
                                     {{-- Final Rejected --}}
                                     <template x-if="historyModal.record.status === 'rejected'">
                                         <div class="mt-1 text-xs">
-                                            <div class="text-rose-700 font-bold flex items-center gap-1">
-                                                <span>✕ Final Rejected</span>
+                                            <div class="text-rose-700 font-bold flex items-center gap-1.5">
+                                                <x-lucide-x-circle class="w-3.5 h-3.5 text-rose-600" />
+                                                <span>Final Rejected</span>
                                             </div>
                                             <div class="text-ink-600 mt-0.5">
                                                 Rejected by: <strong class="text-ink-900"
@@ -728,16 +758,18 @@
 
                                     {{-- Ready for Final --}}
                                     <template x-if="historyModal.record.status === 'temp_approved'">
-                                        <div class="mt-1 text-xs text-blue-700 font-medium">
-                                            ⏳ Ready for Final Review: Awaiting HR/Finance approval and payout clearance.
+                                        <div class="mt-1 text-xs text-blue-700 font-medium flex items-center gap-1.5">
+                                            <x-lucide-clock class="w-3.5 h-3.5 text-blue-600" />
+                                            <span>Ready for Final Review: Awaiting HR/Finance approval and payout clearance.</span>
                                         </div>
                                     </template>
 
                                     {{-- Pending HR Decision on Manager Rejection --}}
                                     <template x-if="historyModal.record.status === 'manager_rejected'">
-                                        <div class="mt-1 text-xs text-rose-700 font-medium">
-                                            ⚠️ Manager Rejection Pending Review: HR may uphold the rejection or override
-                                            with Final Approval.
+                                        <div class="mt-1 text-xs text-rose-700 font-medium flex items-center gap-1.5">
+                                            <x-lucide-alert-circle class="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                            <span>Manager Rejection Pending Review: HR may uphold the rejection or override
+                                                with Final Approval.</span>
                                         </div>
                                     </template>
 
@@ -809,8 +841,9 @@
                         <label class="form-label font-semibold text-xs text-ink-700">Expense Category</label>
                         <template x-if="editModal.isSystemTravel">
                             <div
-                                class="mt-1 px-3 py-2 bg-brand-50 border border-brand-200 text-brand-800 rounded-lg text-xs font-semibold">
-                                🚗 System Travel (Automated Distance Claim)
+                                class="mt-1 px-3 py-2 bg-brand-50 border border-brand-200 text-brand-800 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                                <x-lucide-car class="w-3.5 h-3.5 text-brand-700" />
+                                <span>System Travel (Automated Distance Claim)</span>
                             </div>
                         </template>
                         <template x-if="!editModal.isSystemTravel">
@@ -878,11 +911,11 @@
                     <div>
                         <label class="form-label font-semibold text-xs text-ink-700">Approval Status</label>
                         <select x-model="editModal.status" class="form-select mt-1 w-full text-xs font-semibold">
-                            <option value="pending">⏳ Pending Review (Level 1)</option>
-                            <option value="temp_approved">✓ Verified (Level 1)</option>
-                            <option value="manager_rejected">⚠️ Manager Rejected</option>
-                            <option value="approved">★ Final Approved</option>
-                            <option value="rejected">✕ Final Rejected</option>
+                            <option value="pending">Pending Review (Level 1)</option>
+                            <option value="temp_approved">Verified (Level 1)</option>
+                            <option value="manager_rejected">Manager Rejected</option>
+                            <option value="approved">Final Approved</option>
+                            <option value="rejected">Final Rejected</option>
                         </select>
                     </div>
 
@@ -983,22 +1016,17 @@
                     }
                 },
                 columns: [
+                    // col 0 – Date (hidden; shown in group header)
                     {
                         data: 'date',
-                        className: 'whitespace-nowrap',
-                        render: function (data) {
-                            return `<span class="font-medium text-ink-700 text-xs">${data.formatted}</span>`;
-                        }
+                        visible: false,
                     },
+                    // col 1 – Worker (hidden; shown in group header)
                     {
                         data: 'worker',
-                        render: function (data) {
-                            return `
-                                <div class="font-semibold text-ink-900 text-sm">${data.name}</div>
-                                <div class="text-caption text-ink-400">${data.role}</div>
-                            `;
-                        }
+                        visible: false,
                     },
+                    // col 2 – Category
                     {
                         data: 'category',
                         render: function (data) {
@@ -1008,6 +1036,7 @@
                             return `<span class="text-body font-medium">${data.name}</span>`;
                         }
                     },
+                    // col 3 – Amount
                     {
                         data: 'amount',
                         className: 'text-right whitespace-nowrap',
@@ -1015,23 +1044,27 @@
                             return `<span class="font-bold text-ink-900 text-sm">₹${data.formatted}</span>`;
                         }
                     },
+                    // col 4 – Timing
                     {
                         data: 'timing',
                         render: function (data) {
                             if (data.is_after_day_end) {
                                 return `
                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200" title="Submitted after day end or backdated">
-                                        ⚠️ After Day End
+                                        <svg class="w-3 h-3 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                        <span>After Day End</span>
                                     </span>
                                 `;
                             }
                             return `
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200" title="Submitted during active shift">
-                                    ✓ During Shift
+                                    <svg class="w-3 h-3 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    <span>During Shift</span>
                                 </span>
                             `;
                         }
                     },
+                    // col 5 – Photo Proof
                     {
                         data: 'photo',
                         className: 'text-center whitespace-nowrap',
@@ -1049,6 +1082,7 @@
                             return `<span class="text-xs text-ink-400 italic">No photo</span>`;
                         }
                     },
+                    // col 6 – Approval Status
                     {
                         data: 'status',
                         render: function (data) {
@@ -1056,7 +1090,8 @@
                                 return `
                                     <div>
                                         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                                            ⏳ Pending L1
+                                            <svg class="w-3 h-3 text-amber-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2"/></svg>
+                                            <span>Pending L1</span>
                                         </span>
                                         <div class="text-[10px] text-ink-400 mt-0.5">Awaiting Manager</div>
                                     </div>
@@ -1065,12 +1100,13 @@
                                 return `
                                     <div>
                                         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
-                                            ✓ Verified (L1)
+                                            <svg class="w-3 h-3 text-blue-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            <span>Verified (L1)</span>
                                         </span>
                                         <div class="text-[10px] text-ink-500 mt-0.5 leading-tight">
                                             <div>By: <strong class="text-ink-700">${data.temp_approved_by || 'Manager'}</strong></div>
                                             ${data.temp_approved_at ? `<div class="text-[9px] text-ink-400">${data.temp_approved_at}</div>` : ''}
-                                            ${data.temp_approved_note ? `<div class="text-[9px] text-blue-600 italic mt-0.5">“${data.temp_approved_note}”</div>` : ''}
+                                            ${data.temp_approved_note ? `<div class="text-[9px] text-blue-600 italic mt-0.5">"${data.temp_approved_note}"</div>` : ''}
                                         </div>
                                     </div>
                                 `;
@@ -1078,7 +1114,8 @@
                                 return `
                                     <div>
                                         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                                            ⚠️ Manager Rejected
+                                            <svg class="w-3 h-3 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                            <span>Manager Rejected</span>
                                         </span>
                                         <div class="text-[10px] text-rose-600 mt-0.5 leading-tight">
                                             <div>By: <strong>${data.rejected_by || 'Manager'}</strong></div>
@@ -1091,13 +1128,14 @@
                                 return `
                                     <div>
                                         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                            ★ Final Approved
+                                            <svg class="w-3 h-3 text-emerald-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                            <span>Final Approved</span>
                                         </span>
                                         <div class="text-[10px] text-ink-500 mt-0.5 leading-tight">
                                             ${data.approved_by ? `<div>Final: <strong class="text-ink-700">${data.approved_by}</strong></div>` : ''}
                                             ${data.temp_approved_by ? `<div class="text-[9px] text-ink-400">L1: ${data.temp_approved_by}</div>` : ''}
                                             ${data.approved_at ? `<div class="text-[9px] text-ink-400">${data.approved_at}</div>` : ''}
-                                            ${data.final_note ? `<div class="text-[9px] text-emerald-700 italic mt-0.5">“${data.final_note}”</div>` : ''}
+                                            ${data.final_note ? `<div class="text-[9px] text-emerald-700 italic mt-0.5">"${data.final_note}"</div>` : ''}
                                         </div>
                                     </div>
                                 `;
@@ -1105,7 +1143,8 @@
                                 return `
                                     <div>
                                         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
-                                            ✕ Final Rejected
+                                            <svg class="w-3 h-3 text-rose-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9l-6 6m0-6l6 6"/></svg>
+                                            <span>Final Rejected</span>
                                         </span>
                                         <div class="text-[10px] text-ink-500 mt-0.5 leading-tight">
                                             ${data.rejected_by ? `<div>By: <strong class="text-rose-700">${data.rejected_by}</strong></div>` : ''}
@@ -1118,6 +1157,7 @@
                             return `<span class="badge badge-secondary">${data.code || 'Pending'}</span>`;
                         }
                     },
+                    // col 7 – Actions
                     {
                         data: 'actions',
                         orderable: false,
@@ -1140,13 +1180,11 @@
                                          class="absolute right-0 mt-1 min-w-[220px] bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1.5 top-full text-left" 
                                          style="min-width: 220px; width: max-content; display: none;">
 
-                                        {{-- Approval History --}}
                                         <button type="button" onclick="window.openExpenseHistoryModal(${data.id})" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-ink-800 hover:bg-surface-muted text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-ink-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                             <span>Approval History</span>
                                         </button>
 
-                                        {{-- View Day Receipt --}}
                                         ${data.day_report_url ? `
                                         <a href="${data.day_report_url}" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-ink-800 hover:bg-surface-muted text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-ink-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -1154,7 +1192,6 @@
                                         </a>
                                         ` : ''}
 
-                                        {{-- Edit Claim --}}
                                         ${data.can_edit ? `
                                         <button type="button" onclick="window.openExpenseEditModal(${data.id})" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-slate-800 hover:bg-surface-muted text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -1167,7 +1204,6 @@
                                         <div class="px-3.5 py-1 text-[10px] font-bold text-ink-400 uppercase tracking-wider">Approval Actions</div>
                                         ` : ''}
 
-                                        {{-- Level 1 Verify --}}
                                         ${data.can_temp_approve ? `
                                         <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'temp_approve')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-blue-700 hover:bg-blue-50 text-left whitespace-nowrap transition-colors font-medium">
                                             <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -1175,7 +1211,6 @@
                                         </button>
                                         ` : ''}
 
-                                        {{-- Manager Reject --}}
                                         ${data.can_manager_reject ? `
                                         <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'manager_reject')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-rose-700 hover:bg-rose-50 text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1183,19 +1218,17 @@
                                         </button>
                                         ` : ''}
 
-                                        {{-- Final Approve --}}
                                         ${data.can_final_approve ? `
                                         <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'final_approve')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 hover:bg-emerald-50 text-left whitespace-nowrap transition-colors font-semibold">
                                             <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                            <span>★ Final Approve</span>
+                                            <span>Final Approve</span>
                                         </button>
                                         ` : ''}
 
-                                        {{-- Final Reject --}}
                                         ${data.can_final_reject ? `
                                         <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'final_reject')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-rose-700 hover:bg-rose-50 text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                            <span>✕ Final Reject</span>
+                                            <span>Final Reject</span>
                                         </button>
                                         ` : ''}
 
@@ -1209,12 +1242,115 @@
                             `;
                         }
                     }
+
                 ],
                 order: [[0, 'desc']],
-                pageLength: 20,
-                lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
+                pageLength: 31,
+                lengthMenu: [[15, 31, 50, 100], [15, 31, 50, 100]],
                 dom: 'rt<"flex items-center justify-between px-6 py-3 border-t border-surface-border"<"text-caption text-ink-400"i><""p>>',
+
+                // ── Option 1: Native Date + Worker accordion grouping in drawCallback ───
                 drawCallback: function () {
+                    const api = this.api();
+                    const rows = api.rows({ page: 'current' }).nodes();
+                    const data = api.rows({ page: 'current' }).data();
+
+                    if (!data || !data.length) {
+                        if (window.Alpine) {
+                            window.Alpine.initTree(document.getElementById('expenses-table'));
+                        }
+                        return;
+                    }
+
+                    let lastGroup = null;
+                    let currentGroupId = 0;
+
+                    data.each(function (item, idx) {
+                        const tr = rows[idx];
+                        if (!tr) return;
+
+                        const groupKey = (item.date ? item.date.raw : '') + '|||' + (item.worker ? item.worker.name : '');
+
+                        if (lastGroup !== groupKey) {
+                            lastGroup = groupKey;
+                            currentGroupId++;
+
+                            // Count expenses and sum amounts for this group on the current page
+                            let count = 0;
+                            let sum = 0;
+                            data.each(function (subItem) {
+                                const subKey = (subItem.date ? subItem.date.raw : '') + '|||' + (subItem.worker ? subItem.worker.name : '');
+                                if (subKey === groupKey) {
+                                    count++;
+                                    if (subItem.amount && typeof subItem.amount.raw === 'number') {
+                                        sum += subItem.amount.raw;
+                                    } else if (subItem.amount && subItem.amount.formatted) {
+                                        sum += parseFloat(String(subItem.amount.formatted).replace(/,/g, '')) || 0;
+                                    }
+                                }
+                            });
+
+                            const dateFormatted = item.date ? item.date.formatted : '—';
+                            const workerName = item.worker ? item.worker.name : 'Unknown';
+                            const workerRole = item.worker && item.worker.role ? item.worker.role : '';
+                            const sumFormatted = sum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const gId = 'exp-group-' + currentGroupId;
+
+                            // Create the Group Header Row
+                            const headerTr = document.createElement('tr');
+                            headerTr.className = 'expense-group-header bg-slate-100/90 border-t-2 border-b border-surface-border cursor-pointer select-none hover:bg-slate-200/80 transition-colors';
+                            headerTr.dataset.groupId = gId;
+                            headerTr.innerHTML = `
+                                <td colspan="6" class="py-2.5 px-4">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <span class="group-toggle-icon inline-flex w-5 h-5 items-center justify-center rounded bg-white border border-slate-300 text-slate-600 shadow-sm shrink-0">
+                                                <svg class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                            </span>
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-md px-2.5 py-0.5 shadow-sm">
+                                                    <svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                                    <span>${dateFormatted}</span>
+                                                </span>
+                                                <span class="text-slate-300 text-xs">•</span>
+                                                <span class="font-bold text-slate-900 text-sm">${workerName}</span>
+                                                ${workerRole ? `<span class="text-[11px] text-slate-500 bg-white border border-slate-200 rounded px-1.5 py-0.5">${workerRole}</span>` : ''}
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-3 shrink-0">
+                                            <span class="text-xs text-slate-500 font-medium">${count} expense${count !== 1 ? 's' : ''}</span>
+                                            <span class="font-bold text-emerald-700 text-sm bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-0.5">₹${sumFormatted}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                            `;
+
+                            // Accordion click toggle
+                            headerTr.addEventListener('click', function () {
+                                const svg = this.querySelector('.group-toggle-icon svg');
+                                const isCollapsed = svg && svg.classList.contains('-rotate-90');
+                                const childRows = document.querySelectorAll('#expenses-table tr[data-parent-group="' + gId + '"]');
+
+                                childRows.forEach(function (child) {
+                                    child.style.display = isCollapsed ? '' : 'none';
+                                });
+
+                                if (svg) {
+                                    if (isCollapsed) {
+                                        svg.classList.remove('-rotate-90');
+                                    } else {
+                                        svg.classList.add('-rotate-90');
+                                    }
+                                }
+                            });
+
+                            tr.parentNode.insertBefore(headerTr, tr);
+                        }
+
+                        tr.dataset.parentGroup = 'exp-group-' + currentGroupId;
+                        tr.classList.add('expense-sub-row');
+                    });
+
                     if (window.Alpine) {
                         window.Alpine.initTree(document.getElementById('expenses-table'));
                     }

@@ -48,13 +48,15 @@
                                 🌙 Phone Order (Off-Shift / Night)
                             </span>
                         @else
-                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                                📞 Phone Order (During Shift)
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                                <x-lucide-phone class="w-3.5 h-3.5 text-blue-700" />
+                                Phone Order (During Shift)
                             </span>
                         @endif
                     @else
-                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            📍 In-Person Visit Order
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <x-lucide-map-pin class="w-3.5 h-3.5 text-emerald-700" />
+                            In-Person Visit Order
                         </span>
                     @endif
                 </div>

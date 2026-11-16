@@ -39,17 +39,24 @@
                 <div class="relative w-full sm:w-60">
                     <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
                     <input type="text"
+                           id="dt-search"
                            x-model="search"
+                           @input.debounce.200ms="applySearch()"
                            placeholder="Filter leave rules…"
                            class="form-input text-xs pl-9 w-full">
                 </div>
 
                 {{-- Status Filter --}}
-                <select x-model="statusFilter" class="form-input text-xs w-auto">
-                    <option value="all">All Statuses</option>
-                    <option value="active">Active Only</option>
-                    <option value="disabled">Disabled Only</option>
-                </select>
+                <x-filter-select
+                    placeholder="All Statuses"
+                    :options="[
+                        'Active' => 'Active Only',
+                        'Disabled' => 'Disabled Only',
+                    ]"
+                    model="statusFilter"
+                    change="applyStatusFilter()"
+                    width="w-auto min-w-[140px]"
+                />
 
                 {{-- Add Leave Type Button --}}
                 <button type="button"
@@ -66,7 +73,7 @@
     {{-- Data Table Panel --}}
     <div class="panel overflow-hidden border border-surface-border shadow-sm rounded-2xl">
         <div class="table-wrap">
-            <table class="data-table">
+            <table id="leave-types-table" class="data-table">
                 <thead>
                     <tr>
                         <th>Code</th>
@@ -79,52 +86,66 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-surface-border">
-                    <template x-for="item in filteredLeaveTypes()" :key="item.id">
-                        <tr class="hover:bg-slate-50/75 transition-colors">
+                    @forelse($leaveTypes as $item)
+                        @php
+                            $quotaDisplay = $item->accrual_frequency === 'monthly'
+                                ? ($item->days_per_month . ' days / month')
+                                : ($item->days_per_year == 0 ? 'Unlimited' : ($item->days_per_year . ' days / year'));
+                        @endphp
+                        <tr id="leave-type-row-{{ $item->id }}" class="hover:bg-slate-50/75 transition-colors">
                             <td>
-                                <span class="badge badge-primary font-mono font-bold text-xs" x-text="item.code"></span>
+                                <span class="badge badge-primary font-mono font-bold text-xs">{{ $item->code }}</span>
                             </td>
-                            <td class="font-bold text-ink-900 text-xs" x-text="item.name"></td>
+                            <td class="font-bold text-ink-900 text-xs">{{ $item->name }}</td>
                             <td>
-                                <span x-show="item.accrual_frequency === 'monthly'" class="badge badge-warning text-xs inline-flex items-center gap-1">
-                                    <x-lucide-calendar-days class="w-3 h-3" /> Monthly Accrual
-                                </span>
-                                <span x-show="item.accrual_frequency !== 'monthly'" class="badge badge-primary text-xs inline-flex items-center gap-1">
-                                    <x-lucide-calendar class="w-3 h-3" /> Annual Upfront
-                                </span>
+                                @if($item->accrual_frequency === 'monthly')
+                                    <span class="badge badge-warning text-xs inline-flex items-center gap-1">
+                                        <x-lucide-calendar-days class="w-3 h-3" /> Monthly Accrual
+                                    </span>
+                                @else
+                                    <span class="badge badge-primary text-xs inline-flex items-center gap-1">
+                                        <x-lucide-calendar class="w-3 h-3" /> Annual Upfront
+                                    </span>
+                                @endif
                             </td>
-                            <td class="font-extrabold text-ink-900 text-xs" x-text="item.quota_display"></td>
+                            <td class="font-extrabold text-ink-900 text-xs">{{ $quotaDisplay }}</td>
                             <td>
-                                <span x-show="item.carry_forward" class="badge badge-success text-xs inline-flex items-center gap-1">
-                                    <x-lucide-check class="w-3 h-3" /> Allowed
-                                </span>
-                                <span x-show="!item.carry_forward" class="badge badge-secondary text-xs inline-flex items-center gap-1">
-                                    <x-lucide-x class="w-3 h-3" /> No
-                                </span>
+                                @if($item->carry_forward)
+                                    <span class="badge badge-success text-xs inline-flex items-center gap-1">
+                                        <x-lucide-check class="w-3 h-3" /> Allowed
+                                    </span>
+                                @else
+                                    <span class="badge badge-secondary text-xs inline-flex items-center gap-1">
+                                        <x-lucide-x class="w-3 h-3" /> No
+                                    </span>
+                                @endif
                             </td>
                             <td>
                                 <button type="button"
-                                        @click="toggleStatus(item)"
+                                        onclick="window.leavePolicyApp.toggleStatusById({{ $item->id }})"
                                         class="cursor-pointer transition-transform active:scale-95"
-                                        :title="item.is_active ? 'Click to disable leave type' : 'Click to activate leave type'">
-                                    <span x-show="item.is_active" class="badge badge-success text-xs inline-flex items-center gap-1 hover:opacity-80">
-                                        ● Active
-                                    </span>
-                                    <span x-show="!item.is_active" class="badge badge-danger text-xs inline-flex items-center gap-1 hover:opacity-80">
-                                        ○ Disabled
-                                    </span>
+                                        title="{{ $item->is_active ? 'Click to disable leave type' : 'Click to activate leave type' }}">
+                                    @if($item->is_active)
+                                        <span class="badge badge-success text-xs inline-flex items-center gap-1 hover:opacity-80">
+                                            ● Active
+                                        </span>
+                                    @else
+                                        <span class="badge badge-danger text-xs inline-flex items-center gap-1 hover:opacity-80">
+                                            ○ Disabled
+                                        </span>
+                                    @endif
                                 </button>
                             </td>
                             <td class="text-right whitespace-nowrap">
                                 <div class="inline-flex items-center gap-1.5">
                                     <button type="button"
-                                            @click="openEditModal(item)"
+                                            onclick="window.leavePolicyApp.openEditModalById({{ $item->id }})"
                                             class="p-1.5 rounded-lg border border-surface-border bg-white text-ink-600 hover:bg-surface-muted hover:text-ink-900 transition-colors shadow-xs"
                                             title="Edit Leave Rule">
                                         <x-lucide-pencil class="w-3.5 h-3.5" />
                                     </button>
                                     <button type="button"
-                                            @click="deleteLeaveType(item)"
+                                            onclick="window.leavePolicyApp.deleteLeaveTypeById({{ $item->id }}, '{{ addslashes($item->name) }}', '{{ $item->code }}')"
                                             class="p-1.5 rounded-lg border border-red-200 bg-white text-rose-600 hover:bg-rose-50 transition-colors shadow-xs"
                                             title="Delete / Disable Leave Rule">
                                         <x-lucide-trash-2 class="w-3.5 h-3.5" />
@@ -132,17 +153,8 @@
                                 </div>
                             </td>
                         </tr>
-                    </template>
-
-                    {{-- Empty State --}}
-                    <tr x-show="filteredLeaveTypes().length === 0">
-                        <td colspan="7" class="text-center py-16 text-ink-400">
-                            <div class="flex flex-col items-center gap-2">
-                                <x-lucide-file-x class="w-10 h-10 stroke-1 text-ink-300" />
-                                <p class="text-xs font-semibold text-ink-600">No leave rules matching filter criteria.</p>
-                            </div>
-                        </td>
-                    </tr>
+                    @empty
+                    @endforelse
                 </tbody>
             </table>
         </div>
@@ -425,7 +437,68 @@ function leavePolicyManager(config) {
         leaveTypes: config.initialLeaveTypes || [],
         csrfToken: config.csrfToken,
         search: '',
-        statusFilter: 'all',
+        statusFilter: '',
+
+        init() {
+            this.$nextTick(() => {
+                this.initDataTable();
+            });
+            window.leavePolicyApp = this;
+        },
+
+        initDataTable() {
+            if (window.leaveTypesTable) {
+                try { window.leaveTypesTable.destroy(); } catch (e) {}
+            }
+            if (typeof DataTable !== 'undefined') {
+                window.leaveTypesTable = new DataTable('#leave-types-table', {
+                    pageLength: 10,
+                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+                    order: [[0, 'asc']],
+                    columnDefs: [{ targets: -1, orderable: false, searchable: false }],
+                    dom: '<"table-wrap"t><"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-surface-border"<"text-xs text-ink-600"i><"dt-paging"p>>',
+                    language: {
+                        emptyTable: 'No leave rules configured.',
+                        zeroRecords: 'No matching leave rules found.',
+                        paginate: {
+                            previous: '‹ Prev',
+                            next: 'Next ›'
+                        }
+                    }
+                });
+            }
+        },
+
+        applySearch() {
+            if (window.leaveTypesTable) {
+                window.leaveTypesTable.search(this.search).draw();
+            }
+        },
+
+        applyStatusFilter() {
+            if (window.leaveTypesTable) {
+                window.leaveTypesTable.column(5).search(this.statusFilter).draw();
+            }
+        },
+
+        openEditModalById(id) {
+            const item = this.leaveTypes.find(t => t.id === id);
+            if (item) {
+                this.openEditModal(item);
+            }
+        },
+
+        toggleStatusById(id) {
+            const item = this.leaveTypes.find(t => t.id === id);
+            if (item) {
+                this.toggleStatus(item);
+            }
+        },
+
+        deleteLeaveTypeById(id, name, code) {
+            const item = this.leaveTypes.find(t => t.id === id) || { id, name, code };
+            this.deleteLeaveType(item);
+        },
 
         createModal: {
             open: false,
@@ -507,6 +580,7 @@ function leavePolicyManager(config) {
                     this.leaveTypes.push(data.leave_type);
                     this.createModal.open = false;
                     window.toast(data.message || 'Leave rule created successfully!', 'success');
+                    setTimeout(() => window.location.reload(), 400);
                 } else if (res.status === 422 && data.errors) {
                     this.createModal.errors = data.errors;
                     window.toast(data.message || 'Please fix validation errors.', 'error');
@@ -560,6 +634,7 @@ function leavePolicyManager(config) {
                     }
                     this.editModal.open = false;
                     window.toast(data.message || 'Leave rule updated successfully!', 'success');
+                    setTimeout(() => window.location.reload(), 400);
                 } else if (res.status === 422 && data.errors) {
                     this.editModal.errors = data.errors;
                     window.toast(data.message || 'Please fix validation errors.', 'error');
@@ -592,6 +667,7 @@ function leavePolicyManager(config) {
                         this.leaveTypes[idx] = data.leave_type;
                     }
                     window.toast(data.message || 'Status updated.', 'success');
+                    setTimeout(() => window.location.reload(), 400);
                 } else {
                     window.toast(data.message || 'Failed to toggle status.', 'error');
                 }
@@ -627,6 +703,7 @@ function leavePolicyManager(config) {
                         }
                     }
                     window.toast(data.message || 'Action completed.', 'success');
+                    setTimeout(() => window.location.reload(), 400);
                 } else {
                     window.toast(data.message || 'Failed to delete leave rule.', 'error');
                 }

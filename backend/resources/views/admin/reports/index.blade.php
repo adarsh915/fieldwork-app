@@ -78,15 +78,13 @@
                 </div>
 
                 <div class="{{ $dateRange['preset'] === 'custom' ? 'md:col-span-1' : 'md:col-span-3' }}">
-                    <label class="form-label text-xs">Employee / Field Worker</label>
-                    <select id="filter-user" class="form-input text-xs py-1.5">
-                        <option value="">All Employees ({{ $employeesList->count() }})</option>
-                        @foreach($employeesList as $emp)
-                            <option value="{{ $emp->id }}" {{ $selectedUser == $emp->id ? 'selected' : '' }}>
-                                {{ $emp->name }} ({{ $emp->role_name }})
-                            </option>
-                        @endforeach
-                    </select>
+                    <x-filter-select
+                        id="filter-user"
+                        label="Employee / Field Worker"
+                        placeholder="All Employees ({{ $employeesList->count() }})"
+                        :options="$employeesList->mapWithKeys(fn($emp) => [$emp->id => $emp->name . ' (' . $emp->role_name . ')'])"
+                        :selected="$selectedUser"
+                    />
                 </div>
 
                 <div class="flex gap-2">
@@ -196,8 +194,8 @@
             <div class="flex items-center gap-2 text-xs text-slate-600">
                 <span class="font-medium">Show</span>
                 <select id="matrix-page-len" class="form-input text-xs py-1.5 px-2.5 w-auto rounded-lg border-slate-200 bg-white">
-                    <option value="10">10</option>
-                    <option value="20" selected>20</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
                     <option value="50">50</option>
                     <option value="-1">All</option>
                 </select>
@@ -205,7 +203,7 @@
             </div>
         </div>
 
-        <div class="table-wrap overflow-x-auto" id="matrix-table-wrap">
+        <div id="matrix-table-wrap">
             <table id="report-matrix-table" class="data-table w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 border-y border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -250,15 +248,18 @@
                             <td class="py-3.5 px-3 text-center" data-order="{{ $row['total_orders'] }}">
                                 <div class="font-bold text-slate-900 text-sm">{{ $row['total_orders'] }}</div>
                                 <div class="flex items-center justify-center gap-1 mt-1">
-                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="In-person visit orders">
-                                        📍 {{ $row['visit_orders_count'] }}
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="In-person visit orders">
+                                        <x-lucide-map-pin class="w-3 h-3 text-emerald-600" />
+                                        <span>{{ $row['visit_orders_count'] }}</span>
                                     </span>
-                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Phone orders during shift">
-                                        📞 {{ $row['phone_shift_orders'] }}
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Phone orders during shift">
+                                        <x-lucide-phone class="w-3 h-3 text-blue-600" />
+                                        <span>{{ $row['phone_shift_orders'] }}</span>
                                     </span>
                                     @if($row['phone_night_orders'] > 0)
-                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200" title="Phone orders after day end / off-shift">
-                                            🌙 {{ $row['phone_night_orders'] }}
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200" title="Phone orders after day end / off-shift">
+                                            <x-lucide-moon class="w-3 h-3 text-amber-600" />
+                                            <span>{{ $row['phone_night_orders'] }}</span>
                                         </span>
                                     @endif
                                 </div>
@@ -365,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setLoading(on) {
-        const tableWrap = document.getElementById('matrix-table-wrap');
+        const tableWrap = document.getElementById('report-matrix-table')?.closest('.table-wrap') || document.getElementById('matrix-table-wrap');
         if (!tableWrap) return;
         tableWrap.style.opacity = on ? '0.4' : '1';
         tableWrap.style.pointerEvents = on ? 'none' : '';
@@ -389,20 +390,26 @@ document.addEventListener('DOMContentLoaded', function () {
         const rowCount = tableEl.querySelectorAll('tbody tr').length;
         if (!hasEmptyRow && rowCount > 0) {
             const pageLenSelect = document.getElementById('matrix-page-len');
-            const initialLen = pageLenSelect ? parseInt(pageLenSelect.value) : 20;
+            const initialLen = pageLenSelect ? parseInt(pageLenSelect.value) : 10;
 
             reportDataTable = new DT('#report-matrix-table', {
-                pageLength: initialLen > 0 ? initialLen : 20,
+                pageLength: initialLen > 0 ? initialLen : 10,
                 lengthMenu: [[10, 20, 50, -1], [10, 20, 50, 'All']],
+                pagingType: 'simple_numbers',
                 order: [[4, 'desc']], // Sort by Sales Value descending
                 columnDefs: [
                     { targets: [8], orderable: false, searchable: false }
                 ],
-                dom: 'rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100"<"text-caption text-ink-500 font-medium"i><""p>>',
+                dom: '<"table-wrap"t><"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-surface-border"<"text-caption text-ink-600 font-medium"i><""p>>',
                 language: {
                     info: "Showing _START_ to _END_ of _TOTAL_ employees",
                     infoEmpty: "Showing 0 employees",
-                    emptyTable: "No performance records found for this period."
+                    infoFiltered: "(filtered from _MAX_ total)",
+                    emptyTable: "No performance records found for this period.",
+                    paginate: {
+                        previous: "‹ Prev",
+                        next: "Next ›"
+                    }
                 }
             });
 
@@ -504,11 +511,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         tbody.innerHTML = rows.map(r => {
             const autoClosedHtml = (r.auto_closed_count > 0)
-                ? `<span class="inline-block mt-0.5 text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded" title="Auto closed day starts">⚠️ ${r.auto_closed_count} auto-closed</span>`
+                ? `<span class="inline-flex items-center gap-1 mt-0.5 text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded" title="Auto closed day starts"><svg class="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>${r.auto_closed_count} auto-closed</span>`
                 : '';
 
             const phoneNightHtml = (r.phone_night_orders > 0)
-                ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200" title="Phone orders after day end / off-shift">🌙 ${r.phone_night_orders}</span>`
+                ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200" title="Phone orders after day end / off-shift"><svg class="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>${r.phone_night_orders}</span>`
                 : '';
 
             const phoneAmountHtml = (r.total_phone_orders > 0)
@@ -536,8 +543,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td class="py-3.5 px-3 text-center" data-order="${r.total_orders ?? 0}">
                     <div class="font-bold text-slate-900 text-sm">${r.total_orders ?? 0}</div>
                     <div class="flex items-center justify-center gap-1 mt-1">
-                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="In-person visit orders">📍 ${r.visit_orders_count ?? 0}</span>
-                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Phone orders during shift">📞 ${r.phone_shift_orders ?? 0}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="In-person visit orders"><svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>${r.visit_orders_count ?? 0}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Phone orders during shift"><svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>${r.phone_shift_orders ?? 0}</span>
                         ${phoneNightHtml}
                     </div>
                 </td>

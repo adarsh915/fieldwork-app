@@ -39,25 +39,53 @@
                 </div>
 
                 {{-- Filters --}}
-                <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <div class="relative flex-1 max-w-sm">
+                <div class="mt-4 flex flex-wrap items-center gap-3">
+                    <div class="relative flex-1 min-w-[220px]">
                         <x-lucide-search
                             class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
-                        <input type="text" x-model="filters.search" @input.debounce.200ms="applyFilters()" id="dt-search"
-                            class="form-input pl-9" placeholder="Search name, email, ID, phone…">
+                        <input type="text"
+                               x-model="filters.search"
+                               @input.debounce.200ms="applyFilters()"
+                               id="dt-search"
+                               class="form-input text-xs pl-9 pr-8 h-[38px] w-full"
+                               placeholder="Search name, email, ID, phone…">
+                        <button type="button"
+                                x-show="filters.search"
+                                @click="filters.search = ''; applyFilters()"
+                                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 transition"
+                                style="display: none;"
+                                title="Clear search">
+                            <x-lucide-x class="w-3.5 h-3.5" />
+                        </button>
                     </div>
-                    <select x-model="filters.role" @change="applyFilters()" id="roleFilter" class="form-input w-auto">
-                        <option value="">All Roles</option>
-                        @foreach($roles as $role)
-                            <option value="{{ $role->name }}">{{ ucfirst($role->name) }}</option>
-                        @endforeach
-                    </select>
-                    <select x-model="filters.status" @change="applyFilters()" id="statusFilter" class="form-input w-auto">
-                        <option value="">All Status</option>
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                    </select>
-                    <button type="button" @click="resetFilters()" id="resetFilters" class="btn-secondary">Reset</button>
+
+                    <x-filter-select
+                        placeholder="All Roles"
+                        :options="$roles->mapWithKeys(fn($r) => [$r->name => ucfirst($r->name)])"
+                        model="filters.role"
+                        change="applyFilters()"
+                        width="w-48"
+                    />
+
+                    <x-filter-select
+                        placeholder="All Status"
+                        :options="[
+                            'Active' => 'Active',
+                            'Inactive' => 'Inactive'
+                        ]"
+                        model="filters.status"
+                        change="applyFilters()"
+                        width="w-36"
+                    />
+
+                    <button type="button"
+                            @click="resetFilters()"
+                            id="resetFilters"
+                            class="btn-secondary h-[38px] px-3.5 text-xs font-semibold inline-flex items-center justify-center gap-1.5"
+                            title="Reset all filters">
+                        <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                        <span>Reset</span>
+                    </button>
                 </div>
             </div>
 
@@ -70,8 +98,8 @@
                             <th>Contact</th>
                             <th>Position</th>
                             <th>Reporting To</th>
-                            <th>Role</th>
-                            <th>Status</th>
+                            <th class="whitespace-nowrap">Role</th>
+                            <th class="whitespace-nowrap">Status</th>
                             <th>Hired</th>
                             @canany(['employees.edit', 'employees.delete'])
                                 <th class="text-right">Actions</th>
@@ -114,8 +142,8 @@
                                     <span id="manager-{{ $employee->id }}"
                                         class="text-body font-medium text-ink-700">{{ $employee->reportingManager?->name_with_role ?? '—' }}</span>
                                 </td>
-                                <td>
-                                    <div id="roles-{{ $employee->id }}" class="flex flex-wrap gap-1">
+                                <td class="whitespace-nowrap">
+                                    <div id="roles-{{ $employee->id }}" class="flex flex-wrap gap-1 whitespace-nowrap">
                                         @forelse ($employee->roles as $role)
                                             <span class="badge badge-info">{{ $role->name }}</span>
                                         @empty
@@ -970,7 +998,7 @@
                                 zeroRecords: 'No matching employees.',
                             },
                             columnDefs: [{ targets: -1, orderable: false, searchable: false }],
-                            dom: '<"flex items-center justify-between px-6 py-3 border-t border-surface-border"<"text-caption text-ink-400"i><""p>>rt',
+                            dom: 'rt<"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-surface-border"<"text-xs text-ink-600"i><"dt-paging"p>>',
                         });
                     }
                 },

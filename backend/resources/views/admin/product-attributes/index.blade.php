@@ -32,11 +32,16 @@
                 <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
                 <input name="q" value="{{ $search }}" class="form-input pl-9" placeholder="Search attributes…">
             </div>
-            <select name="status" class="form-input w-auto">
-                <option value="">All Status</option>
-                <option value="active"   @selected($status === 'active')>Active</option>
-                <option value="inactive" @selected($status === 'inactive')>Inactive</option>
-            </select>
+            <x-filter-select
+                name="status"
+                placeholder="All Status"
+                :options="[
+                    'active' => 'Active',
+                    'inactive' => 'Inactive',
+                ]"
+                :selected="$status"
+                width="w-auto min-w-[140px]"
+            />
             <x-button type="submit" variant="primary">
                 <x-lucide-filter class="w-4 h-4" />
                 Search
@@ -129,11 +134,7 @@
         </table>
     </div>
 
-    @if($attributes->hasPages())
-        <div class="border-t border-surface-border px-6 py-4">
-            {{ $attributes->links() }}
-        </div>
-    @endif
+    {{ $attributes->links() }}
 </div>
 
 @endsection

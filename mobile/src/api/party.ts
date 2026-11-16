@@ -26,6 +26,7 @@ export interface NewPartyPayload {
   name: string;
   mobile: string;
   party_type?: string;
+  category?: string;
   owner_name?: string;
   district_id?: number;
   district?: string;

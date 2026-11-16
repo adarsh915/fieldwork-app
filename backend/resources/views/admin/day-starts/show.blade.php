@@ -899,12 +899,14 @@
                                 <td class="font-semibold">{{ $order->party->name ?? 'Unknown' }}</td>
                                 <td>
                                     @if(($order->order_source ?? '') === 'phone')
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                            📞 Phone
+                                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            <x-lucide-phone class="w-3.5 h-3.5 text-indigo-600" />
+                                            Phone
                                         </span>
                                     @else
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                                            📍 Visit
+                                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                            <x-lucide-map-pin class="w-3.5 h-3.5 text-slate-600" />
+                                            Visit
                                         </span>
                                     @endif
                                 </td>
@@ -1731,8 +1733,9 @@
                     <div>
                         <label class="form-label font-semibold text-xs text-slate-700">Expense Category</label>
                         <template x-if="editData.isSystemTravel">
-                            <div class="mt-1 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-semibold">
-                                🚗 System Travel (Automated Distance Claim)
+                            <div class="mt-1 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                                <x-lucide-car class="w-3.5 h-3.5 text-indigo-700" />
+                                <span>System Travel (Automated Distance Claim)</span>
                             </div>
                         </template>
                         <template x-if="!editData.isSystemTravel">

@@ -4,6 +4,13 @@
 @section('breadcrumb', 'ADMIN / HOLIDAYS')
 @section('page_title', 'Declared Holidays')
 
+@php
+    $yearOptions = [];
+    for($y = now()->year - 2; $y <= now()->year + 3; $y++) {
+        $yearOptions[(string)$y] = (string)$y;
+    }
+@endphp
+
 @section('content')
 <div x-data="holidayManager({
     initialYear: {{ (int)$year }},
@@ -30,18 +37,23 @@
             <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                 <div class="flex items-center gap-2">
                     <label class="form-label text-xs font-bold mb-0 whitespace-nowrap text-ink-700">Year:</label>
-                    <select x-model="year" @change="switchYear($event.target.value)" class="form-input text-xs w-auto min-w-[120px]">
-                        @for($y = now()->year - 2; $y <= now()->year + 3; $y++)
-                            <option value="{{ $y }}" {{ $year == $y ? 'selected' : '' }}>{{ $y }}</option>
-                        @endfor
-                    </select>
+                    <x-filter-select
+                        placeholder="{{ $year }}"
+                        :options="$yearOptions"
+                        :selected="(string)$year"
+                        model="year"
+                        change="switchYear(year)"
+                        width="w-auto min-w-[120px]"
+                    />
                 </div>
 
                 {{-- Live Search --}}
                 <div class="relative w-full sm:w-60">
                     <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
                     <input type="text"
+                           id="dt-search"
                            x-model="search"
+                           @input.debounce.200ms="applySearch()"
                            placeholder="Filter holidays…"
                            class="form-input text-xs pl-9 w-full">
                 </div>
@@ -61,7 +73,7 @@
     {{-- Data Table Panel --}}
     <div class="panel overflow-hidden border border-surface-border shadow-sm rounded-2xl">
         <div class="table-wrap">
-            <table class="data-table">
+            <table id="holidays-table" class="data-table">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -73,46 +85,35 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-surface-border">
-                    {{-- Loading Indicator --}}
-                    <template x-if="loading">
-                        <tr>
-                            <td colspan="6" class="py-12 text-center">
-                                <div class="flex flex-col items-center justify-center gap-2">
-                                    <svg class="animate-spin h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    <span class="text-xs text-ink-500">Loading holidays for <span x-text="year"></span>...</span>
-                                </div>
+                    @forelse($holidays as $h)
+                        <tr id="holiday-row-{{ $h->id }}" class="hover:bg-slate-50/75 transition-colors">
+                            <td class="font-bold text-ink-900 whitespace-nowrap text-xs" data-order="{{ $h->date->format('Y-m-d') }}">
+                                {{ $h->date->format('d M Y') }}
                             </td>
-                        </tr>
-                    </template>
-
-                    {{-- Records --}}
-                    <template x-for="holiday in filteredHolidays()" :key="holiday.id">
-                        <tr class="hover:bg-slate-50/75 transition-colors">
-                            <td class="font-bold text-ink-900 whitespace-nowrap text-xs" x-text="holiday.date_formatted"></td>
-                            <td class="text-ink-600 whitespace-nowrap text-xs" x-text="holiday.day_name"></td>
-                            <td class="font-bold text-ink-900 text-xs" x-text="holiday.name"></td>
+                            <td class="text-ink-600 whitespace-nowrap text-xs">{{ $h->date->format('l') }}</td>
+                            <td class="font-bold text-ink-900 text-xs">{{ $h->name }}</td>
                             <td>
-                                <span x-show="holiday.type === 'national'" class="badge badge-info text-xs inline-flex items-center gap-1">
-                                    <x-lucide-flag class="w-3 h-3" /> National Holiday
-                                </span>
-                                <span x-show="holiday.type !== 'national'" class="badge badge-success text-xs inline-flex items-center gap-1">
-                                    <x-lucide-building class="w-3 h-3" /> Company Holiday
-                                </span>
+                                @if($h->type === 'national')
+                                    <span class="badge badge-info text-xs inline-flex items-center gap-1">
+                                        <x-lucide-flag class="w-3 h-3" /> National Holiday
+                                    </span>
+                                @else
+                                    <span class="badge badge-success text-xs inline-flex items-center gap-1">
+                                        <x-lucide-building class="w-3 h-3" /> Company Holiday
+                                    </span>
+                                @endif
                             </td>
-                            <td class="text-xs text-ink-600" x-text="holiday.created_by_name"></td>
+                            <td class="text-xs text-ink-600">{{ $h->createdBy->name ?? 'Admin' }}</td>
                             <td class="text-right whitespace-nowrap">
                                 <div class="inline-flex items-center gap-1.5">
                                     <button type="button"
-                                            @click="openEditModal(holiday)"
+                                            onclick="window.holidayApp.openEditModalById({{ $h->id }})"
                                             class="p-1.5 rounded-lg border border-surface-border bg-white text-ink-600 hover:bg-surface-muted hover:text-ink-900 transition-colors shadow-xs"
                                             title="Edit Holiday">
                                         <x-lucide-pencil class="w-3.5 h-3.5" />
                                     </button>
                                     <button type="button"
-                                            @click="deleteHoliday(holiday)"
+                                            onclick="window.holidayApp.deleteHolidayById({{ $h->id }}, '{{ addslashes($h->name) }}')"
                                             class="p-1.5 rounded-lg border border-red-200 bg-white text-rose-600 hover:bg-rose-50 transition-colors shadow-xs"
                                             title="Delete Holiday">
                                         <x-lucide-trash-2 class="w-3.5 h-3.5" />
@@ -120,17 +121,8 @@
                                 </div>
                             </td>
                         </tr>
-                    </template>
-
-                    {{-- Empty State --}}
-                    <tr x-show="!loading && filteredHolidays().length === 0">
-                        <td colspan="6" class="text-center py-16 text-ink-400">
-                            <div class="flex flex-col items-center gap-2">
-                                <x-lucide-calendar-off class="w-10 h-10 stroke-1 text-ink-300" />
-                                <p class="text-xs font-semibold text-ink-600">No holidays declared for <span x-text="year"></span>.</p>
-                            </div>
-                        </td>
-                    </tr>
+                    @empty
+                    @endforelse
                 </tbody>
             </table>
         </div>
@@ -321,6 +313,58 @@ function holidayManager(config) {
         search: '',
         loading: false,
 
+        init() {
+            this.$nextTick(() => {
+                this.initDataTable();
+            });
+            window.holidayApp = this;
+        },
+
+        initDataTable() {
+            if (window.holidaysTable) {
+                try { window.holidaysTable.destroy(); } catch (e) {}
+            }
+            if (typeof DataTable !== 'undefined') {
+                window.holidaysTable = new DataTable('#holidays-table', {
+                    pageLength: 10,
+                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+                    order: [[0, 'asc']],
+                    columnDefs: [{ targets: -1, orderable: false, searchable: false }],
+                    dom: '<"table-wrap"t><"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-surface-border"<"text-xs text-ink-600"i><"dt-paging"p>>',
+                    language: {
+                        emptyTable: 'No declared holidays for this year.',
+                        zeroRecords: 'No matching holidays found.',
+                        paginate: {
+                            previous: '‹ Prev',
+                            next: 'Next ›'
+                        }
+                    }
+                });
+            }
+        },
+
+        applySearch() {
+            if (window.holidaysTable) {
+                window.holidaysTable.search(this.search).draw();
+            }
+        },
+
+        switchYear(newYear) {
+            window.location.href = `{{ route('admin.holidays.index') }}?year=${newYear}`;
+        },
+
+        openEditModalById(id) {
+            const h = this.holidays.find(item => item.id === id);
+            if (h) {
+                this.openEditModal(h);
+            }
+        },
+
+        deleteHolidayById(id, name) {
+            const h = this.holidays.find(item => item.id === id) || { id, name };
+            this.deleteHoliday(h);
+        },
+
         declareModal: {
             open: false,
             saving: false,
@@ -414,6 +458,7 @@ function holidayManager(config) {
                     this.holidays.sort((a, b) => new Date(a.date) - new Date(b.date));
                     this.declareModal.open = false;
                     window.toast(data.message || 'Holiday declared successfully!', 'success');
+                    setTimeout(() => window.location.reload(), 400);
                 } else if (res.status === 422 && data.errors) {
                     this.declareModal.errors = data.errors;
                     window.toast(data.message || 'Please fix validation errors.', 'error');
@@ -464,6 +509,7 @@ function holidayManager(config) {
                     }
                     this.editModal.open = false;
                     window.toast(data.message || 'Holiday updated successfully!', 'success');
+                    setTimeout(() => window.location.reload(), 400);
                 } else if (res.status === 422 && data.errors) {
                     this.editModal.errors = data.errors;
                     window.toast(data.message || 'Please fix validation errors.', 'error');
@@ -497,6 +543,7 @@ function holidayManager(config) {
                 if (res.ok && data.success) {
                     this.holidays = this.holidays.filter(h => h.id !== holiday.id);
                     window.toast(data.message || 'Holiday deleted successfully.', 'success');
+                    setTimeout(() => window.location.reload(), 400);
                 } else {
                     window.toast(data.message || 'Failed to delete holiday.', 'error');
                 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\PushNotificationLog;
 use App\Models\User;
 use App\Services\FirebasePushService;
 use Illuminate\Http\Request;
@@ -21,7 +22,11 @@ class PushNotificationController extends Controller
 
         $tokenCount = $users->whereNotNull('fcm_token')->count();
 
-        return view('admin.notifications.send_push', compact('users', 'tokenCount'));
+        $logs = PushNotificationLog::with(['sender:id,name', 'recipientUser:id,name'])
+            ->latest()
+            ->paginate(15);
+
+        return view('admin.notifications.send_push', compact('users', 'tokenCount', 'logs'));
     }
 
     /**
@@ -54,6 +59,18 @@ class PushNotificationController extends Controller
 
             $this->dispatchBroadcastNotification($recipients, 'all_employees', $title, $body, $data);
 
+            $devicesReached = $recipients->whereNotNull('fcm_token')->count();
+            PushNotificationLog::create([
+                'sender_id'        => auth()->id(),
+                'recipient_type'   => 'all',
+                'title'            => $title,
+                'body'             => $body,
+                'screen'           => $data['screen'] ?? 'Home',
+                'total_recipients' => $recipients->count(),
+                'devices_reached'  => $devicesReached,
+                'status'           => 'delivered',
+            ]);
+
             $successMsg = "Notification sent to all {$recipients->count()} user(s) via Firebase Topic (1 API call)!";
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true, 'message' => $successMsg]);
@@ -74,6 +91,18 @@ class PushNotificationController extends Controller
             }
 
             $this->dispatchBroadcastNotification($recipients, 'field_workers', $title, $body, $data);
+
+            $devicesReached = $recipients->whereNotNull('fcm_token')->count();
+            PushNotificationLog::create([
+                'sender_id'        => auth()->id(),
+                'recipient_type'   => 'field_workers',
+                'title'            => $title,
+                'body'             => $body,
+                'screen'           => $data['screen'] ?? 'Home',
+                'total_recipients' => $recipients->count(),
+                'devices_reached'  => $devicesReached,
+                'status'           => 'delivered',
+            ]);
 
             $successMsg = "Notification sent to {$recipients->count()} field worker(s) via Firebase Topic (1 API call)!";
             if ($request->ajax() || $request->wantsJson()) {
@@ -97,13 +126,51 @@ class PushNotificationController extends Controller
             $pushResult = FirebasePushService::sendToUser($user, $title, $body, $data);
             if (!$pushResult['success']) {
                 $errMsg = "Notification saved to DB, but push delivery failed: " . ($pushResult['message'] ?? 'Unknown error');
+                PushNotificationLog::create([
+                    'sender_id'         => auth()->id(),
+                    'recipient_type'    => 'individual',
+                    'recipient_user_id' => $user->id,
+                    'title'             => $title,
+                    'body'              => $body,
+                    'screen'            => $data['screen'] ?? 'Home',
+                    'total_recipients'  => 1,
+                    'devices_reached'   => 0,
+                    'status'            => 'failed',
+                    'error_message'     => $errMsg,
+                ]);
+
                 if ($request->ajax() || $request->wantsJson()) {
                     return response()->json(['success' => false, 'message' => $errMsg], 422);
                 }
                 return back()->with('error', $errMsg);
             }
+
+            PushNotificationLog::create([
+                'sender_id'         => auth()->id(),
+                'recipient_type'    => 'individual',
+                'recipient_user_id' => $user->id,
+                'title'             => $title,
+                'body'              => $body,
+                'screen'            => $data['screen'] ?? 'Home',
+                'total_recipients'  => 1,
+                'devices_reached'   => 1,
+                'status'            => 'delivered',
+            ]);
         } else {
             $warnMsg = "Notification saved in database, but {$user->name} has no device registered (fcm_token is empty).";
+            PushNotificationLog::create([
+                'sender_id'         => auth()->id(),
+                'recipient_type'    => 'individual',
+                'recipient_user_id' => $user->id,
+                'title'             => $title,
+                'body'              => $body,
+                'screen'            => $data['screen'] ?? 'Home',
+                'total_recipients'  => 1,
+                'devices_reached'   => 0,
+                'status'            => 'partial',
+                'error_message'     => 'No device token registered',
+            ]);
+
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true, 'warning' => true, 'message' => $warnMsg]);
             }

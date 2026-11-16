@@ -456,8 +456,10 @@ class PartyController extends Controller
         $employees = DataScope::assignableUsers()->orderBy('name')->get(['id', 'name']);
         $jsonPath = resource_path('data/india_states_districts.json');
         $indiaLocations = file_exists($jsonPath) ? json_decode(file_get_contents($jsonPath), true) : [];
+        $categories = ['A', 'B', 'C', 'D'];
+        $partyTypes = ['Retailer', 'Distributor', 'Wholesaler', 'End Customer'];
 
-        return view('admin.parties.create', compact('employees', 'indiaLocations'));
+        return view('admin.parties.create', compact('employees', 'indiaLocations', 'categories', 'partyTypes'));
     }
 
     /**
@@ -469,6 +471,8 @@ class PartyController extends Controller
             'name'         => ['required', 'string', 'max:255'],
             'mobile'       => ['nullable', 'string', 'max:20'],
             'email'        => ['nullable', 'email', 'max:255'],
+            'party_type'   => ['nullable', 'string', 'max:50'],
+            'category'     => ['nullable', 'string', 'in:A,B,C,D'],
             'address'      => ['nullable', 'string', 'max:1000'],
             'state'        => ['nullable', 'string', 'max:100'],
             'district'     => ['nullable', 'string', 'max:100'],

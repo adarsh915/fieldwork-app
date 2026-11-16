@@ -22,9 +22,13 @@ return [
     'allowed_origins' => [
         env('FRONTEND_URL', 'http://localhost:3000'),
         env('APP_URL', 'http://localhost'),
+        'https://amplfield.kisanogram.com',
+        'http://amplfield.kisanogram.com',
     ],
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https?://.*\.kisanogram\.com$#',
+    ],
 
     'allowed_headers' => [
         'Content-Type',

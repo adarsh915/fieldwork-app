@@ -34,6 +34,16 @@ const PARTY_TYPES: Array<{
   { key: "Dealer", label: "Dealer", icon: "briefcase-outline" },
 ];
 
+const PARTY_CATEGORIES: Array<{
+  key: string;
+  label: string;
+}> = [
+  { key: "A", label: "Cat A" },
+  { key: "B", label: "Cat B" },
+  { key: "C", label: "Cat C" },
+  { key: "D", label: "Cat D" },
+];
+
 export default function AddPartyScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
@@ -59,6 +69,7 @@ export default function AddPartyScreen() {
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
   const [partyType, setPartyType] = useState("Retailer");
+  const [category, setCategory] = useState("A");
   const [ownerName, setOwnerName] = useState("");
   const [address, setAddress] = useState("");
   const [pincode, setPincode] = useState("");
@@ -103,6 +114,7 @@ export default function AddPartyScreen() {
         name: name.trim(),
         mobile: mobile.trim(),
         party_type: partyType,
+        category: category || "A",
         owner_name: ownerName.trim() || undefined,
         state: selectedState,
         district: selectedDistrictName,
@@ -214,7 +226,7 @@ export default function AddPartyScreen() {
           </View>
 
           {/* Party Type Chips */}
-          <View style={[styles.field, { marginBottom: 4 }]}>
+          <View style={[styles.field, { marginBottom: 12 }]}>
             <Text style={styles.label}>Party Type</Text>
             <View style={styles.typeGrid}>
               {PARTY_TYPES.map((t) => {
@@ -233,6 +245,33 @@ export default function AddPartyScreen() {
                     />
                     <Text style={[styles.typeChipText, isActive && styles.typeChipTextActive]}>
                       {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Party Category Chips */}
+          <View style={[styles.field, { marginBottom: 4 }]}>
+            <Text style={styles.label}>Party Category</Text>
+            <View style={styles.typeGrid}>
+              {PARTY_CATEGORIES.map((cat) => {
+                const isActive = category === cat.key;
+                return (
+                  <TouchableOpacity
+                    key={cat.key}
+                    style={[styles.typeChip, isActive && styles.typeChipActive]}
+                    onPress={() => setCategory(cat.key)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons
+                      name={isActive ? "bookmark-check" : "bookmark-outline"}
+                      size={18}
+                      color={isActive ? "#7367F0" : "#6B7280"}
+                    />
+                    <Text style={[styles.typeChipText, isActive && styles.typeChipTextActive]}>
+                      {cat.label}
                     </Text>
                   </TouchableOpacity>
                 );

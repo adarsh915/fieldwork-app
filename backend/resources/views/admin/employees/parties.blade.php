@@ -242,11 +242,7 @@
         </div>
 
         {{-- Pagination --}}
-        @if($parties->hasPages())
-            <div class="border-t border-slate-200 px-5 py-4">
-                {{ $parties->links() }}
-            </div>
-        @endif
+        {{ $parties->links() }}
     </section>
 
 @endsection

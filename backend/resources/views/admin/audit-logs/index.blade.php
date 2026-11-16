@@ -10,122 +10,134 @@
     {{-- ── 1. KPI Stats Row ── --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {{-- Total Logs --}}
-        <div class="panel p-5 flex items-center justify-between">
+        <div class="panel p-5 flex items-center justify-between border-l-4 border-l-blue-500">
             <div>
                 <p class="text-xs font-semibold text-ink-500 uppercase tracking-wider">Total Audit Records</p>
                 <h3 class="text-2xl font-bold text-ink-900 mt-1">{{ number_format($stats['total']) }}</h3>
             </div>
-            <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                 <x-lucide-history class="w-6 h-6" />
             </div>
         </div>
 
         {{-- Today's Actions --}}
-        <div class="panel p-5 flex items-center justify-between">
+        <div class="panel p-5 flex items-center justify-between border-l-4 border-l-emerald-500">
             <div>
                 <p class="text-xs font-semibold text-ink-500 uppercase tracking-wider">Actions Today</p>
                 <h3 class="text-2xl font-bold text-emerald-600 mt-1">{{ number_format($stats['today']) }}</h3>
             </div>
-            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                 <x-lucide-activity class="w-6 h-6" />
             </div>
         </div>
 
         {{-- This Week --}}
-        <div class="panel p-5 flex items-center justify-between">
+        <div class="panel p-5 flex items-center justify-between border-l-4 border-l-brand-500">
             <div>
                 <p class="text-xs font-semibold text-ink-500 uppercase tracking-wider">Actions This Week</p>
-                <h3 class="text-2xl font-bold text-indigo-600 mt-1">{{ number_format($stats['this_week']) }}</h3>
+                <h3 class="text-2xl font-bold text-brand-600 mt-1">{{ number_format($stats['this_week']) }}</h3>
             </div>
-            <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
                 <x-lucide-calendar class="w-6 h-6" />
             </div>
         </div>
 
         {{-- Active Admins --}}
-        <div class="panel p-5 flex items-center justify-between">
+        <div class="panel p-5 flex items-center justify-between border-l-4 border-l-purple-500">
             <div>
                 <p class="text-xs font-semibold text-ink-500 uppercase tracking-wider">Active Staff / Admins</p>
                 <h3 class="text-2xl font-bold text-purple-600 mt-1">{{ number_format($stats['admin_count']) }}</h3>
             </div>
-            <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                 <x-lucide-shield-check class="w-6 h-6" />
             </div>
         </div>
     </div>
 
     {{-- ── 2. Filter & Search Panel ── --}}
-    <div class="panel p-6">
-        <form method="GET" action="{{ route('admin.audit-logs.index') }}" class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
-                {{-- Search text --}}
-                <div class="lg:col-span-2">
-                    <label class="block text-xs font-semibold text-ink-700 mb-1">Search Keywords</label>
-                    <div class="relative">
-                        <input type="text" name="search" value="{{ request('search') }}"
-                               placeholder="Search reason, admin, ID, IP..."
-                               class="form-input text-xs w-full pl-9" />
-                        <x-lucide-search class="w-4 h-4 text-ink-400 absolute left-2.5 top-2.5" />
-                    </div>
+    <div class="panel p-5">
+        <form method="GET" action="{{ route('admin.audit-logs.index') }}" id="audit-filter-form" class="space-y-4">
+            {{-- Top row: Quick Search and Reset Filter --}}
+            <div class="flex flex-wrap gap-3 items-end">
+                <div class="relative flex-1 min-w-[260px]">
+                    <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
+                    <input type="text" name="search" id="audit-search-input" value="{{ request('search') }}"
+                           placeholder="Search action reason, admin name, model ID, IP..."
+                           class="form-input text-xs pl-9 pr-8 w-full"
+                           onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.form.submit(); }" />
+                    @if(request('search'))
+                        <a href="{{ request()->fullUrlWithQuery(['search' => null]) }}"
+                           class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600"
+                           title="Clear search">
+                            <x-lucide-x class="w-4 h-4" />
+                        </a>
+                    @endif
                 </div>
 
-                {{-- Action / Event --}}
-                <div>
-                    <label class="block text-xs font-semibold text-ink-700 mb-1">Action Type</label>
-                    <select name="event" class="form-select text-xs w-full">
-                        <option value="">All Actions</option>
-                        <option value="created"   {{ request('event') === 'created'   ? 'selected' : '' }}>Created (Add)</option>
-                        <option value="updated"   {{ request('event') === 'updated'   ? 'selected' : '' }}>Updated (Edit)</option>
-                        <option value="deleted"   {{ request('event') === 'deleted'   ? 'selected' : '' }}>Deleted (Remove)</option>
-                        <option value="approved"  {{ request('event') === 'approved'  ? 'selected' : '' }}>Approved / Verified</option>
-                        <option value="rejected"  {{ request('event') === 'rejected'  ? 'selected' : '' }}>Rejected</option>
-                        <option value="cancelled" {{ request('event') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                    </select>
-                </div>
-
-                {{-- Module / Model --}}
-                <div>
-                    <label class="block text-xs font-semibold text-ink-700 mb-1">Module</label>
-                    <select name="model" class="form-select text-xs w-full">
-                        <option value="">All Modules</option>
-                        @foreach($knownModels as $key => $label)
-                            <option value="{{ $key }}" {{ request('model') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Causer / Admin --}}
-                <div>
-                    <label class="block text-xs font-semibold text-ink-700 mb-1">Admin / User</label>
-                    <select name="causer_id" class="form-select text-xs w-full">
-                        <option value="">All Admins</option>
-                        @foreach($causers as $admin)
-                            <option value="{{ $admin->id }}" {{ (string)request('causer_id') === (string)$admin->id ? 'selected' : '' }}>
-                                {{ $admin->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Date Range --}}
-                <div>
-                    <label class="block text-xs font-semibold text-ink-700 mb-1">From Date</label>
-                    <input type="date" name="date_from" value="{{ request('date_from') }}" class="form-input text-xs w-full" />
-                </div>
+                {{-- Reset Filters Button --}}
+                @if(request()->anyFilled(['search', 'event', 'model', 'causer_id', 'date_from', 'date_to']))
+                    <a href="{{ route('admin.audit-logs.index') }}"
+                       class="btn-secondary text-xs py-2 px-3.5 font-semibold inline-flex items-center gap-1.5 shrink-0 hover:bg-surface-muted transition"
+                       title="Reset all filters">
+                        <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                        <span>Reset Filters</span>
+                    </a>
+                @else
+                    <a href="{{ route('admin.audit-logs.index') }}"
+                       class="btn-secondary text-xs py-2 px-3.5 font-semibold inline-flex items-center gap-1.5 shrink-0 opacity-50 cursor-default"
+                       title="No filters active">
+                        <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-400" />
+                        <span>Reset Filters</span>
+                    </a>
+                @endif
             </div>
 
-            <div class="flex items-center justify-between pt-2 border-t border-surface-border">
-                <div class="text-xs text-ink-500">
-                    Showing <strong>{{ $logs->firstItem() ?? 0 }}</strong> to <strong>{{ $logs->lastItem() ?? 0 }}</strong> of <strong>{{ $logs->total() }}</strong> log entries
+            {{-- Filter Select Dropdowns Grid (Live Auto-Submit on change, no filter button needed) --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 pt-3 border-t border-surface-border">
+                <x-filter-select
+                    name="event"
+                    label="Action Type"
+                    placeholder="All Actions"
+                    :options="[
+                        'created' => 'Created (Add)',
+                        'updated' => 'Updated (Edit)',
+                        'deleted' => 'Deleted (Remove)',
+                        'approved' => 'Approved / Verified',
+                        'rejected' => 'Rejected',
+                        'cancelled' => 'Cancelled',
+                    ]"
+                    :selected="request('event', '')"
+                    change="this.$refs.hiddenInput.form.submit()"
+                />
+
+                <x-filter-select
+                    name="model"
+                    label="Module"
+                    placeholder="All Modules"
+                    :options="$knownModels"
+                    :selected="request('model', '')"
+                    change="this.$refs.hiddenInput.form.submit()"
+                />
+
+                <x-filter-select
+                    name="causer_id"
+                    label="Admin / Staff"
+                    placeholder="All Staff / Admins"
+                    :options="$causers->mapWithKeys(fn($a) => [$a->id => $a->name])"
+                    :selected="request('causer_id', '')"
+                    change="this.$refs.hiddenInput.form.submit()"
+                />
+
+                {{-- From Date --}}
+                <div>
+                    <label class="form-label text-[11px] font-semibold uppercase tracking-wider text-ink-600 mb-1 block">From Date</label>
+                    <input type="date" name="date_from" value="{{ request('date_from') }}" class="form-input text-xs w-full" onchange="this.form.submit()" />
                 </div>
-                <div class="flex items-center gap-2">
-                    <a href="{{ route('admin.audit-logs.index') }}" class="btn-secondary text-xs py-2 px-3">
-                        Reset Filters
-                    </a>
-                    <button type="submit" class="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5">
-                        <x-lucide-filter class="w-3.5 h-3.5" />
-                        Apply Filter
-                    </button>
+
+                {{-- To Date --}}
+                <div>
+                    <label class="form-label text-[11px] font-semibold uppercase tracking-wider text-ink-600 mb-1 block">To Date</label>
+                    <input type="date" name="date_to" value="{{ request('date_to') }}" class="form-input text-xs w-full" onchange="this.form.submit()" />
                 </div>
             </div>
         </form>
@@ -133,17 +145,17 @@
 
     {{-- ── 3. Audit Logs Table ── --}}
     <div class="panel overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="bg-surface-subtle text-ink-700 font-semibold border-b border-surface-border">
+        <div class="table-wrap">
+            <table class="data-table w-full">
+                <thead>
                     <tr>
-                        <th class="p-3.5 text-xs uppercase tracking-wider">Timestamp</th>
-                        <th class="p-3.5 text-xs uppercase tracking-wider">Admin User</th>
-                        <th class="p-3.5 text-xs uppercase tracking-wider">Action</th>
-                        <th class="p-3.5 text-xs uppercase tracking-wider">Target Entity</th>
-                        <th class="p-3.5 text-xs uppercase tracking-wider">Reason / Description</th>
-                        <th class="p-3.5 text-xs uppercase tracking-wider">Details (Diff)</th>
-                        <th class="p-3.5 text-xs uppercase tracking-wider text-right">IP Address</th>
+                        <th class="whitespace-nowrap">Timestamp</th>
+                        <th class="whitespace-nowrap">Admin User</th>
+                        <th class="whitespace-nowrap">Action</th>
+                        <th class="whitespace-nowrap">Target Entity</th>
+                        <th>Reason / Description</th>
+                        <th>Details (Diff)</th>
+                        <th class="text-right whitespace-nowrap">IP Address</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-surface-border text-ink-900">
@@ -166,52 +178,52 @@
                             }
                             $modelName = class_basename($log->auditable_type ?? 'System');
                         @endphp
-                        <tr class="hover:bg-surface-hover transition-colors">
+                        <tr class="hover:bg-surface-muted transition-colors">
                             {{-- Timestamp --}}
-                            <td class="p-3.5 text-xs whitespace-nowrap text-ink-500 font-mono">
-                                <div>{{ $log->created_at->format('d M Y, h:i:s A') }}</div>
+                            <td class="whitespace-nowrap text-xs text-ink-500 font-mono">
+                                <div class="font-bold text-ink-900">{{ $log->created_at->format('d M Y, h:i:s A') }}</div>
                                 <div class="text-[11px] text-ink-400 mt-0.5">{{ $log->created_at->diffForHumans() }}</div>
                             </td>
 
                             {{-- Admin / Causer --}}
-                            <td class="p-3.5 whitespace-nowrap">
+                            <td class="whitespace-nowrap">
                                 @if($log->causer)
-                                    <div class="font-semibold text-ink-900 text-xs">{{ $log->causer->name }}</div>
-                                    <div class="text-[11px] text-ink-500">{{ $log->causer->roles->pluck('name')->join(', ') ?: $log->causer->email }}</div>
+                                    <div class="font-bold text-ink-900 text-xs">{{ $log->causer->name }}</div>
+                                    <div class="text-[11px] text-ink-400 font-mono">{{ $log->causer->roles->pluck('name')->join(', ') ?: $log->causer->email }}</div>
                                 @else
                                     <span class="text-xs text-ink-400 italic">System / Auto</span>
                                 @endif
                             </td>
 
                             {{-- Action Badge --}}
-                            <td class="p-3.5 whitespace-nowrap">
+                            <td class="whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ $badgeClass }}">
                                     {{ $log->event }}
                                 </span>
                             </td>
 
                             {{-- Target Entity --}}
-                            <td class="p-3.5 whitespace-nowrap text-xs">
+                            <td class="whitespace-nowrap text-xs">
                                 <span class="font-bold text-ink-800">{{ $modelName }}</span>
                                 @if($log->auditable_id)
-                                    <span class="text-ink-400">#{{ $log->auditable_id }}</span>
+                                    <span class="text-ink-400 font-mono">#{{ $log->auditable_id }}</span>
                                 @endif
                             </td>
 
                             {{-- Reason / Description --}}
-                            <td class="p-3.5 text-xs text-ink-700 max-w-xs truncate" title="{{ $log->reason }}">
+                            <td class="text-xs text-ink-700 max-w-xs truncate" title="{{ $log->reason }}">
                                 {{ $log->reason ?: '—' }}
                             </td>
 
                             {{-- Details / Changes Diff --}}
-                            <td class="p-3.5 text-xs font-mono">
+                            <td class="text-xs font-mono">
                                 @if($log->old_values || $log->new_values)
                                     <details class="cursor-pointer group">
-                                        <summary class="text-primary-600 hover:text-primary-700 font-medium select-none flex items-center gap-1">
+                                        <summary class="text-brand-600 hover:text-brand-700 font-medium select-none flex items-center gap-1">
                                             <span>View Diff</span>
                                             <span class="text-[10px] text-ink-400">({{ count((array)$log->new_values ?: (array)$log->old_values) }} fields)</span>
                                         </summary>
-                                        <div class="mt-2 p-3 rounded-lg bg-surface-ground border border-surface-border text-xs space-y-2 max-w-md max-h-64 overflow-y-auto">
+                                        <div class="mt-2 p-3 rounded-lg bg-surface-muted border border-surface-border text-xs space-y-2 max-w-md max-h-64 overflow-y-auto shadow-sm">
                                             @php
                                                 $keys = array_unique(array_merge(array_keys((array)$log->old_values), array_keys((array)$log->new_values)));
                                             @endphp
@@ -244,16 +256,23 @@
                             </td>
 
                             {{-- IP Address --}}
-                            <td class="p-3.5 text-right whitespace-nowrap text-xs font-mono text-ink-500">
+                            <td class="text-right whitespace-nowrap text-xs font-mono text-ink-400">
                                 {{ $log->ip_address ?: '—' }}
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="p-12 text-center text-ink-400">
+                            <td colspan="7" class="py-16 text-center text-ink-400">
                                 <x-lucide-history class="w-10 h-10 mx-auto text-ink-300 mb-2" />
-                                <p class="text-sm font-medium">No audit logs matching your search criteria.</p>
+                                <p class="text-sm font-semibold text-ink-800">No audit logs matching your search criteria.</p>
                                 <p class="text-xs text-ink-400 mt-1">Try resetting the filters or modifying your search terms.</p>
+                                @if(request()->anyFilled(['search', 'event', 'model', 'causer_id', 'date_from', 'date_to']))
+                                    <div class="mt-4">
+                                        <a href="{{ route('admin.audit-logs.index') }}" class="btn-secondary text-xs px-3.5 py-1.5">
+                                            Clear All Filters
+                                        </a>
+                                    </div>
+                                @endif
                             </td>
                         </tr>
                     @endforelse
@@ -261,12 +280,8 @@
             </table>
         </div>
 
-        {{-- Pagination --}}
-        @if($logs->hasPages())
-            <div class="p-4 border-t border-surface-border">
-                {{ $logs->links() }}
-            </div>
-        @endif
+        {{-- Unified Server-Side Pagination (Prev, numbers, Next) --}}
+        {{ $logs->links() }}
     </div>
 </div>
 @endsection

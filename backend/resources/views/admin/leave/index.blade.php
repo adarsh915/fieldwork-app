@@ -13,6 +13,7 @@
         rejected: {{ (int) $rejectedCount }},
         conflicts: {{ (int) $conflictCount }}
     },
+    initialMonth: '{{ request('month', Carbon\Carbon::now()->format('Y-m')) }}',
     canApprove: {{ Js::from(auth()->user()->can('leaves.approve') || auth()->user()->can('leaves.manage') || auth()->user()->hasRole('Super Admin')) }},
     canReject: {{ Js::from(auth()->user()->can('leaves.reject') || auth()->user()->can('leaves.manage') || auth()->user()->hasRole('Super Admin')) }},
     canCancel: {{ Js::from(auth()->user()->can('leaves.manage') || auth()->user()->can('leaves.approve') || auth()->user()->hasRole('Super Admin')) }},
@@ -120,75 +121,92 @@
     </div>
 
     {{-- Filter Panel --}}
-    <div class="panel p-5">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-            <div>
-                <h2 class="text-base font-bold text-ink-900" x-text="activeView === 'applications' ? 'Filter Leave Requests' : 'Filter Work Conflicts'"></h2>
-                <p class="text-xs text-ink-500">Live search and instant filtering with server-side pagination</p>
-            </div>
-            <div class="flex items-center gap-2">
-                <button type="button" @click="resetFilters()" class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
-                    <x-lucide-rotate-ccw class="w-3.5 h-3.5" />
-                    <span>Reset Filters</span>
-                </button>
-            </div>
+    <div class="panel p-5 space-y-4">
+        {{-- Header: Title & Description --}}
+        <div>
+            <h2 class="text-base font-bold text-ink-900" x-text="activeView === 'applications' ? 'Filter Leave Requests' : 'Filter Work Conflicts'"></h2>
+            <p class="text-xs text-ink-500 mt-0.5">Live search and instant filtering with server-side pagination</p>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {{-- Search input --}}
-            <div>
-                <label class="form-label text-xs">Search</label>
-                <div class="relative">
-                    <input type="text"
-                           x-model="search"
-                           @input.debounce.300ms="applyFilters()"
-                           placeholder="Employee, leave type, reason..."
-                           class="form-input text-xs pl-8 w-full" />
-                    <x-lucide-search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                </div>
+        {{-- Row 1: Search Input & Reset Button --}}
+        <div class="flex flex-wrap gap-3 items-end">
+            {{-- Search --}}
+            <div class="relative flex-1 min-w-[200px]">
+                <x-lucide-search class="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input type="text"
+                       x-model="search"
+                       @input.debounce.300ms="applyFilters()"
+                       placeholder="Search employee, leave type, reason..."
+                       class="form-input text-xs pl-9 pr-8 h-[38px] w-full" />
+                <button type="button"
+                        x-show="search"
+                        @click="search = ''; applyFilters()"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 transition"
+                        style="display: none;"
+                        title="Clear search">
+                    <x-lucide-x class="w-3.5 h-3.5" />
+                </button>
             </div>
 
+            {{-- Reset Button --}}
+            <button type="button"
+                    @click="resetFilters()"
+                    class="btn-secondary h-[38px] px-4 text-xs font-semibold inline-flex items-center justify-center gap-1.5 shrink-0"
+                    title="Reset all filters">
+                <x-lucide-rotate-ccw class="w-3.5 h-3.5 text-ink-500" />
+                <span>Reset Filters</span>
+            </button>
+        </div>
+
+        {{-- Row 2: Dropdowns & Month Grid (3 equal wide columns) --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
             {{-- Employee filter --}}
-            <div>
-                <label class="form-label text-xs">Employee</label>
-                <select x-model="userId" @change="applyFilters()" class="form-input text-xs w-full">
-                    <option value="">All Employees</option>
-                    @foreach($users as $user)
-                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->role_name ?? 'Field Worker' }})</option>
-                    @endforeach
-                </select>
-            </div>
+            <x-filter-select
+                label="Employee"
+                placeholder="All Employees"
+                :options="$users->mapWithKeys(fn($u) => [$u->id => $u->name . ' (' . ($u->role_name ?? 'Field Worker') . ')'])"
+                model="userId"
+                change="applyFilters()"
+            />
 
             {{-- Status filter (Only in applications view) --}}
-            <template x-if="activeView === 'applications'">
-                <div>
-                    <label class="form-label text-xs">Status</label>
-                    <select x-model="status" @change="applyFilters()" class="form-input text-xs w-full">
-                        <option value="">All Statuses</option>
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
-                        <option value="cancellation_requested">Cancellation Requested</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
-                </div>
-            </template>
+            <div x-show="activeView === 'applications'">
+                <x-filter-select
+                    label="Status"
+                    placeholder="All Statuses"
+                    :options="[
+                        'pending' => 'Pending',
+                        'approved' => 'Approved',
+                        'rejected' => 'Rejected',
+                        'cancellation_requested' => 'Cancellation Requested',
+                        'cancelled' => 'Cancelled'
+                    ]"
+                    model="status"
+                    change="applyFilters()"
+                />
+            </div>
 
             {{-- Conflict Review Tab (Only in conflicts view) --}}
-            <template x-if="activeView === 'conflicts'">
-                <div>
-                    <label class="form-label text-xs">Conflict Status</label>
-                    <select x-model="conflictTab" @change="applyConflictsFilter()" class="form-input text-xs w-full">
-                        <option value="pending">Pending Review Only</option>
-                        <option value="resolved">Resolved History</option>
-                    </select>
-                </div>
-            </template>
+            <div x-show="activeView === 'conflicts'">
+                <x-filter-select
+                    label="Conflict Status"
+                    placeholder="Pending Review Only"
+                    :options="[
+                        'pending' => 'Pending Review Only',
+                        'resolved' => 'Resolved History'
+                    ]"
+                    model="conflictTab"
+                    change="applyConflictsFilter()"
+                />
+            </div>
 
             {{-- Month Filter --}}
             <div>
                 <label class="form-label text-xs">Month</label>
-                <input type="month" x-model="month" @change="applyFilters()" class="form-input text-xs w-full" />
+                <input type="month"
+                       x-model="month"
+                       @change="applyFilters()"
+                       class="form-input text-xs h-[38px] w-full font-medium" />
             </div>
         </div>
     </div>
@@ -374,7 +392,7 @@ function leaveManager(config) {
         conflictTab: config.defaultConflictTab || 'pending',
         userId: '',
         status: '',
-        month: '',
+        month: config.initialMonth || '{{ \Carbon\Carbon::now()->format('Y-m') }}',
         search: '',
         counts: config.initialCounts || { pending: 0, approved: 0, rejected: 0, conflicts: 0 },
         canApprove: config.canApprove ?? false,
@@ -449,10 +467,8 @@ function leaveManager(config) {
                         infoFiltered: '(filtered from _MAX_ total)',
                         lengthMenu: 'Show _MENU_ entries',
                         paginate: {
-                            first: '«',
-                            previous: '‹',
-                            next: '›',
-                            last: '»'
+                            previous: '‹ Prev',
+                            next: 'Next ›'
                         }
                     },
                     columns: [
@@ -600,10 +616,8 @@ function leaveManager(config) {
                         infoFiltered: '(filtered from _MAX_ total)',
                         lengthMenu: 'Show _MENU_ entries',
                         paginate: {
-                            first: '«',
-                            previous: '‹',
-                            next: '›',
-                            last: '»'
+                            previous: '‹ Prev',
+                            next: 'Next ›'
                         }
                     },
                     columns: [
@@ -722,7 +736,7 @@ function leaveManager(config) {
         resetFilters() {
             this.userId = '';
             this.status = '';
-            this.month = '';
+            this.month = config.initialMonth || '{{ \Carbon\Carbon::now()->format('Y-m') }}';
             this.search = '';
             this.conflictTab = 'pending';
             if (window.leaveTable) {

@@ -37,8 +37,7 @@
                 dateFrom: '',
                 dateTo: '',
                 employeeId: '',
-                status: '',
-                filtersVisible: false
+                status: ''
             }" class="mt-4">
                 <div class="flex flex-wrap gap-3 items-end">
                     {{-- Search --}}
@@ -47,12 +46,6 @@
                         <input x-model="search" @input.debounce.400ms="window.dayStartTable.search(search).draw()"
                             class="form-input pl-9" placeholder="Search employee, purpose, location, vehicle...">
                     </div>
-
-                    {{-- Toggle Filters Button --}}
-                    <x-button type="button" variant="secondary" @click="filtersVisible = !filtersVisible">
-                        <x-lucide-filter class="w-4 h-4" />
-                        <span x-text="filtersVisible ? 'Hide Filters' : 'Show Filters'"></span>
-                    </x-button>
 
                     {{-- Clear All --}}
                     <x-button type="button" variant="secondary"
@@ -63,41 +56,39 @@
                     </x-button>
                 </div>
 
-                {{-- Advanced Filters --}}
-                <div x-show="filtersVisible" x-transition:enter="transition ease-out duration-200"
-                    x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
-                    class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" style="display: none;">
+                {{-- Filters Grid --}}
+                <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Date From</label>
-                        <input type="date" x-model="dateFrom" @change="window.dayStartTable.draw()" class="form-input">
+                        <label class="form-label">Date From</label>
+                        <input type="date" x-model="dateFrom" @change="window.dayStartTable.draw()" class="form-input text-xs h-[38px]">
                     </div>
 
                     <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Date To</label>
-                        <input type="date" x-model="dateTo" @change="window.dayStartTable.draw()" class="form-input">
+                        <label class="form-label">Date To</label>
+                        <input type="date" x-model="dateTo" @change="window.dayStartTable.draw()" class="form-input text-xs h-[38px]">
                     </div>
 
                     @canany(['day-start.view-all', 'day-start.view-team'])
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Employee</label>
-                        <select x-model="employeeId" @change="window.dayStartTable.draw()" class="form-input">
-                            <option value="">All Employees</option>
-                            @foreach ($employees as $emp)
-                                <option value="{{ $emp->id }}">{{ $emp->name }} ({{ $emp->role_name ?? ($emp->roles->first()?->name ?? 'Field Worker') }})</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    <x-filter-select
+                        label="Employee"
+                        placeholder="All Employees"
+                        :options="$employees->mapWithKeys(fn($emp) => [$emp->id => $emp->name . ' (' . ($emp->role_name ?? ($emp->roles->first()?->name ?? 'Field Worker')) . ')'])"
+                        model="employeeId"
+                        change="window.dayStartTable.draw()"
+                    />
                     @endcanany
 
-                    <div>
-                        <label class="text-xs font-medium text-ink-600 mb-1 block">Status</label>
-                        <select x-model="status" @change="window.dayStartTable.draw()" class="form-input">
-                            <option value="">All Statuses</option>
-                            <option value="pending">Pending</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                    </div>
+                    <x-filter-select
+                        label="Status"
+                        placeholder="All Statuses"
+                        :options="[
+                            'pending' => 'Pending',
+                            'approved' => 'Approved',
+                            'rejected' => 'Rejected'
+                        ]"
+                        model="status"
+                        change="window.dayStartTable.draw()"
+                    />
                 </div>
             </div>
         </div>
@@ -112,7 +103,7 @@
                         <th>Tour Purpose</th>
                         <th>Opening KM</th>
                         <th>Closing KM</th>
-                        <th>Status</th>
+                        <th class="whitespace-nowrap">Status</th>
                         <th class="text-right">Actions</th>
                     </tr>
                 </thead>
@@ -173,14 +164,14 @@
                             let locBadge = '';
                             if (data.district || data.area) {
                                 let locText = [data.district, data.area].filter(Boolean).join(' • ');
-                                locBadge = `<div class="mt-1"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">📍 ${locText}</span></div>`;
+                                locBadge = `<div class="mt-1"><span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200"><svg class="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>${locText}</span></div>`;
                             }
 
                             let tourPlanBadge = '';
                             if (data.remarks) {
                                 tourPlanBadge = `
                                     <div class="mt-1.5 flex items-start gap-1.5 text-xs text-amber-900 bg-amber-50/90 border border-amber-200 rounded-md px-2 py-1 leading-snug max-w-sm">
-                                        <span class="font-semibold text-amber-700 shrink-0">📋 Tour Plan:</span>
+                                        <span class="font-semibold text-amber-700 shrink-0 inline-flex items-center gap-1"><svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Tour Plan:</span>
                                         <span class="text-ink-700 break-words">${data.remarks}</span>
                                     </div>
                                 `;
@@ -208,6 +199,7 @@
                     },
                     {
                         data: 'status',
+                        className: 'whitespace-nowrap',
                         render: function (data) {
                             let badgeClass = 'bg-slate-100 text-slate-700';
                             let label = (data.status || 'pending').charAt(0).toUpperCase() + (data.status || 'pending').slice(1);
@@ -221,10 +213,19 @@
                                 badgeClass = 'bg-rose-100 text-rose-800';
                             }
 
-                            let html = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeClass}">${label}</span>`;
+                            let html = `<div class="inline-flex flex-col items-start">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeClass}">${label}</span>`;
                             if (data.end_time) {
-                                html += `<span class="badge badge-neutral text-[10px] mt-1 block w-fit">Ended: ${data.end_time}</span>`;
+                                html += `
+                                    <div class="flex items-center gap-1 text-[11px] text-ink-500 font-medium mt-1">
+                                        <svg class="w-3 h-3 text-ink-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span>Ended: ${data.end_time}</span>
+                                    </div>
+                                `;
                             }
+                            html += `</div>`;
                             return html;
                         }
                     },

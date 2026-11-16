@@ -8,14 +8,6 @@
 <div x-data="leaveBalanceManager({
     initialBalances: {{ Js::from($formattedBalances) }},
     initialSummary: {{ Js::from($summaryData) }},
-    initialPagination: {
-        total: {{ $balances->total() }},
-        current_page: {{ $balances->currentPage() }},
-        last_page: {{ $balances->lastPage() }},
-        per_page: {{ $balances->perPage() }},
-        from: {{ $balances->firstItem() ?? 0 }},
-        to: {{ $balances->lastItem() ?? 0 }}
-    },
     users: {{ Js::from($users->map(fn($u) => ['id' => $u->id, 'name' => $u->name, 'role_name' => $u->role_name])) }},
     leaveTypes: {{ Js::from($leaveTypes->map(fn($lt) => ['id' => $lt->id, 'name' => $lt->name, 'code' => $lt->code])) }},
     initialYear: {{ (int)$year }},
@@ -35,8 +27,9 @@
                 <div class="relative w-full lg:w-72">
                     <x-lucide-search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400 pointer-events-none" />
                     <input type="text"
+                           id="dt-search"
                            x-model="search"
-                           @input.debounce.300ms="fetchBalances(1)"
+                           @input.debounce.200ms="applyFilters()"
                            placeholder="Search employee or code…"
                            class="form-input text-xs pl-9 w-full">
                 </div>
@@ -45,35 +38,45 @@
             {{-- Filter Selectors --}}
             <div class="flex flex-wrap items-center gap-3 pt-3 border-t border-surface-border">
                 {{-- Year Selector --}}
+                @php
+                    $yearOptions = [];
+                    for($y = now()->year - 1; $y <= now()->year + 2; $y++) {
+                        $yearOptions[(string)$y] = (string)$y;
+                    }
+                @endphp
                 <div class="flex items-center gap-2">
                     <label class="form-label text-xs font-bold mb-0 whitespace-nowrap text-ink-700">Year:</label>
-                    <select x-model="year" @change="fetchBalances(1)" class="form-input text-xs w-auto min-w-[100px]">
-                        @for($y = now()->year - 1; $y <= now()->year + 2; $y++)
-                            <option value="{{ $y }}" {{ $year == $y ? 'selected' : '' }}>{{ $y }}</option>
-                        @endfor
-                    </select>
+                    <x-filter-select
+                        placeholder="{{ $year }}"
+                        :options="$yearOptions"
+                        model="year"
+                        change="switchYear(year)"
+                        width="w-28"
+                    />
                 </div>
 
                 {{-- Employee Filter --}}
-                <div class="flex items-center gap-2 min-w-[200px] flex-1 sm:flex-none">
+                <div class="flex items-center gap-2 min-w-[280px] flex-1 sm:flex-none">
                     <label class="form-label text-xs font-bold mb-0 whitespace-nowrap text-ink-700">Employee:</label>
-                    <select x-model="userId" @change="fetchBalances(1)" class="form-input text-xs w-full">
-                        <option value="">All Employees</option>
-                        <template x-for="u in users" :key="u.id">
-                            <option :value="u.id" x-text="`${u.name} (${u.role_name})`"></option>
-                        </template>
-                    </select>
+                    <x-filter-select
+                        placeholder="All Employees"
+                        :options="$users->mapWithKeys(fn($u) => [$u->name => $u->name . ' (' . ($u->role_name ?? 'Field Worker') . ')'])"
+                        model="userId"
+                        change="applyFilters()"
+                        width="w-64"
+                    />
                 </div>
 
                 {{-- Leave Type Filter --}}
-                <div class="flex items-center gap-2 min-w-[180px] flex-1 sm:flex-none">
+                <div class="flex items-center gap-2 min-w-[200px] flex-1 sm:flex-none">
                     <label class="form-label text-xs font-bold mb-0 whitespace-nowrap text-ink-700">Leave Type:</label>
-                    <select x-model="leaveTypeId" @change="fetchBalances(1)" class="form-input text-xs w-full">
-                        <option value="">All Leave Types</option>
-                        <template x-for="lt in leaveTypes" :key="lt.id">
-                            <option :value="lt.id" x-text="`${lt.name} (${lt.code})`"></option>
-                        </template>
-                    </select>
+                    <x-filter-select
+                        placeholder="All Leave Types"
+                        :options="$leaveTypes->mapWithKeys(fn($lt) => [$lt->code => $lt->name . ' (' . $lt->code . ')'])"
+                        model="leaveTypeId"
+                        change="applyFilters()"
+                        width="w-48"
+                    />
                 </div>
 
                 {{-- Reset Button --}}
@@ -151,7 +154,7 @@
         </div>
 
         <div class="table-wrap">
-            <table class="data-table">
+            <table id="leave-balances-table" class="data-table">
                 <thead>
                     <tr>
                         <th>Employee Name</th>
@@ -165,74 +168,41 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-surface-border">
-                    <template x-for="b in balances" :key="b.id">
-                        <tr class="hover:bg-slate-50/75 transition-colors">
+                    @forelse($balances as $b)
+                        @php
+                            $avail = max(0.0, ((float)$b->allocated + (float)$b->carried_forward) - (float)$b->used);
+                        @endphp
+                        <tr id="balance-row-{{ $b->id }}" class="hover:bg-slate-50/75 transition-colors">
                             <td>
-                                <div class="font-bold text-ink-900 text-xs" x-text="b.user_name"></div>
+                                <div class="font-bold text-ink-900 text-xs">{{ $b->user->name ?? '—' }}</div>
+                                <div class="text-[11px] text-ink-400 font-medium">{{ $b->user->roles->first()?->name ?? '' }}</div>
                             </td>
                             <td>
                                 <span class="badge badge-primary font-mono font-bold text-xs inline-flex items-center gap-1.5">
-                                    <span x-text="b.leave_type_code"></span>
-                                    <span class="font-normal opacity-80" x-text="`— ${b.leave_type_name}`"></span>
+                                    <span>{{ $b->leaveType->code ?? '—' }}</span>
+                                    <span class="font-normal opacity-80">— {{ $b->leaveType->name ?? '' }}</span>
                                 </span>
                             </td>
-                            <td class="font-medium text-ink-600 text-xs" x-text="b.year"></td>
-                            <td class="text-center font-bold text-ink-900 text-xs" x-text="b.allocated"></td>
-                            <td class="text-center text-blue-600 font-semibold text-xs" x-text="b.carried_forward"></td>
-                            <td class="text-center font-bold text-rose-600 text-xs" x-text="b.used"></td>
+                            <td class="font-medium text-ink-600 text-xs">{{ $b->year }}</td>
+                            <td class="text-center font-bold text-ink-900 text-xs">{{ number_format($b->allocated, 1) }}</td>
+                            <td class="text-center text-blue-600 font-semibold text-xs">{{ number_format($b->carried_forward, 1) }}</td>
+                            <td class="text-center font-bold text-rose-600 text-xs">{{ number_format($b->used, 1) }}</td>
                             <td class="text-center">
-                                <span class="badge badge-success font-extrabold text-xs px-2.5 py-0.5" x-text="b.available"></span>
+                                <span class="badge badge-success font-extrabold text-xs px-2.5 py-0.5">{{ number_format($avail, 1) }}</span>
                             </td>
                             <td class="text-right whitespace-nowrap">
                                 <button type="button"
-                                        @click="openAdjustModal(b)"
+                                        onclick="window.leaveBalanceApp.openAdjustModalById({{ $b->id }})"
                                         class="btn-secondary text-xs py-1 px-2.5 inline-flex items-center gap-1.5">
                                     <x-lucide-sliders-horizontal class="w-3.5 h-3.5 text-indigo-600" />
                                     Adjust Balance
                                 </button>
                             </td>
                         </tr>
-                    </template>
-
-                    {{-- Empty State --}}
-                    <tr x-show="!loading && balances.length === 0">
-                        <td colspan="8" class="text-center py-16 text-ink-400">
-                            <div class="flex flex-col items-center gap-2">
-                                <x-lucide-wallet-cards class="w-10 h-10 stroke-1 text-ink-300" />
-                                <p class="text-xs font-semibold text-ink-600">No leave balance records found for <span x-text="year"></span>.</p>
-                            </div>
-                        </td>
-                    </tr>
+                    @empty
+                    @endforelse
                 </tbody>
             </table>
-        </div>
-
-        {{-- Pagination Footer --}}
-        <div x-show="pagination.last_page > 1" class="p-4 border-t border-surface-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-600">
-            <div>
-                Showing <span class="font-bold text-ink-900" x-text="pagination.from || 0"></span> to
-                <span class="font-bold text-ink-900" x-text="pagination.to || 0"></span> of
-                <span class="font-bold text-ink-900" x-text="pagination.total"></span> balances
-            </div>
-
-            <div class="inline-flex items-center gap-1.5">
-                <button type="button"
-                        @click="fetchBalances(pagination.current_page - 1)"
-                        :disabled="pagination.current_page <= 1"
-                        class="p-1.5 rounded-lg border border-surface-border bg-white text-ink-700 hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                    <x-lucide-chevron-left class="w-4 h-4" />
-                </button>
-
-                <span class="px-2.5 py-1 font-bold text-ink-900 bg-surface-muted rounded-lg"
-                      x-text="`Page ${pagination.current_page} of ${pagination.last_page}`"></span>
-
-                <button type="button"
-                        @click="fetchBalances(pagination.current_page + 1)"
-                        :disabled="pagination.current_page >= pagination.last_page"
-                        class="p-1.5 rounded-lg border border-surface-border bg-white text-ink-700 hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                    <x-lucide-chevron-right class="w-4 h-4" />
-                </button>
-            </div>
         </div>
     </div>
 
@@ -353,7 +323,6 @@ function leaveBalanceManager(config) {
     return {
         balances: config.initialBalances || [],
         summary: config.initialSummary || {},
-        pagination: config.initialPagination || {},
         users: config.users || [],
         leaveTypes: config.leaveTypes || [],
         year: config.initialYear,
@@ -361,7 +330,6 @@ function leaveBalanceManager(config) {
         leaveTypeId: '',
         search: '',
         csrfToken: config.csrfToken,
-
         loading: false,
 
         adjustModal: {
@@ -387,56 +355,63 @@ function leaveBalanceManager(config) {
         },
 
         init() {
+            this.$nextTick(() => {
+                this.initDataTable();
+            });
+            window.leaveBalanceApp = this;
             window.addEventListener('employee-deleted', (e) => {
                 const id = parseInt(e.detail.id);
                 this.users = this.users.filter(u => u.id !== id);
             });
         },
 
-        async fetchBalances(page = 1) {
-            this.loading = true;
-            try {
-                const params = new URLSearchParams({
-                    year: this.year,
-                    page: page
-                });
-                if (this.userId) params.append('user_id', this.userId);
-                if (this.leaveTypeId) params.append('leave_type_id', this.leaveTypeId);
-                if (this.search) params.append('search', this.search);
-
-                const url = `/admin/leave-balances?${params.toString()}`;
-                const res = await fetch(url, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                const data = await res.json();
-                if (data.success) {
-                    this.balances = data.balances || [];
-                    this.summary = data.summary || {};
-                    this.pagination = data.pagination || {};
-                    if (data.users) {
-                        this.users = data.users;
-                    }
-                    window.history.pushState(null, '', url);
-                } else {
-                    window.toast('Failed to load leave balances.', 'error');
-                }
-            } catch (e) {
-                console.error(e);
-                window.toast('Network error loading balances.', 'error');
-            } finally {
-                this.loading = false;
+        initDataTable() {
+            if (window.leaveBalancesTable) {
+                try { window.leaveBalancesTable.destroy(); } catch (e) {}
             }
+            if (typeof DataTable !== 'undefined') {
+                window.leaveBalancesTable = new DataTable('#leave-balances-table', {
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+                    order: [[0, 'asc']],
+                    columnDefs: [{ targets: -1, orderable: false, searchable: false }],
+                    dom: '<"table-wrap"t><"flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-surface-border"<"text-xs text-ink-600"i><"dt-paging"p>>',
+                    language: {
+                        emptyTable: 'No leave balance records found for this year.',
+                        zeroRecords: 'No matching balance records found.',
+                        paginate: {
+                            previous: '‹ Prev',
+                            next: 'Next ›'
+                        }
+                    }
+                });
+            }
+        },
+
+        applyFilters() {
+            if (!window.leaveBalancesTable) return;
+            window.leaveBalancesTable.search(this.search);
+            window.leaveBalancesTable.column(0).search(this.userId ? this.userId : '');
+            window.leaveBalancesTable.column(1).search(this.leaveTypeId ? this.leaveTypeId : '');
+            window.leaveBalancesTable.draw();
+        },
+
+        switchYear(newYear) {
+            window.location.href = `{{ route('admin.leave-balances.index') }}?year=${newYear}`;
         },
 
         resetFilters() {
             this.userId = '';
             this.leaveTypeId = '';
             this.search = '';
-            this.fetchBalances(1);
+            this.applyFilters();
+        },
+
+        openAdjustModalById(id) {
+            const b = this.balances.find(item => item.id === id);
+            if (b) {
+                this.openAdjustModal(b);
+            }
         },
 
         openAdjustModal(b) {
@@ -471,15 +446,9 @@ function leaveBalanceManager(config) {
 
                 const data = await res.json();
                 if (res.ok && data.success) {
-                    // Update in list
-                    const idx = this.balances.findIndex(b => b.id === this.adjustModal.id);
-                    if (idx > -1 && data.balance) {
-                        this.balances[idx] = data.balance;
-                    }
                     this.adjustModal.open = false;
                     window.toast(data.message || 'Balance adjusted successfully!', 'success');
-                    // Refresh summary totals
-                    this.fetchBalances(this.pagination.current_page || 1);
+                    setTimeout(() => window.location.reload(), 400);
                 } else if (res.status === 422 && data.errors) {
                     this.adjustModal.errors = data.errors;
                     window.toast(data.message || 'Please check input values.', 'error');

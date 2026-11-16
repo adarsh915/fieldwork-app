@@ -267,6 +267,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/matrix-json', [\App\Http\Controllers\Admin\ReportController::class, 'matrixJson'])->name('matrix-json');  // AJAX
             Route::get('/scorecard/{id}', [\App\Http\Controllers\Admin\ReportController::class, 'employeeScorecard'])->name('scorecard');
             Route::get('/daily-ledger', [\App\Http\Controllers\Admin\ReportController::class, 'dailyLedger'])->name('daily-ledger');
+            Route::get('/daily-ledger/data', [\App\Http\Controllers\Admin\ReportController::class, 'dailyLedgerData'])->name('daily-ledger.data');
             Route::get('/export-csv', [\App\Http\Controllers\Admin\ReportController::class, 'exportCsv'])->name('export-csv');
             Route::get('/fieldworker-parties', [\App\Http\Controllers\Admin\ReportController::class, 'fieldworkerParties'])->name('fieldworker-parties');
         });
@@ -276,6 +277,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/expenses/data', [\App\Http\Controllers\Admin\ExpenseController::class, 'data'])->name('expenses.data');
             Route::get('/expenses', [\App\Http\Controllers\Admin\ExpenseController::class, 'index'])->name('expenses.index');
             Route::get('/expenses/reports/monthly', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'monthlySummary'])->name('expenses.reports.monthly');
+            Route::get('/expenses/reports/monthly/data', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'monthlySummaryData'])->name('expenses.reports.monthly.data');
             Route::get('/expenses/reports/statement/{user_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'workerStatement'])->name('expenses.reports.statement');
             Route::get('/expenses/reports/daily/{day_start_id}', [\App\Http\Controllers\Admin\ExpenseReportController::class, 'dailyReceipt'])->name('expenses.reports.daily');
         });

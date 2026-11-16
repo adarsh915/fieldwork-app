@@ -63,8 +63,6 @@
         </table>
     </div>
 
-    <div class="border-t border-surface-border px-6 py-4">
-        {{ $customers->links() }}
-    </div>
+    {{ $customers->links() }}
 </div>
 @endsection
