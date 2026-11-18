@@ -172,6 +172,8 @@ class PartyController extends Controller
                     'delete' => route('admin.parties.destroy', $party->id),
                     'approve' => route('admin.parties.approve', $party->id),
                     'reject' => route('admin.parties.reject', $party->id),
+                    'reset_location' => route('admin.parties.reset-location', $party->id),
+                    'has_location' => !empty($party->latitude) && !empty($party->longitude) && !((float)$party->latitude == 0.0 && (float)$party->longitude == 0.0),
                     'approval_status' => $party->approval_status,
                     'can_edit' => auth()->user()->can('update', $party),
                     'can_delete' => auth()->user()->can('delete', $party),
@@ -1186,6 +1188,40 @@ class PartyController extends Controller
             DB::rollBack();
             return response()->json(['success' => false, 'message' => 'Failed to reject party.'], 500);
         }
+    }
+
+    /**
+     * Reset / clear party GPS location coordinates so the next check-in auto-captures the correct location.
+     */
+    public function resetLocation($id)
+    {
+        $party = Customer::findOrFail($id);
+        $this->authorize('update', $party);
+
+        $oldLat = $party->latitude;
+        $oldLng = $party->longitude;
+
+        $party->update([
+            'latitude' => null,
+            'longitude' => null,
+        ]);
+
+        AuditLog::logEvent(
+            'customer.location_reset',
+            $party,
+            ['latitude' => $oldLat, 'longitude' => $oldLng],
+            ['latitude' => null, 'longitude' => null],
+            "Reset GPS coordinates for party {$party->name} to allow fresh auto-capture."
+        );
+
+        if (request()->ajax() || request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "GPS coordinates for {$party->name} have been reset successfully. The next visit check-in will auto-capture the new location.",
+            ]);
+        }
+
+        return back()->with('success', "GPS coordinates for {$party->name} have been reset successfully.");
     }
 }
 

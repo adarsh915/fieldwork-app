@@ -142,7 +142,7 @@
         </div>
 
         {{-- DataTable --}}
-        <div class="table-wrap">
+        <div class="table-wrap min-h-[280px]">
             <table id="parties-table" class="data-table">
                 <thead>
                     <tr>
@@ -716,42 +716,76 @@
                         className: 'text-right',
                         render: function (data) {
                             return `
-                                <div class="relative inline-block" x-data="{ open: false }">
-                                    <button @click="open = !open" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors">
-                                        <svg class="w-4 h-4 text-ink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div class="relative inline-block text-left" x-data="{
+                                    open: false,
+                                    openUp: false,
+                                    pos: { top: '', bottom: '', right: '' },
+                                    toggle(e) {
+                                        if (!this.open) {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const spaceBelow = window.innerHeight - rect.bottom;
+                                            this.openUp = spaceBelow < 250;
+                                            this.pos = {
+                                                top: this.openUp ? '' : ((rect.bottom + 4) + 'px'),
+                                                bottom: this.openUp ? ((window.innerHeight - rect.top + 4) + 'px') : '',
+                                                right: Math.max(12, window.innerWidth - rect.right) + 'px'
+                                            };
+                                        }
+                                        this.open = !this.open;
+                                    }
+                                }">
+                                    <button type="button" @click="toggle($event)" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 hover:text-ink-900 focus:outline-none" title="Actions">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
                                         </svg>
                                     </button>
-                                    <div x-show="open" @click.outside="open = false" x-transition class="absolute right-0 mt-1 w-48 bg-white border border-surface-border rounded-xl shadow-lg z-20 py-1 top-full" style="display: none;">
+                                    <div x-show="open" 
+                                         @click.outside="open = false" 
+                                         @scroll.window="open = false"
+                                         x-transition:enter="transition ease-out duration-100"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         x-transition:leave="transition ease-in duration-75"
+                                         x-transition:leave-start="opacity-100 scale-100"
+                                         x-transition:leave-end="opacity-0 scale-95"
+                                         class="fixed w-48 bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1 text-left" 
+                                         :style="\`top: \${pos.top}; bottom: \${pos.bottom}; right: \${pos.right};\`"
+                                         style="display: none;">
                                         <a href="${data.view}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                            <svg class="w-4 h-4 text-ink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                             View Profile
                                         </a>
                                         ${data.can_edit ? `
-                                        <button type="button" onclick="openEditPartyModal(${data.id || data.party_info?.id})" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted text-left">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        <button type="button" onclick="openEditPartyModal(${data.id || data.party_info?.id})" @click="open = false" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted text-left">
+                                            <svg class="w-4 h-4 text-ink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                             Edit Details
                                         </button>
                                         ` : ''}
+                                        ${data.can_edit && data.has_location ? `
+                                        <button type="button" onclick="resetPartyLocation('${data.reset_location}')" @click="open = false" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 text-left">
+                                            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                            Reset GPS Location
+                                        </button>
+                                        ` : ''}
                                         <a href="${data.history}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                            <svg class="w-4 h-4 text-ink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                             View History
                                         </a>
                                         ${data.approval_status === 'pending' ? `
                                         <div class="my-1 border-t border-surface-border"></div>
-                                        <button type="button" onclick="approveParty('${data.approve}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-green-700 hover:bg-green-50">
+                                        <button type="button" onclick="approveParty('${data.approve}')" @click="open = false" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-green-700 hover:bg-green-50">
                                             <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                             Approve Party
                                         </button>
-                                        <button type="button" onclick="rejectParty('${data.reject}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
+                                        <button type="button" onclick="rejectParty('${data.reject}')" @click="open = false" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
                                             <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                             Reject Party
                                         </button>
                                         ` : ''}
                                         ${data.can_delete ? `
                                         <div class="my-1 border-t border-surface-border"></div>
-                                        <button type="button" onclick="deleteParty('${data.delete}')" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        <button type="button" onclick="deleteParty('${data.delete}')" @click="open = false" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger-text hover:bg-danger-bg">
+                                            <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                             Delete Party
                                         </button>
                                         ` : ''}
@@ -806,6 +840,32 @@
                     }
                 } catch (error) {
                     window.toast('An error occurred while deleting the party.', 'error');
+                }
+            };
+
+            window.resetPartyLocation = async function (url) {
+                if (!confirm('Are you sure you want to reset GPS coordinates for this customer? The next fieldworker visit check-in will automatically capture their accurate location.')) return;
+                
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        window.toast(data.message || 'GPS coordinates reset successfully.', 'success');
+                        window.partyTable.draw(false);
+                    } else {
+                        window.toast(data.message || 'Failed to reset location.', 'error');
+                    }
+                } catch (error) {
+                    window.toast('An error occurred while resetting location.', 'error');
                 }
             };
 

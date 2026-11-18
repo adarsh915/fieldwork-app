@@ -288,14 +288,40 @@
                         className: 'text-right whitespace-nowrap',
                         render: function (data) {
                             return `
-                                <div class="relative inline-block text-left" x-data="{ open: false }">
-                                    <button type="button" @click="open = !open" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 focus:outline-none">
+                                <div class="relative inline-block text-left" x-data="{
+                                    open: false,
+                                    openUp: false,
+                                    pos: { top: '', bottom: '', right: '' },
+                                    toggle(e) {
+                                        if (!this.open) {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const spaceBelow = window.innerHeight - rect.bottom;
+                                            this.openUp = spaceBelow < 280;
+                                            this.pos = {
+                                                top: this.openUp ? '' : ((rect.bottom + 4) + 'px'),
+                                                bottom: this.openUp ? ((window.innerHeight - rect.top + 4) + 'px') : '',
+                                                right: Math.max(12, window.innerWidth - rect.right) + 'px'
+                                            };
+                                        }
+                                        this.open = !this.open;
+                                    }
+                                }">
+                                    <button type="button" @click="toggle($event)" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 focus:outline-none" title="Actions">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
                                         </svg>
                                     </button>
-                                    <div x-show="open" @click.outside="open = false" x-transition 
-                                         class="absolute right-0 mt-1 min-w-[220px] bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1.5 top-full" 
+                                    <div x-show="open" 
+                                         @click.outside="open = false" 
+                                         @scroll.window="open = false"
+                                         x-transition:enter="transition ease-out duration-100"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         x-transition:leave="transition ease-in duration-75"
+                                         x-transition:leave-start="opacity-100 scale-100"
+                                         x-transition:leave-end="opacity-0 scale-95"
+                                         class="fixed min-w-[220px] bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1.5 text-left" 
+                                         :style="\`top: \${pos.top}; bottom: \${pos.bottom}; right: \${pos.right}; min-width: 220px; width: max-content;\`"
                                          style="min-width: 220px; width: max-content; display: none;">
                                         {{-- View Details --}}
                                         <a href="${data.show_url}" class="flex items-center gap-2.5 px-3.5 py-2 text-sm text-ink-900 hover:bg-surface-muted whitespace-nowrap transition-colors">

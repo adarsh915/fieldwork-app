@@ -261,13 +261,30 @@ class ToastManager {
     }
 }
 
-// Create and export singleton instance
-export const toast = new ToastManager();
+// Create singleton manager instance
+const toastInstance = new ToastManager();
+
+// Create callable function wrapper so both toast('msg', 'type') and toast.show('msg') work
+function toast(message, type = 'info', options = {}) {
+    if (type === 'success') return toastInstance.success(message, options);
+    if (type === 'error' || type === 'danger') return toastInstance.error(message, options);
+    if (type === 'warning') return toastInstance.warning(message, options);
+    return toastInstance.show(message, type, options);
+}
+
+// Bind all methods to the callable wrapper
+toast.show = toastInstance.show.bind(toastInstance);
+toast.success = toastInstance.success.bind(toastInstance);
+toast.error = toastInstance.error.bind(toastInstance);
+toast.warning = toastInstance.warning.bind(toastInstance);
+toast.info = toastInstance.info.bind(toastInstance);
+toast.clear = toastInstance.clear ? toastInstance.clear.bind(toastInstance) : () => {};
 
 // Make globally available
 if (typeof window !== 'undefined') {
     window.toast = toast;
-    window.toastManager = toast; // For inline onclick handlers
+    window.toastManager = toastInstance;
 }
 
+export { toast };
 export default ToastManager;

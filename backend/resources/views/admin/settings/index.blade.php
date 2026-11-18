@@ -25,8 +25,9 @@
                 </h2>
                 <p class="text-caption mt-1">Configure official company accounts. Field reps will display this exact company UPI ID / details to dealers.</p>
             </div>
-            <div class="text-xs text-emerald-800 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200 font-semibold">
-                🔒 Security Rule: Field reps never use personal accounts.
+            <div class="text-xs text-emerald-800 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200 font-semibold flex items-center gap-1.5">
+                <x-lucide-shield-check class="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Security Rule: Field reps never use personal accounts.</span>
             </div>
         </div>
 
@@ -100,8 +101,9 @@
                 </h2>
                 <p class="text-caption mt-1">Configure hours required for Full/Half day presence, auto-close time, and retroactive leave limits.</p>
             </div>
-            <div class="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
-                ⚡ Note: Setting changes take effect for <strong>future date evaluations</strong>.
+            <div class="text-xs text-amber-800 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200 font-medium flex items-center gap-1.5">
+                <x-lucide-alert-triangle class="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Note: Setting changes take effect for <strong>future date evaluations</strong>.</span>
             </div>
         </div>
 
@@ -167,8 +169,9 @@
                 </h2>
                 <p class="text-caption mt-1">Configure limits and grace periods for fieldworker expense submissions.</p>
             </div>
-            <div class="text-xs text-indigo-800 bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-200 font-semibold">
-                💼 Audit Rule: Post-day-end and backdated claims are flagged for manager audit.
+            <div class="text-xs text-indigo-800 bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-200 font-semibold flex items-center gap-1.5">
+                <x-lucide-clipboard-check class="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Audit Rule: Post-day-end and backdated claims are flagged for manager audit.</span>
             </div>
         </div>
 
@@ -202,8 +205,9 @@
                 </h2>
                 <p class="text-caption mt-1">Configure phone/direct ordering permissions for field workers.</p>
             </div>
-            <div class="text-xs text-emerald-800 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200 font-semibold">
-                📞 Policy Control: Turn on/off remote phone ordering without requiring store check-in.
+            <div class="text-xs text-emerald-800 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200 font-semibold flex items-center gap-1.5">
+                <x-lucide-phone-call class="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Policy Control: Turn on/off remote phone ordering without requiring store check-in.</span>
             </div>
         </div>
 
@@ -217,10 +221,10 @@
                     @endphp
                     <select name="allow_phone_orders" class="form-input">
                         <option value="1" {{ in_array($phoneOrdersAllowed, ['1', 'true', 'on', 'yes'], true) ? 'selected' : '' }}>
-                            ✓ Enabled — Field workers can book direct / phone orders without a physical store visit
+                            Enabled — Field workers can book direct / phone orders without a physical store visit
                         </option>
                         <option value="0" {{ in_array($phoneOrdersAllowed, ['0', 'false', 'off', 'no'], true) ? 'selected' : '' }}>
-                            ✕ Disabled — Mandatory physical store visit (Check-in) required for all orders
+                            Disabled — Mandatory physical store visit (Check-in) required for all orders
                         </option>
                     </select>
                     <p class="text-xs text-ink-500 mt-1">When disabled, field workers cannot submit orders without an active physical store visit.</p>
@@ -230,6 +234,45 @@
             <div class="flex justify-end gap-3 pt-4 border-t border-surface-border">
                 <x-button type="submit" variant="primary">
                     <x-lucide-save class="w-4 h-4 inline mr-1" /> Save Order Policy Settings
+                </x-button>
+            </div>
+        </form>
+    </div>
+
+    {{-- ── 5. Field Visit & Geofencing Rules ── --}}
+    <div class="panel p-6 border-l-4 border-amber-500">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-lg font-bold text-ink-900 flex items-center gap-2">
+                    <x-lucide-map-pin class="w-5 h-5 text-amber-600" />
+                    Field Visit & Geofencing Rules
+                </h2>
+                <p class="text-caption mt-1">Configure physical distance limits for party/customer check-ins from the mobile app.</p>
+            </div>
+            <div class="text-xs text-amber-800 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200 font-semibold flex items-center gap-1.5">
+                <x-lucide-shield-alert class="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Geofence Guard: Prevents remote or fake check-ins.</span>
+            </div>
+        </div>
+
+        <form action="{{ route('admin.settings.update') }}" method="POST" @submit.prevent="submitForm($event)">
+            @csrf
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="form-label">Geofence Check-In Distance Radius (Meters) <span class="text-rose-500">*</span></label>
+                    <input type="number" name="geofence_radius_meters" min="50" max="5000" step="25"
+                           value="{{ $settings['geofence_radius_meters']['setting_value'] ?? '300' }}"
+                           required class="form-input" />
+                    <p class="text-xs text-ink-500 mt-1">
+                        Maximum distance (in meters) allowed between the rep's phone GPS and the customer's registered location to check in.
+                        <br><span class="text-amber-700 font-medium">Recommended: 250m – 500m</span> to prevent false rejections due to mobile GPS drift in dense markets, indoor shops, or under tin roofs.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-surface-border">
+                <x-button type="submit" variant="primary">
+                    <x-lucide-save class="w-4 h-4 inline mr-1" /> Save Geofencing Settings
                 </x-button>
             </div>
         </form>

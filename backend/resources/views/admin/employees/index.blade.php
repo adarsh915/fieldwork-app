@@ -90,7 +90,7 @@
             </div>
 
             {{-- Table --}}
-            <div class="table-wrap">
+            <div class="table-wrap min-h-[320px]">
                 <table id="employeesTable" class="data-table">
                     <thead>
                         <tr>
@@ -168,21 +168,39 @@
 
                                 @canany(['employees.edit', 'employees.delete'])
                                     <td class="text-right">
-                                        <div x-data="{ open: false }" class="relative inline-block text-left">
-                                            <button @click="open = !open" @click.stop
-                                                class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 hover:text-ink-900"
+                                        <div x-data="{
+                                            open: false,
+                                            openUp: false,
+                                            pos: { top: '', bottom: '', right: '' },
+                                            toggle(e) {
+                                                if (!this.open) {
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                                    this.openUp = spaceBelow < 280;
+                                                    this.pos = {
+                                                        top: this.openUp ? '' : ((rect.bottom + 4) + 'px'),
+                                                        bottom: this.openUp ? ((window.innerHeight - rect.top + 4) + 'px') : '',
+                                                        right: Math.max(12, window.innerWidth - rect.right) + 'px'
+                                                    };
+                                                }
+                                                this.open = !this.open;
+                                            }
+                                        }" class="relative inline-block text-left">
+                                            <button type="button" @click="toggle($event)" @click.stop
+                                                class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 hover:text-ink-900 focus:outline-none"
                                                 title="Actions">
                                                 <x-lucide-more-vertical class="w-4 h-4" />
                                             </button>
 
-                                            <div x-show="open" @click.outside="open = false" x-cloak style="display: none;"
+                                            <div x-show="open" @click.outside="open = false" @scroll.window="open = false" x-cloak style="display: none;"
                                                 x-transition:enter="transition ease-out duration-100"
                                                 x-transition:enter-start="opacity-0 scale-95"
                                                 x-transition:enter-end="opacity-100 scale-100"
                                                 x-transition:leave="transition ease-in duration-75"
                                                 x-transition:leave-start="opacity-100 scale-100"
                                                 x-transition:leave-end="opacity-0 scale-95"
-                                                class="absolute right-0 mt-1 w-44 bg-white border border-surface-border rounded-xl shadow-xl z-30 py-1 text-left">
+                                                class="fixed w-48 bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1 text-left"
+                                                :style="`top: ${pos.top}; bottom: ${pos.bottom}; right: ${pos.right};`">
 
                                                 {{-- View Profile --}}
                                                 @can('employees.view')

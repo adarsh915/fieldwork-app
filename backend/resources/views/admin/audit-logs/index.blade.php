@@ -143,145 +143,102 @@
         </form>
     </div>
 
-    {{-- ── 3. Audit Logs Table ── --}}
-    <div class="panel overflow-hidden">
-        <div class="table-wrap">
-            <table class="data-table w-full">
-                <thead>
-                    <tr>
-                        <th class="whitespace-nowrap">Timestamp</th>
-                        <th class="whitespace-nowrap">Admin User</th>
-                        <th class="whitespace-nowrap">Action</th>
-                        <th class="whitespace-nowrap">Target Entity</th>
-                        <th>Reason / Description</th>
-                        <th>Details (Diff)</th>
-                        <th class="text-right whitespace-nowrap">IP Address</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-surface-border text-ink-900">
-                    @forelse($logs as $log)
-                        @php
-                            $event = $log->event;
-                            $badgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
-                            if (str_ends_with($event, '.created')) {
-                                $badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                            } elseif (str_ends_with($event, '.updated') || str_ends_with($event, '.adjusted')) {
-                                $badgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
-                            } elseif (str_ends_with($event, '.deleted')) {
-                                $badgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
-                            } elseif (str_contains($event, 'approved') || str_contains($event, 'verified')) {
-                                $badgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200';
-                            } elseif (str_contains($event, 'rejected')) {
-                                $badgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
-                            } elseif (str_contains($event, 'cancelled')) {
-                                $badgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
-                            }
-                            $modelName = class_basename($log->auditable_type ?? 'System');
-                        @endphp
-                        <tr class="hover:bg-surface-muted transition-colors">
-                            {{-- Timestamp --}}
-                            <td class="whitespace-nowrap text-xs text-ink-500 font-mono">
-                                <div class="font-bold text-ink-900">{{ $log->created_at->format('d M Y, h:i:s A') }}</div>
-                                <div class="text-[11px] text-ink-400 mt-0.5">{{ $log->created_at->diffForHumans() }}</div>
-                            </td>
-
-                            {{-- Admin / Causer --}}
-                            <td class="whitespace-nowrap">
-                                @if($log->causer)
-                                    <div class="font-bold text-ink-900 text-xs">{{ $log->causer->name }}</div>
-                                    <div class="text-[11px] text-ink-400 font-mono">{{ $log->causer->roles->pluck('name')->join(', ') ?: $log->causer->email }}</div>
-                                @else
-                                    <span class="text-xs text-ink-400 italic">System / Auto</span>
-                                @endif
-                            </td>
-
-                            {{-- Action Badge --}}
-                            <td class="whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ $badgeClass }}">
-                                    {{ $log->event }}
-                                </span>
-                            </td>
-
-                            {{-- Target Entity --}}
-                            <td class="whitespace-nowrap text-xs">
-                                <span class="font-bold text-ink-800">{{ $modelName }}</span>
-                                @if($log->auditable_id)
-                                    <span class="text-ink-400 font-mono">#{{ $log->auditable_id }}</span>
-                                @endif
-                            </td>
-
-                            {{-- Reason / Description --}}
-                            <td class="text-xs text-ink-700 max-w-xs truncate" title="{{ $log->reason }}">
-                                {{ $log->reason ?: '—' }}
-                            </td>
-
-                            {{-- Details / Changes Diff --}}
-                            <td class="text-xs font-mono">
-                                @if($log->old_values || $log->new_values)
-                                    <details class="cursor-pointer group">
-                                        <summary class="text-brand-600 hover:text-brand-700 font-medium select-none flex items-center gap-1">
-                                            <span>View Diff</span>
-                                            <span class="text-[10px] text-ink-400">({{ count((array)$log->new_values ?: (array)$log->old_values) }} fields)</span>
-                                        </summary>
-                                        <div class="mt-2 p-3 rounded-lg bg-surface-muted border border-surface-border text-xs space-y-2 max-w-md max-h-64 overflow-y-auto shadow-sm">
-                                            @php
-                                                $keys = array_unique(array_merge(array_keys((array)$log->old_values), array_keys((array)$log->new_values)));
-                                            @endphp
-                                            <div class="space-y-1.5 divide-y divide-surface-border">
-                                                @foreach($keys as $key)
-                                                    @php
-                                                        $oldVal = $log->old_values[$key] ?? null;
-                                                        $newVal = $log->new_values[$key] ?? null;
-                                                        if (is_array($oldVal)) $oldVal = json_encode($oldVal);
-                                                        if (is_array($newVal)) $newVal = json_encode($newVal);
-                                                    @endphp
-                                                    <div class="pt-1 first:pt-0">
-                                                        <span class="font-semibold text-ink-700">{{ $key }}:</span>
-                                                        @if($oldVal !== null && $newVal !== null)
-                                                            <div class="text-[11px] text-rose-600 line-through">Old: {{ Str::limit((string)$oldVal, 80) }}</div>
-                                                            <div class="text-[11px] text-emerald-600 font-semibold">New: {{ Str::limit((string)$newVal, 80) }}</div>
-                                                        @elseif($newVal !== null)
-                                                            <div class="text-[11px] text-emerald-600 font-semibold">Set: {{ Str::limit((string)$newVal, 80) }}</div>
-                                                        @elseif($oldVal !== null)
-                                                            <div class="text-[11px] text-rose-600">Was: {{ Str::limit((string)$oldVal, 80) }}</div>
-                                                        @endif
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        </div>
-                                    </details>
-                                @else
-                                    <span class="text-ink-400">—</span>
-                                @endif
-                            </td>
-
-                            {{-- IP Address --}}
-                            <td class="text-right whitespace-nowrap text-xs font-mono text-ink-400">
-                                {{ $log->ip_address ?: '—' }}
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="py-16 text-center text-ink-400">
-                                <x-lucide-history class="w-10 h-10 mx-auto text-ink-300 mb-2" />
-                                <p class="text-sm font-semibold text-ink-800">No audit logs matching your search criteria.</p>
-                                <p class="text-xs text-ink-400 mt-1">Try resetting the filters or modifying your search terms.</p>
-                                @if(request()->anyFilled(['search', 'event', 'model', 'causer_id', 'date_from', 'date_to']))
-                                    <div class="mt-4">
-                                        <a href="{{ route('admin.audit-logs.index') }}" class="btn-secondary text-xs px-3.5 py-1.5">
-                                            Clear All Filters
-                                        </a>
-                                    </div>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
-        {{-- Unified Server-Side Pagination (Prev, numbers, Next) --}}
-        {{ $logs->links() }}
+    {{-- ── 3. Audit Logs Table (AJAX Stream) ── --}}
+    <div class="panel overflow-hidden relative transition-opacity duration-150" id="audit-logs-stream-wrapper">
+        @include('admin.audit-logs.partials.table-stream')
     </div>
+</div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const streamWrapper = document.getElementById('audit-logs-stream-wrapper');
+    const filterForm = document.getElementById('audit-filter-form');
+
+    // ── Live AJAX Stream Loader (Zero page reload) ──
+    window.loadAuditLogsStream = async function (url, pushState = true) {
+        if (!streamWrapper) return;
+        streamWrapper.style.opacity = '0.4';
+        streamWrapper.style.pointerEvents = 'none';
+
+        try {
+            const res = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success && data.html) {
+                streamWrapper.innerHTML = data.html;
+
+                // Sync URL in address bar without reload
+                if (pushState) {
+                    window.history.pushState(null, '', url);
+                }
+
+                // Smooth scroll back to top of table
+                const rect = streamWrapper.getBoundingClientRect();
+                if (rect.top < 0) {
+                    streamWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load audit logs stream:', err);
+            if (window.toast) window.toast('Failed to load audit logs.', 'error');
+        } finally {
+            streamWrapper.style.opacity = '1';
+            streamWrapper.style.pointerEvents = 'auto';
+        }
+    };
+
+    // ── Pagination Clicks (Zero Reload) ──
+    document.addEventListener('click', function (e) {
+        const pageLink = e.target.closest('#audit-logs-pagination a');
+        if (pageLink && pageLink.href) {
+            e.preventDefault();
+            window.loadAuditLogsStream(pageLink.href);
+        }
+    });
+
+    // ── Filter Form Intercept (Zero Reload) ──
+    if (filterForm) {
+        filterForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(filterForm);
+            const params = new URLSearchParams(formData);
+            params.set('page', '1');
+            const url = filterForm.action + '?' + params.toString();
+            window.loadAuditLogsStream(url);
+        });
+
+        // Auto-submit triggers on change without page reload
+        filterForm.querySelectorAll('input, select').forEach(input => {
+            input.addEventListener('change', function () {
+                const formData = new FormData(filterForm);
+                const params = new URLSearchParams(formData);
+                params.set('page', '1');
+                const url = filterForm.action + '?' + params.toString();
+                window.loadAuditLogsStream(url);
+            });
+        });
+    }
+
+    // ── Reset Filters ──
+    window.resetAuditLogFilters = function () {
+        if (filterForm) {
+            filterForm.reset();
+        }
+        window.loadAuditLogsStream('{{ route('admin.audit-logs.index') }}');
+    };
+
+    // ── Browser Back / Forward Button Support ──
+    window.addEventListener('popstate', function () {
+        window.loadAuditLogsStream(window.location.href, false);
+    });
+});
+</script>
+@endpush
 </div>
 @endsection

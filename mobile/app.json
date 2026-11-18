@@ -18,6 +18,7 @@
     },
     "android": {
       "package": "com.adarsh55.amplfieldworkmobile",
+      "largeHeap": true,
       "googleServicesFile": "./google-services.json",
       "usesCleartextTraffic": true,
       "softwareKeyboardLayoutMode": "resize",

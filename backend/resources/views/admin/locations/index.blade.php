@@ -8,7 +8,8 @@
 <div x-data="locationManager({
     districts: {{ Js::from($districts) }},
     csrfToken: '{{ csrf_token() }}'
-})" class="space-y-6">
+})">
+    <div class="space-y-6">
 
     {{-- Top Bar: Summary & Quick Actions --}}
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-surface-border shadow-xs">
@@ -202,11 +203,12 @@
             </div>
         </div>
     </div>
+    </div>
 
     {{-- District Modal (Add / Edit) --}}
     <div x-show="districtModalOpen"
          x-cloak
-         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs !m-0"
          @keydown.escape.window="districtModalOpen = false">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-surface-border"
              @click.away="districtModalOpen = false">
@@ -263,7 +265,7 @@
     {{-- Area Modal (Add / Edit) --}}
     <div x-show="areaModalOpen"
          x-cloak
-         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs !m-0"
          @keydown.escape.window="areaModalOpen = false">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-surface-border"
              @click.away="areaModalOpen = false">

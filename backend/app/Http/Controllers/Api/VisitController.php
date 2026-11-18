@@ -245,17 +245,25 @@ class VisitController extends Controller
         $customer = Customer::findOrFail($request->party_id);
 
         if ($request->lat && $request->lng) {
-            if (!$customer->latitude || !$customer->longitude) {
-                // First visit: Auto-capture location
+            $hasCoords = !empty($customer->latitude) && !empty($customer->longitude) && !((float)$customer->latitude == 0.0 && (float)$customer->longitude == 0.0);
+            if (!$hasCoords) {
+                // First visit or after location reset: Auto-capture location
                 $customer->update([
                     'latitude' => $request->lat,
                     'longitude' => $request->lng,
                 ]);
             } else {
-                // Future visits: Enforce 100-meter geo-fence
+                // Enforce configurable geo-fence (default 300m to absorb real-world mobile GPS drift)
                 $distance = $this->getDistanceInMeters($request->lat, $request->lng, $customer->latitude, $customer->longitude);
-                if ($distance > 100) {
-                    return response()->json(['success' => false, 'message' => 'You must be within 100 meters of the party to check in.'], 403);
+                $maxRadius = (int) app(\App\Services\SettingsService::class)->get('geofence_radius_meters', 300);
+                if ($distance > $maxRadius) {
+                    $metersAway = (int) round($distance);
+                    return response()->json([
+                        'success'     => false,
+                        'message'     => "You are {$metersAway}m away from the party. You must be within {$maxRadius}m to check in.",
+                        'distance'    => $metersAway,
+                        'max_allowed' => $maxRadius,
+                    ], 403);
                 }
             }
         }

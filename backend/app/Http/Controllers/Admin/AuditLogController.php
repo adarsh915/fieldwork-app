@@ -102,6 +102,9 @@ class AuditLogController extends Controller
         // Paginate results
         $logs = $query->paginate(25)->withQueryString();
 
+        // Preload entities for human-readable audit presentation (0 N+1 queries)
+        \App\Services\AuditLogPresenter::preload($logs);
+
         // Dropdown filter data
         $causersQuery = User::whereIn('id', function ($sub) {
             $sub->select('causer_id')
@@ -117,6 +120,7 @@ class AuditLogController extends Controller
         $knownModels = [
             'DayStart'          => 'Day Start / Tour Plan',
             'Leave'             => 'Leave Request',
+            'LeaveBalance'      => 'Leave Quota / Balance',
             'Product'           => 'Product',
             'User'              => 'Employee / User',
             'Customer'          => 'Customer / Party',
@@ -131,6 +135,13 @@ class AuditLogController extends Controller
             'Role'              => 'Role',
             'Permission'        => 'Permission',
         ];
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'html'    => view('admin.audit-logs.partials.table-stream', compact('logs'))->render(),
+            ]);
+        }
 
         return view('admin.audit-logs.index', compact('logs', 'stats', 'causers', 'knownModels'));
     }

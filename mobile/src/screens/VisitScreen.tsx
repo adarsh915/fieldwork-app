@@ -158,6 +158,59 @@ export default function VisitScreen() {
     }
   };
 
+  /**
+   * Safely fetches location without freezing the UI or crashing on poor GPS.
+   * Uses cached location or Google Fused Provider with a timeout.
+   */
+  const fetchSafeLocation = async (): Promise<{ lat?: number; lng?: number }> => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        return {};
+      }
+
+      // 1. Try fast cached last known position first (instant 0.1s)
+      try {
+        const lastKnown = await Location.getLastKnownPositionAsync({});
+        if (lastKnown?.coords) {
+          const ageMs = Date.now() - (lastKnown.timestamp || 0);
+          if (ageMs < 60000) {
+            return {
+              lat: lastKnown.coords.latitude,
+              lng: lastKnown.coords.longitude,
+            };
+          }
+        }
+      } catch {
+        // Continue to fresh fetch
+      }
+
+      // 2. Fetch fresh position using High accuracy (Fused GPS + Wi-Fi) with 6s timeout
+      const fresh = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        timeInterval: 6000,
+      });
+
+      return {
+        lat: fresh.coords.latitude,
+        lng: fresh.coords.longitude,
+      };
+    } catch (err) {
+      console.warn("[VisitScreen] Fresh location fetch failed, using fallback:", err);
+      // 3. Fallback to any last known location
+      try {
+        const fallback = await Location.getLastKnownPositionAsync({});
+        if (fallback?.coords) {
+          return {
+            lat: fallback.coords.latitude,
+            lng: fallback.coords.longitude,
+          };
+        }
+      } catch {}
+      return {};
+    }
+  };
+
   const handleCheckIn = async () => {
     if (hasOtherVisit) {
       Alert.alert(
@@ -167,44 +220,48 @@ export default function VisitScreen() {
       return;
     }
 
-    // Force party meet photo
-    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
-    if (cameraStatus !== "granted") {
-      Alert.alert("Permission needed", "Camera access is required to take a party meet photo.");
-      return;
-    }
-
-    const imageResult = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: false,
-    });
-
-    if (imageResult.canceled || imageResult.assets.length === 0) {
-      return; // user cancelled camera
-    }
-
-    const checkInPhotoUri = await optimizeImageForUpload(imageResult.assets[0].uri);
-
-    setSubmitting(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission needed", "Location access is required to check in.");
-        setSubmitting(false);
+      // 1. Fetch GPS location upfront before opening camera
+      const loc = await fetchSafeLocation();
+
+      // 2. Force party meet photo
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      if (cameraStatus !== "granted") {
+        Alert.alert("Permission needed", "Camera access is required to take a party meet photo.");
         return;
       }
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest,
+
+      const imageResult = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.6,
+        allowsEditing: false,
       });
-      
+
+      if (imageResult.canceled || !imageResult.assets || imageResult.assets.length === 0) {
+        return; // user cancelled camera
+      }
+
+      setSubmitting(true);
+
+      const checkInPhotoUri = await optimizeImageForUpload(imageResult.assets[0].uri);
+
+      // If location wasn't acquired upfront, try once more
+      let finalLat = loc.lat;
+      let finalLng = loc.lng;
+      if (!finalLat || !finalLng) {
+        const retryLoc = await fetchSafeLocation();
+        finalLat = retryLoc.lat;
+        finalLng = retryLoc.lng;
+      }
+
       const res = await checkIn({ 
         party_id: partyId,
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
+        lat: finalLat,
+        lng: finalLng,
         check_in_photo_uri: checkInPhotoUri,
         notes: consultationNotes.trim() || undefined,
       });
+
       if (res.success) {
         setActiveVisit(res.data);
       }
@@ -223,11 +280,9 @@ export default function VisitScreen() {
       let lat: number | undefined;
       let lng: number | undefined;
       try {
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Highest,
-        });
-        lat = location.coords.latitude;
-        lng = location.coords.longitude;
+        const loc = await fetchSafeLocation();
+        lat = loc.lat;
+        lng = loc.lng;
       } catch (e) {
         // ignore location error on checkout if it fails
       }

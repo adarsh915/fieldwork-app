@@ -132,6 +132,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 Route::get('/{id}/edit', [PartyController::class, 'edit'])->name('edit');
                 Route::put('/{id}', [PartyController::class, 'update'])->name('update');
                 Route::post('/{id}/save-employees', [PartyController::class, 'saveEmployees'])->name('save-employees');
+                Route::post('/{id}/reset-location', [PartyController::class, 'resetLocation'])->name('reset-location');
                 Route::patch('/{id}/approve', [PartyController::class, 'approve'])->name('approve');
                 Route::patch('/{id}/reject', [PartyController::class, 'reject'])->name('reject');
                 Route::post('/bulk-assign', [PartyController::class, 'bulkAssign'])->name('bulk-assign');

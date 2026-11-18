@@ -53,7 +53,7 @@
     </div>
 
     {{-- Table --}}
-    <div class="table-wrap">
+    <div class="table-wrap min-h-[260px]">
         <table class="data-table">
             <thead>
                 <tr>
@@ -95,11 +95,37 @@
                             @endif
                         </td>
                         <td class="text-right">
-                            <div class="relative inline-block" x-data="{ open: false }">
-                                <button @click="open = !open" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors">
-                                    <x-lucide-more-vertical class="w-4 h-4 text-ink-600" />
+                            <div class="relative inline-block text-left" x-data="{
+                                open: false,
+                                openUp: false,
+                                pos: { top: '', bottom: '', right: '' },
+                                toggle(e) {
+                                    if (!this.open) {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const spaceBelow = window.innerHeight - rect.bottom;
+                                        this.openUp = spaceBelow < 200;
+                                        this.pos = {
+                                            top: this.openUp ? '' : ((rect.bottom + 4) + 'px'),
+                                            bottom: this.openUp ? ((window.innerHeight - rect.top + 4) + 'px') : '',
+                                            right: Math.max(12, window.innerWidth - rect.right) + 'px'
+                                        };
+                                    }
+                                    this.open = !this.open;
+                                }
+                            }">
+                                <button type="button" @click="toggle($event)" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 hover:text-ink-900 focus:outline-none" title="Actions">
+                                    <x-lucide-more-vertical class="w-4 h-4" />
                                 </button>
-                                <div x-show="open" @click.outside="open = false" x-transition class="absolute right-0 mt-1 w-40 bg-white border border-surface-border rounded-xl shadow-lg z-20 py-1 top-full" style="display: none;">
+                                <div x-show="open" @click.outside="open = false" @scroll.window="open = false" x-cloak
+                                     x-transition:enter="transition ease-out duration-100"
+                                     x-transition:enter-start="opacity-0 scale-95"
+                                     x-transition:enter-end="opacity-100 scale-100"
+                                     x-transition:leave="transition ease-in duration-75"
+                                     x-transition:leave-start="opacity-100 scale-100"
+                                     x-transition:leave-end="opacity-0 scale-95"
+                                     class="fixed w-40 bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1 text-left"
+                                     :style="`top: ${pos.top}; bottom: ${pos.bottom}; right: ${pos.right};`"
+                                     style="display: none;">
                                     <a href="{{ route('admin.product-attributes.edit', $attr->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-ink-900 hover:bg-surface-muted">
                                         <x-lucide-pencil class="w-4 h-4" />
                                         Edit

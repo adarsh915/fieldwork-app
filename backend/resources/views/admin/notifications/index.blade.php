@@ -90,62 +90,70 @@
                 $currentCat = request('category', 'all');
                 $currentStatus = request('status', 'all');
             @endphp
-            <div class="flex items-center gap-1.5 overflow-x-auto pt-4 border-t border-slate-100 mt-4 text-xs font-semibold no-scrollbar">
-                <a href="{{ request()->fullUrlWithQuery(['category' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'all' ? 'bg-brand-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+            <div id="categoryTabsContainer" class="flex items-center gap-1.5 overflow-x-auto pt-4 border-t border-slate-100 mt-4 text-xs font-semibold no-scrollbar">
+                <a href="{{ request()->fullUrlWithQuery(['category' => 'all', 'status' => 'all', 'page' => 1]) }}"
+                   data-cat="all" data-status="all"
+                   class="category-tab px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'all' && $currentStatus !== 'unread' ? 'bg-brand-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                     <x-lucide-activity class="w-3.5 h-3.5" />
                     <span>All Activities</span>
                 </a>
-                <a href="{{ request()->fullUrlWithQuery(['status' => 'unread', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentStatus === 'unread' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-700 hover:bg-rose-100' }}">
+                <a href="{{ request()->fullUrlWithQuery(['status' => 'unread', 'category' => 'all', 'page' => 1]) }}"
+                   data-cat="all" data-status="unread"
+                   class="category-tab px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentStatus === 'unread' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-700 hover:bg-rose-100' }}">
                     <x-lucide-bell class="w-3.5 h-3.5" />
                     <span>Unread Alerts</span>
                     @if($stats['unread'] > 0)
-                        <span class="px-1.5 py-0.2 rounded-full text-[10px] {{ $currentStatus === 'unread' ? 'bg-rose-800 text-white' : 'bg-rose-200 text-rose-900' }}">{{ $stats['unread'] }}</span>
+                        <span id="unreadTabBadge" class="px-1.5 py-0.2 rounded-full text-[10px] {{ $currentStatus === 'unread' ? 'bg-rose-800 text-white' : 'bg-rose-200 text-rose-900' }}">{{ $stats['unread'] }}</span>
                     @endif
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'visit', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'visit' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                   data-cat="visit" data-status="all"
+                   class="category-tab px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'visit' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                     <x-lucide-map-pin class="w-3.5 h-3.5" />
                     <span>Visits</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'order', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'order' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                   data-cat="order" data-status="all"
+                   class="category-tab px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'order' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                     <x-lucide-shopping-cart class="w-3.5 h-3.5" />
                     <span>Orders</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'day_start', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'day_start' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                   data-cat="day_start" data-status="all"
+                   class="category-tab px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'day_start' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                     <x-lucide-calendar-clock class="w-3.5 h-3.5" />
                     <span>Day Starts / Ends</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'expense', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'expense' ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                   data-cat="expense" data-status="all"
+                   class="category-tab px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'expense' ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                     <x-lucide-receipt class="w-3.5 h-3.5" />
                     <span>Expenses</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'payment', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'payment' ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                   data-cat="payment" data-status="all"
+                   class="category-tab px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'payment' ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                     <x-lucide-banknote class="w-3.5 h-3.5" />
                     <span>Payments</span>
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['category' => 'leave', 'status' => 'all', 'page' => 1]) }}"
-                   class="px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'leave' ? 'bg-purple-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
+                   data-cat="leave" data-status="all"
+                   class="category-tab px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5 {{ $currentCat === 'leave' ? 'bg-purple-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                     <x-lucide-calendar-off class="w-3.5 h-3.5" />
                     <span>Leaves</span>
                 </a>
             </div>
 
             {{-- Filter Form --}}
-            <form method="GET" action="{{ route('admin.notifications.index') }}" class="grid grid-cols-1 sm:grid-cols-12 gap-3 mt-4 pt-3 border-t border-slate-100">
-                <input type="hidden" name="category" value="{{ request('category', 'all') }}">
-                <input type="hidden" name="status" value="{{ request('status', 'all') }}">
+            <form id="notificationFilterForm" method="GET" action="{{ route('admin.notifications.index') }}" class="grid grid-cols-1 sm:grid-cols-12 gap-3 mt-4 pt-3 border-t border-slate-100">
+                <input type="hidden" name="category" id="filterCategoryInput" value="{{ request('category', 'all') }}">
+                <input type="hidden" name="status" id="filterStatusInput" value="{{ request('status', 'all') }}">
 
                 {{-- Search --}}
                 <div class="sm:col-span-5">
                     <div class="relative">
                         <x-lucide-search class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input type="text" name="search" value="{{ request('search') }}"
+                        <input type="text" name="search" id="filterSearchInput" value="{{ request('search') }}"
                                placeholder="Search by employee, party, message..."
                                class="form-input text-xs pl-9 w-full rounded-lg">
                     </div>
@@ -153,12 +161,12 @@
 
                 {{-- From Date --}}
                 <div class="sm:col-span-3">
-                    <input type="date" name="date_from" value="{{ request('date_from') }}" class="form-input text-xs w-full rounded-lg" title="From Date">
+                    <input type="date" name="date_from" id="filterDateFromInput" value="{{ request('date_from') }}" class="form-input text-xs w-full rounded-lg" title="From Date">
                 </div>
 
                 {{-- To Date --}}
                 <div class="sm:col-span-3">
-                    <input type="date" name="date_to" value="{{ request('date_to') }}" class="form-input text-xs w-full rounded-lg" title="To Date">
+                    <input type="date" name="date_to" id="filterDateToInput" value="{{ request('date_to') }}" class="form-input text-xs w-full rounded-lg" title="To Date">
                 </div>
 
                 {{-- Submit & Reset --}}
@@ -166,140 +174,17 @@
                     <button type="submit" class="btn-primary text-xs py-2 px-3 w-full justify-center">
                         Filter
                     </button>
-                    @if(request()->anyFilled(['search', 'date_from', 'date_to']))
-                        <a href="{{ route('admin.notifications.index') }}" class="btn-secondary text-xs py-2 px-2.5 text-slate-500 hover:text-slate-800" title="Reset Filters">
-                            ✕
-                        </a>
-                    @endif
+                    <button type="button" onclick="window.resetNotificationFilters()" class="btn-secondary text-xs py-2 px-2.5 text-slate-500 hover:text-slate-800" title="Reset Filters">
+                        ✕
+                    </button>
                 </div>
             </form>
         </div>
 
-        {{-- ═════ Notification Feed List ═════ --}}
-        <div class="divide-y divide-slate-100">
-            @forelse ($notifications as $notification)
-                @php
-                    $data = $notification->data;
-                    $isUnread = is_null($notification->read_at);
-                    $cat = $data['category'] ?? 'general';
-
-                    $badgeStyles = match($cat) {
-                        'order'     => ['bg' => 'bg-emerald-50 text-emerald-700 border-emerald-200', 'dot' => 'bg-emerald-500', 'label' => 'Order Booked'],
-                        'visit'     => ['bg' => 'bg-blue-50 text-blue-700 border-blue-200', 'dot' => 'bg-blue-500', 'label' => 'Party Visit'],
-                        'expense'   => ['bg' => 'bg-amber-50 text-amber-700 border-amber-200', 'dot' => 'bg-amber-500', 'label' => 'Expense Claim'],
-                        'payment'   => ['bg' => 'bg-teal-50 text-teal-700 border-teal-200', 'dot' => 'bg-teal-500', 'label' => 'Payment'],
-                        'leave'     => ['bg' => 'bg-purple-50 text-purple-700 border-purple-200', 'dot' => 'bg-purple-500', 'label' => 'Leave App'],
-                        'day_start' => ['bg' => 'bg-indigo-50 text-indigo-700 border-indigo-200', 'dot' => 'bg-indigo-500', 'label' => 'Tour Plan / Day'],
-                        default     => ['bg' => 'bg-slate-100 text-slate-700 border-slate-200', 'dot' => 'bg-slate-400', 'label' => 'General Alert'],
-                    };
-
-                    $actionUrl = $data['url'] ?? null;
-                    if (!$actionUrl && !empty($data['day_start_id'])) {
-                        $anchor = match ($data['category'] ?? '') {
-                            'visit'   => '#visits',
-                            'expense' => '#expenses',
-                            'order'   => '#orders',
-                            default   => '',
-                        };
-                        $actionUrl = route('admin.day-starts.show', $data['day_start_id']) . $anchor;
-                    }
-                @endphp
-
-                <div class="notification-item p-4 sm:px-6 hover:bg-slate-50/70 transition-colors {{ $isUnread ? 'bg-amber-50/30 is-unread' : '' }}" data-id="{{ $notification->id }}">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex items-start gap-3.5 min-w-0">
-                            {{-- Status Indicator Dot --}}
-                            <div class="pt-1.5 shrink-0 status-dot">
-                                @if($isUnread)
-                                    <span class="flex h-2.5 w-2.5 rounded-full bg-rose-500 ring-4 ring-rose-100" title="Unread"></span>
-                                @else
-                                    <span class="flex h-2 w-2 rounded-full bg-slate-300" title="Read"></span>
-                                @endif
-                            </div>
-
-                            {{-- Notification Content --}}
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2 mb-1">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border {{ $badgeStyles['bg'] }}">
-                                        {{ $badgeStyles['label'] }}
-                                    </span>
-                                    @if(!empty($data['title']))
-                                        <span class="text-xs font-bold text-slate-900">{{ $data['title'] }}</span>
-                                    @endif
-                                    @if(!empty($data['is_updated']))
-                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                                            EDITED
-                                        </span>
-                                    @endif
-                                    <span class="text-slate-300 text-xs">&bull;</span>
-                                    <span class="text-xs text-slate-400 font-medium">{{ $notification->created_at->format('d M Y, h:i A') }} ({{ $notification->created_at->diffForHumans() }})</span>
-                                </div>
-
-                                <p class="text-sm text-slate-800 font-medium leading-relaxed">
-                                    {{ $data['message'] ?? 'User activity recorded.' }}
-                                </p>
-
-                                @if(!empty($data['user_name']))
-                                    <div class="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                                        <span>Logged by: <strong class="text-slate-700">{{ $data['user_name'] }}</strong></span>
-                                        @if(!empty($data['amount']))
-                                            <span>&bull;</span>
-                                            <span>Amount: <strong class="text-emerald-700">₹{{ number_format((float) $data['amount'], 2) }}</strong></span>
-                                        @endif
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-
-                        {{-- Action Buttons --}}
-                        <div class="flex items-center gap-2 shrink-0">
-                            @if ($actionUrl)
-                                <a href="{{ $actionUrl }}"
-                                   class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1 shadow-sm font-semibold">
-                                    <span>View</span>
-                                    <span class="text-[10px]">↗</span>
-                                </a>
-                            @endif
-
-                            @if($isUnread)
-                                <form method="POST" action="{{ route('admin.notifications.read', $notification->id) }}" class="mark-single-read-form">
-                                    @csrf
-                                    <button type="submit" class="btn-secondary text-xs py-1.5 px-2.5 text-slate-600 hover:text-slate-900" title="Mark as Read">
-                                        <x-lucide-check class="w-3.5 h-3.5" />
-                                    </button>
-                                </form>
-                            @endif
-
-                            <form method="POST" action="{{ route('admin.notifications.destroy', $notification->id) }}" class="delete-single-form">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="text-slate-300 hover:text-rose-600 p-1.5 rounded transition-colors" title="Delete Notification">
-                                    <x-lucide-trash class="w-3.5 h-3.5" />
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            @empty
-                <div class="py-16 text-center">
-                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3">
-                        <x-lucide-bell-off class="w-7 h-7" />
-                    </div>
-                    <h3 class="text-base font-bold text-slate-800">No Notifications Found</h3>
-                    <p class="text-xs text-slate-500 max-w-sm mx-auto mt-1">There are no user activity notifications matching your current filter criteria.</p>
-                    @if(request()->anyFilled(['category', 'status', 'search', 'date_from', 'date_to']))
-                        <div class="mt-4">
-                            <a href="{{ route('admin.notifications.index') }}" class="btn-secondary text-xs px-4 py-2">
-                                Clear All Filters
-                            </a>
-                        </div>
-                    @endif
-                </div>
-            @endforelse
+        {{-- ═════ Notification Feed Stream Wrapper (AJAX) ═════ --}}
+        <div id="notifications-stream-wrapper" class="relative transition-opacity duration-150">
+            @include('admin.notifications.partials.feed-stream')
         </div>
-
-        {{-- Unified Server-Side Pagination --}}
-        {{ $notifications->links() }}
     </div>
 
 </div>
@@ -308,6 +193,146 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const streamWrapper = document.getElementById('notifications-stream-wrapper');
+    const filterForm = document.getElementById('notificationFilterForm');
+
+    // ── Live AJAX Stream Loader (Zero page reload) ──
+    window.loadNotificationsStream = async function (url, pushState = true) {
+        if (!streamWrapper) return;
+        streamWrapper.style.opacity = '0.4';
+        streamWrapper.style.pointerEvents = 'none';
+
+        try {
+            const res = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success && data.html) {
+                streamWrapper.innerHTML = data.html;
+
+                // Sync URL in address bar without reload
+                if (pushState) {
+                    window.history.pushState(null, '', url);
+                }
+
+                // Update active tab styles based on current URL params
+                const parsedUrl = new URL(url, window.location.origin);
+                const currentCat = parsedUrl.searchParams.get('category') || 'all';
+                const currentStatus = parsedUrl.searchParams.get('status') || 'all';
+
+                // Sync hidden inputs
+                const catInput = document.getElementById('filterCategoryInput');
+                const statusInput = document.getElementById('filterStatusInput');
+                if (catInput) catInput.value = currentCat;
+                if (statusInput) statusInput.value = currentStatus;
+
+                // Sync tab active classes
+                document.querySelectorAll('.category-tab').forEach(tab => {
+                    const tabCat = tab.getAttribute('data-cat');
+                    const tabStatus = tab.getAttribute('data-status');
+                    const isActive = (tabCat === currentCat) && (tabStatus === currentStatus || (tabStatus === 'all' && currentStatus !== 'unread'));
+
+                    if (isActive) {
+                        tab.classList.remove('bg-slate-100', 'text-slate-700', 'bg-rose-50', 'text-rose-700');
+                        if (tabStatus === 'unread') {
+                            tab.classList.add('bg-rose-600', 'text-white', 'shadow-sm');
+                        } else if (tabCat === 'visit') {
+                            tab.classList.add('bg-blue-600', 'text-white', 'shadow-sm');
+                        } else if (tabCat === 'order') {
+                            tab.classList.add('bg-emerald-600', 'text-white', 'shadow-sm');
+                        } else if (tabCat === 'day_start') {
+                            tab.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
+                        } else if (tabCat === 'expense') {
+                            tab.classList.add('bg-amber-600', 'text-white', 'shadow-sm');
+                        } else if (tabCat === 'payment') {
+                            tab.classList.add('bg-teal-600', 'text-white', 'shadow-sm');
+                        } else if (tabCat === 'leave') {
+                            tab.classList.add('bg-purple-600', 'text-white', 'shadow-sm');
+                        } else {
+                            tab.classList.add('bg-brand-600', 'text-white', 'shadow-sm');
+                        }
+                    } else {
+                        tab.classList.remove(
+                            'bg-brand-600', 'bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 
+                            'bg-indigo-600', 'bg-amber-600', 'bg-teal-600', 'bg-purple-600', 
+                            'text-white', 'shadow-sm'
+                        );
+                        if (tabStatus === 'unread') {
+                            tab.classList.add('bg-rose-50', 'text-rose-700');
+                        } else {
+                            tab.classList.add('bg-slate-100', 'text-slate-700');
+                        }
+                    }
+                });
+
+                // Smooth scroll back to top of feed
+                const panel = streamWrapper.closest('.panel');
+                if (panel) {
+                    const rect = panel.getBoundingClientRect();
+                    if (rect.top < 0) {
+                        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load notifications stream:', err);
+            if (window.toast) window.toast('Failed to load notifications.', 'error');
+        } finally {
+            streamWrapper.style.opacity = '1';
+            streamWrapper.style.pointerEvents = 'auto';
+        }
+    };
+
+    // ── Pagination Clicks (Zero Reload) ──
+    document.addEventListener('click', function (e) {
+        const pageLink = e.target.closest('#notification-pagination a');
+        if (pageLink && pageLink.href) {
+            e.preventDefault();
+            window.loadNotificationsStream(pageLink.href);
+        }
+    });
+
+    // ── Category Tab Clicks (Zero Reload) ──
+    document.addEventListener('click', function (e) {
+        const tab = e.target.closest('.category-tab');
+        if (tab && tab.href) {
+            e.preventDefault();
+            window.loadNotificationsStream(tab.href);
+        }
+    });
+
+    // ── Filter Form Submit (Zero Reload) ──
+    if (filterForm) {
+        filterForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(filterForm);
+            const params = new URLSearchParams(formData);
+            params.set('page', '1');
+            const url = filterForm.action + '?' + params.toString();
+            window.loadNotificationsStream(url);
+        });
+    }
+
+    // ── Reset Filters ──
+    window.resetNotificationFilters = function () {
+        if (filterForm) {
+            filterForm.reset();
+            const catInput = document.getElementById('filterCategoryInput');
+            const statusInput = document.getElementById('filterStatusInput');
+            if (catInput) catInput.value = 'all';
+            if (statusInput) statusInput.value = 'all';
+        }
+        window.loadNotificationsStream('{{ route('admin.notifications.index') }}');
+    };
+
+    // ── Browser Back / Forward Button Support ──
+    window.addEventListener('popstate', function () {
+        window.loadNotificationsStream(window.location.href, false);
+    });
     // 1. Mark All Read
     const markAllForm = document.getElementById('markAllReadForm');
     if (markAllForm) {

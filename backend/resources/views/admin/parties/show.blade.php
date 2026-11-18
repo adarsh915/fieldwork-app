@@ -125,7 +125,7 @@
                 </div>
                 <div>
                     <dt class="text-slate-500 font-medium mb-1">Geo Location</dt>
-                    <dd>
+                    <dd class="flex items-center justify-between gap-2">
                         @if($party->latitude && $party->longitude)
                             <a href="https://maps.google.com/?q={{ $party->latitude }},{{ $party->longitude }}" target="_blank"
                                 class="inline-flex items-center gap-1 text-[var(--ampl-primary)] hover:underline text-sm font-medium">
@@ -136,8 +136,16 @@
                                 </svg>
                                 {{ number_format($party->latitude, 4) }}, {{ number_format($party->longitude, 4) }}
                             </a>
+                            @can('update', $party)
+                                <button type="button" onclick="resetPartyLocation()" 
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                                    title="Clear saved GPS coordinates so the next check-in auto-captures the accurate location">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                    Reset GPS
+                                </button>
+                            @endcan
                         @else
-                            <span class="text-slate-400">Not provided</span>
+                            <span class="text-slate-400">Not recorded (auto-captures on first visit)</span>
                         @endif
                     </dd>
                 </div>
@@ -413,6 +421,30 @@
 
         // Auto-load first tab
         loadTab('visits', 1);
+
+        // Reset Party GPS Location
+        window.resetPartyLocation = function() {
+            if (!confirm('Are you sure you want to reset GPS coordinates for this customer? The next fieldworker visit check-in will automatically capture the accurate shop location.')) {
+                return;
+            }
+            fetch('{{ route("admin.parties.reset-location", $party->id) }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Failed to reset location');
+                }
+            })
+            .catch(() => alert('Network error while resetting location'));
+        };
     })();
     </script>
 @endpush

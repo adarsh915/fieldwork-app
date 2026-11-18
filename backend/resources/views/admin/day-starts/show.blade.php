@@ -310,29 +310,48 @@
 
                 const data = await res.json();
                 if (res.ok && data.success) {
-                    if (this.actionModal.rowRef) {
+                    const row = this.actionModal.rowRef;
+                    this.closeExpenseAction();
+
+                    if (row) {
                         if (data.record) {
-                            this.actionModal.rowRef.status = data.record.status;
-                            this.actionModal.rowRef.tempApprovedBy = data.record.temp_approved_by || this.actionModal.rowRef.tempApprovedBy;
-                            this.actionModal.rowRef.tempApprovedAt = data.record.temp_approved_at || this.actionModal.rowRef.tempApprovedAt;
-                            this.actionModal.rowRef.tempApprovedNote = data.record.temp_approved_note || this.actionModal.rowRef.tempApprovedNote;
-                            this.actionModal.rowRef.approvedBy = data.record.approved_by || this.actionModal.rowRef.approvedBy;
-                            this.actionModal.rowRef.approvedAt = data.record.approved_at || this.actionModal.rowRef.approvedAt;
-                            this.actionModal.rowRef.finalNote = data.record.final_note || this.actionModal.rowRef.finalNote;
-                            this.actionModal.rowRef.rejectedBy = data.record.rejected_by || this.actionModal.rowRef.rejectedBy;
-                            this.actionModal.rowRef.rejectedAt = data.record.rejected_at || this.actionModal.rowRef.rejectedAt;
-                            this.actionModal.rowRef.rejectionReason = data.record.rejection_reason || this.actionModal.rowRef.rejectionReason;
+                            row.status = data.record.status;
+                            row.tempApprovedBy = data.record.temp_approved_by || row.tempApprovedBy;
+                            row.tempApprovedAt = data.record.temp_approved_at || row.tempApprovedAt;
+                            row.tempApprovedNote = data.record.temp_approved_note || row.tempApprovedNote;
+                            row.approvedBy = data.record.approved_by || row.approvedBy;
+                            row.approvedAt = data.record.approved_at || row.approvedAt;
+                            row.finalNote = data.record.final_note || row.finalNote;
+                            row.rejectedBy = data.record.rejected_by || row.rejectedBy;
+                            row.rejectedAt = data.record.rejected_at || row.rejectedAt;
+                            row.rejectionReason = data.record.rejection_reason || row.rejectionReason;
                         } else {
-                            this.actionModal.rowRef.status = data.status || (this.actionModal.action === 'final_approve' ? 'approved' : (this.actionModal.action === 'temp_approve' ? 'temp_approved' : this.actionModal.action));
+                            row.status = data.status || (this.actionModal.action === 'final_approve' ? 'approved' : (this.actionModal.action === 'temp_approve' ? 'temp_approved' : this.actionModal.action));
                         }
                     }
-                    window.toast ? window.toast(data.message || 'Status updated successfully.', 'success') : null;
-                    this.closeExpenseAction();
+
+                    const successMsg = data.message || 'Status updated successfully.';
+                    if (typeof window.toast === 'function') {
+                        window.toast(successMsg, 'success');
+                    } else if (window.toast && typeof window.toast.show === 'function') {
+                        window.toast.show(successMsg, 'success');
+                    }
                 } else {
-                    window.toast ? window.toast(data.message || 'Failed to update status.', 'warning') : null;
+                    const failMsg = data?.message || 'Failed to update status.';
+                    if (typeof window.toast === 'function') {
+                        window.toast(failMsg, 'warning');
+                    } else if (window.toast && typeof window.toast.show === 'function') {
+                        window.toast.show(failMsg, 'warning');
+                    }
                 }
             } catch (e) {
-                window.toast ? window.toast('Error submitting approval action.', 'error') : null;
+                console.error('[ExpenseAction] Error:', e);
+                const errMsg = 'Error submitting approval action.';
+                if (typeof window.toast === 'function') {
+                    window.toast(errMsg, 'error');
+                } else if (window.toast && typeof window.toast.show === 'function') {
+                    window.toast.show(errMsg, 'error');
+                }
             } finally {
                 this.actionModal.submitting = false;
             }

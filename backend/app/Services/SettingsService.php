@@ -20,6 +20,7 @@ class SettingsService
         'working_days_per_week'          => ['value' => '6',        'type' => 'number',  'group' => 'attendance', 'description' => 'Standard working days per week'],
         'expense_past_days_allowed'      => ['value' => '7',        'type' => 'number',  'group' => 'expense',    'description' => 'Maximum past days allowed to log expenses (0 = today only)'],
         'allow_phone_orders'             => ['value' => '1',        'type' => 'boolean', 'group' => 'order',      'description' => 'Allow field workers to place direct / phone orders without a physical store visit'],
+        'geofence_radius_meters'         => ['value' => '300',      'type' => 'number',  'group' => 'visit',      'description' => 'Maximum allowed distance (meters) between phone GPS and party location for check-in'],
     ];
 
     /**

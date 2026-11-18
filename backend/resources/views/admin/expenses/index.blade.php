@@ -592,11 +592,11 @@
                                             </span>
                                         </template>
                                         <template x-if="historyModal.record.bill_photo_url">
-                                            <a :href="historyModal.record.bill_photo_url" target="_blank"
-                                                class="text-brand-600 hover:underline font-medium inline-flex items-center gap-1">
+                                            <button type="button" @click="openExpensePhotoModal(historyModal.record.bill_photo_url)"
+                                                class="text-brand-600 hover:underline font-medium inline-flex items-center gap-1 cursor-pointer">
                                                 <x-lucide-image class="w-3.5 h-3.5" />
                                                 <span>View Attached Bill Photo</span>
-                                            </a>
+                                            </button>
                                         </template>
                                     </div>
                                 </div>
@@ -865,15 +865,14 @@
                         <div class="flex items-center gap-3">
                             <template x-if="editModal.billPhotoUrl && !editModal.newPhotoPreview">
                                 <div class="flex items-center gap-2">
-                                    <a :href="editModal.billPhotoUrl" target="_blank" class="block group relative">
+                                    <button type="button" @click="openExpensePhotoModal(editModal.billPhotoUrl)" class="block group relative cursor-pointer focus:outline-none">
                                         <img :src="editModal.billPhotoUrl" alt="Bill Photo"
                                             class="w-16 h-16 object-cover rounded border border-surface-border group-hover:opacity-90 shadow-sm">
-                                    </a>
+                                    </button>
                                     <div class="text-xs">
                                         <span class="text-ink-600 block font-medium">Current bill proof</span>
-                                        <a :href="editModal.billPhotoUrl" target="_blank"
-                                            class="text-brand-600 hover:underline text-[11px] font-semibold">View Full Image
-                                            ↗</a>
+                                        <button type="button" @click="openExpensePhotoModal(editModal.billPhotoUrl)"
+                                            class="text-brand-600 hover:underline text-[11px] font-semibold cursor-pointer">View Full Image</button>
                                     </div>
                                 </div>
                             </template>
@@ -962,6 +961,34 @@
             </div>
         </div>
     </div>
+
+    {{-- ═══ Bill Photo Lightbox Modal ═══ --}}
+    <div id="expensePhotoModal" onclick="if(event.target === this) closeExpensePhotoModal()" 
+         style="display: none; position: fixed; inset: 0; z-index: 99999; align-items: center; justify-content: center; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px);">
+        <button type="button" onclick="closeExpensePhotoModal()" 
+                style="position: absolute; top: 1.5rem; right: 1.5rem; color: white; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 9999px; padding: 0.5rem; cursor: pointer; z-index: 100000;"
+                class="hover:bg-white/20 transition-colors" title="Close (Esc)">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+        <div class="max-w-[90vw] max-h-[90vh] flex flex-col items-center">
+            <img id="expensePhotoModalImg" src="" alt="Bill Receipt Proof"
+                 style="max-width: 90vw; max-height: 85vh; object-fit: contain; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);" 
+                 onclick="event.stopPropagation()">
+            <div class="mt-3 flex items-center gap-3">
+                <a id="expensePhotoModalDownload" href="" target="_blank" download
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/20 hover:bg-white/30 text-white border border-white/20 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    <span>Open in New Tab</span>
+                </a>
+                <button type="button" onclick="closeExpensePhotoModal()"
+                   class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition cursor-pointer">
+                    <span>Close</span>
+                </button>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -996,6 +1023,34 @@
                     Alpine.$data(container).openHistoryModal(record);
                 }
             };
+
+            // Global Lightbox Modal for Bill Receipts
+            window.openExpensePhotoModal = function (url) {
+                if (!url) return;
+                const modal = document.getElementById('expensePhotoModal');
+                const img = document.getElementById('expensePhotoModalImg');
+                const download = document.getElementById('expensePhotoModalDownload');
+                if (modal && img) {
+                    img.src = url;
+                    if (download) download.href = url;
+                    modal.style.display = 'flex';
+                    document.body.style.overflow = 'hidden';
+                }
+            };
+
+            window.closeExpensePhotoModal = function () {
+                const modal = document.getElementById('expensePhotoModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            };
+
+            window.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    window.closeExpensePhotoModal();
+                }
+            });
 
             // Initialize Expenses DataTable
             window.expenseTable = new DataTable('#expenses-table', {
@@ -1071,10 +1126,10 @@
                         render: function (data) {
                             if (data.url) {
                                 return `
-                                    <a href="${data.url}" target="_blank" class="inline-block relative group" title="Click to view full receipt">
+                                    <button type="button" onclick="openExpensePhotoModal('${data.url}')" class="inline-block relative group cursor-pointer focus:outline-none" title="Click to view full receipt in modal">
                                         <img src="${data.url}" alt="Bill Proof" class="w-10 h-10 object-cover rounded-lg border border-surface-border mx-auto hover:opacity-85 transition shadow-sm">
                                         <span class="absolute inset-0 bg-black/40 text-white text-[9px] font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg transition">View</span>
-                                    </a>
+                                    </button>
                                 `;
                             } else if (data.is_system_generated) {
                                 return `<span class="text-xs text-ink-400 italic">Day Meter</span>`;
@@ -1170,17 +1225,43 @@
                             const hasApprovalActions = data.can_temp_approve || data.can_manager_reject || data.can_final_approve || data.can_final_reject;
 
                             return `
-                                <div class="relative inline-block text-left" x-data="{ open: false }">
-                                    <button type="button" @click="open = !open" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 focus:outline-none" title="Actions">
+                                <div class="relative inline-block text-left" x-data="{
+                                    open: false,
+                                    openUp: false,
+                                    pos: { top: '', bottom: '', right: '' },
+                                    toggle(e) {
+                                        if (!this.open) {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const spaceBelow = window.innerHeight - rect.bottom;
+                                            this.openUp = spaceBelow < 320;
+                                            this.pos = {
+                                                top: this.openUp ? '' : ((rect.bottom + 4) + 'px'),
+                                                bottom: this.openUp ? ((window.innerHeight - rect.top + 4) + 'px') : '',
+                                                right: Math.max(12, window.innerWidth - rect.right) + 'px'
+                                            };
+                                        }
+                                        this.open = !this.open;
+                                    }
+                                }">
+                                    <button type="button" @click="toggle($event)" @click.stop class="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-ink-600 focus:outline-none" title="Actions">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
                                         </svg>
                                     </button>
-                                    <div x-show="open" @click.outside="open = false" x-transition 
-                                         class="absolute right-0 mt-1 min-w-[220px] bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1.5 top-full text-left" 
+                                    <div x-show="open" 
+                                         @click.outside="open = false" 
+                                         @scroll.window="open = false"
+                                         x-transition:enter="transition ease-out duration-100"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         x-transition:leave="transition ease-in duration-75"
+                                         x-transition:leave-start="opacity-100 scale-100"
+                                         x-transition:leave-end="opacity-0 scale-95"
+                                         class="fixed min-w-[220px] bg-white border border-surface-border rounded-xl shadow-xl z-50 py-1.5 text-left" 
+                                         :style="\`top: \${pos.top}; bottom: \${pos.bottom}; right: \${pos.right}; min-width: 220px; width: max-content;\`"
                                          style="min-width: 220px; width: max-content; display: none;">
 
-                                        <button type="button" onclick="window.openExpenseHistoryModal(${data.id})" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-ink-800 hover:bg-surface-muted text-left whitespace-nowrap transition-colors">
+                                        <button type="button" onclick="window.openExpenseHistoryModal(${data.id})" @click="open = false" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-ink-800 hover:bg-surface-muted text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-ink-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                             <span>Approval History</span>
                                         </button>
@@ -1193,7 +1274,7 @@
                                         ` : ''}
 
                                         ${data.can_edit ? `
-                                        <button type="button" onclick="window.openExpenseEditModal(${data.id})" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-slate-800 hover:bg-surface-muted text-left whitespace-nowrap transition-colors">
+                                        <button type="button" onclick="window.openExpenseEditModal(${data.id})" @click="open = false" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-slate-800 hover:bg-surface-muted text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                             <span>Edit Claim</span>
                                         </button>
@@ -1205,28 +1286,28 @@
                                         ` : ''}
 
                                         ${data.can_temp_approve ? `
-                                        <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'temp_approve')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-blue-700 hover:bg-blue-50 text-left whitespace-nowrap transition-colors font-medium">
+                                        <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'temp_approve')" @click="open = false" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-blue-700 hover:bg-blue-50 text-left whitespace-nowrap transition-colors font-medium">
                                             <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                             <span>Verify Claim (L1)</span>
                                         </button>
                                         ` : ''}
 
                                         ${data.can_manager_reject ? `
-                                        <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'manager_reject')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-rose-700 hover:bg-rose-50 text-left whitespace-nowrap transition-colors">
+                                        <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'manager_reject')" @click="open = false" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-rose-700 hover:bg-rose-50 text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                             <span>Manager Reject</span>
                                         </button>
                                         ` : ''}
 
                                         ${data.can_final_approve ? `
-                                        <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'final_approve')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 hover:bg-emerald-50 text-left whitespace-nowrap transition-colors font-semibold">
+                                        <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'final_approve')" @click="open = false" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 hover:bg-emerald-50 text-left whitespace-nowrap transition-colors font-semibold">
                                             <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                             <span>Final Approve</span>
                                         </button>
                                         ` : ''}
 
                                         ${data.can_final_reject ? `
-                                        <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'final_reject')" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-rose-700 hover:bg-rose-50 text-left whitespace-nowrap transition-colors">
+                                        <button type="button" onclick="window.openExpenseActionModal(${data.id}, 'final_reject')" @click="open = false" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-rose-700 hover:bg-rose-50 text-left whitespace-nowrap transition-colors">
                                             <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                             <span>Final Reject</span>
                                         </button>

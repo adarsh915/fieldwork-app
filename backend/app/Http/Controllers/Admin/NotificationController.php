@@ -63,6 +63,14 @@ class NotificationController extends Controller
             'orders' => $user->notifications()->whereDate('created_at', $today)->where('data->category', 'order')->count(),
         ];
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'stats'   => $stats,
+                'html'    => view('admin.notifications.partials.feed-stream', compact('notifications'))->render(),
+            ]);
+        }
+
         return view('admin.notifications.index', compact('notifications', 'stats'));
     }
 
