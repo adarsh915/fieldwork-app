@@ -9,6 +9,7 @@ import { AlertModalProvider } from "./src/context/AlertModalContext";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { navigationRef, navigateToNotificationTarget } from "./src/navigation/navigationRef";
 import { fetchUnreadCount } from "./src/api/notifications";
+import { LocationTrackingService } from "./src/services/LocationTrackingService";
 
 /**
  * App Entry Point
@@ -58,9 +59,29 @@ export default function App() {
       }
     }).catch(() => {});
 
+    // 🔥 5. Auto-resume location tracking if Day Start is active
+    LocationTrackingService.isTrackingActive().then((isActive) => {
+      if (isActive) {
+        console.log("🔄 [App] Auto-resuming location tracking");
+        LocationTrackingService.startTracking().catch((error) => {
+          console.error("[App] Failed to auto-resume tracking:", error);
+        });
+      }
+    }).catch(() => {});
+
+    // 🔥 6. Periodic location upload - Added for live location tracking
+    const locationUploadInterval = setInterval(async () => {
+      try {
+        await LocationTrackingService.uploadQueue();
+      } catch (error) {
+        console.error("[Periodic Upload] Failed:", error);
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+
     return () => {
       notificationSubscription.remove();
       responseSubscription.remove();
+      clearInterval(locationUploadInterval);
     };
   }, []);
 

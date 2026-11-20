@@ -165,6 +165,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/visits/export', [\App\Http\Controllers\Admin\VisitController::class, 'export'])->middleware('permission:visits.view|visits.view-team|visits.view-all|visits.view-own|visits.manage')->name('visits.export');
         Route::get('/visits', [\App\Http\Controllers\Admin\VisitController::class, 'index'])->middleware('permission:visits.view|visits.view-team|visits.view-all|visits.view-own|visits.manage')->name('visits.index');
 
+        // ── Live Location Tracking ────────────────────────────────────────────
+        Route::prefix('tracking')->name('tracking.')->middleware('permission:visits.view|visits.view-team|visits.view-all|visits.view-own')->group(function () {
+            Route::get('/live', [\App\Http\Controllers\Admin\LiveTrackingController::class, 'index'])->name('live');
+            Route::get('/api/latest-locations', [\App\Http\Controllers\Admin\LiveTrackingController::class, 'getLatestLocations'])->name('api.latest-locations');
+            Route::get('/api/active-workers', [\App\Http\Controllers\Admin\LiveTrackingController::class, 'getActiveWorkers'])->name('api.active-workers');
+            Route::get('/api/route-history/{userId}', [\App\Http\Controllers\Admin\LiveTrackingController::class, 'getRouteHistory'])->name('api.route-history');
+            Route::get('/api/stats/{userId}', [\App\Http\Controllers\Admin\LiveTrackingController::class, 'getUserStats'])->name('api.stats');
+        });
+
         // ── Day Start / Tour Plan ─────────────────────────────────────────────
         Route::prefix('day-starts')->name('day-starts.')->group(function () {
             Route::get('/', [DayStartController::class, 'index'])->middleware('permission:day-start.view|day-start.view-team|day-start.view-all|day-start.view-own|day-start.manage')->name('index');

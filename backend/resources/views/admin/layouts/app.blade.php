@@ -107,6 +107,15 @@
                     </a>
                     @endcanany
 
+                    @canany(['visits.view', 'visits.view-team', 'visits.view-all', 'visits.view-own'])
+                    <a href="{{ route('admin.tracking.live') }}"
+                       class="sidebar-link {{ request()->routeIs('admin.tracking.*') ? 'sidebar-link-active' : '' }}"
+                       :title="sidebarCollapsed ? 'Live Tracking' : ''">
+                        <x-lucide-map class="w-5 h-5 shrink-0" />
+                        <span x-show="!sidebarCollapsed" class="truncate">Live Tracking</span>
+                    </a>
+                    @endcanany
+
                     @can('meetings.view')
                     <a href="{{ route('admin.meetings.index') }}"
                        class="sidebar-link {{ request()->routeIs('admin.meetings.*') ? 'sidebar-link-active' : '' }}"

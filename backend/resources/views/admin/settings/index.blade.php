@@ -278,6 +278,95 @@
         </form>
     </div>
 
+    {{-- ── 6. Live Location Tracking Configuration ── --}}
+    <div class="panel p-6 border-l-4 border-blue-500">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-lg font-bold text-ink-900 flex items-center gap-2">
+                    <x-lucide-navigation class="w-5 h-5 text-blue-600" />
+                    Live Location Tracking Configuration
+                </h2>
+                <p class="text-caption mt-1">Configure real-time GPS tracking settings for field workers during active work hours (Day Start to Day End).</p>
+            </div>
+            <div class="text-xs text-blue-800 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 font-semibold flex items-center gap-1.5">
+                <x-lucide-radio class="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Background Tracking: Works even when app is minimized or screen is off.</span>
+            </div>
+        </div>
+
+        <form action="{{ route('admin.settings.update') }}" method="POST" @submit.prevent="submitForm($event)">
+            @csrf
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="form-label">Time Interval (Seconds) <span class="text-rose-500">*</span></label>
+                    <select name="location_tracking_time_interval" class="form-input" required>
+                        @php $timeInterval = $settings['location_tracking_time_interval']['setting_value'] ?? '60'; @endphp
+                        <option value="30" {{ $timeInterval == '30' ? 'selected' : '' }}>30 seconds (High frequency - more battery usage)</option>
+                        <option value="60" {{ $timeInterval == '60' ? 'selected' : '' }}>60 seconds (Balanced - Recommended)</option>
+                        <option value="120" {{ $timeInterval == '120' ? 'selected' : '' }}>2 minutes (120 seconds)</option>
+                        <option value="300" {{ $timeInterval == '300' ? 'selected' : '' }}>5 minutes (300 seconds - Battery saver)</option>
+                        <option value="600" {{ $timeInterval == '600' ? 'selected' : '' }}>10 minutes (600 seconds - Minimal tracking)</option>
+                    </select>
+                    <p class="text-xs text-ink-500 mt-1">How often to capture location when worker is stationary. Lower = more frequent = more battery drain.</p>
+                </div>
+
+                <div>
+                    <label class="form-label">Distance Interval (Meters) <span class="text-rose-500">*</span></label>
+                    <select name="location_tracking_distance_interval" class="form-input" required>
+                        @php $distInterval = $settings['location_tracking_distance_interval']['setting_value'] ?? '50'; @endphp
+                        <option value="1" {{ $distInterval == '1' ? 'selected' : '' }}>1 meter (Testing only - very high battery usage)</option>
+                        <option value="10" {{ $distInterval == '10' ? 'selected' : '' }}>10 meters (High precision)</option>
+                        <option value="50" {{ $distInterval == '50' ? 'selected' : '' }}>50 meters (Balanced - Recommended)</option>
+                        <option value="100" {{ $distInterval == '100' ? 'selected' : '' }}>100 meters (Low frequency)</option>
+                        <option value="500" {{ $distInterval == '500' ? 'selected' : '' }}>500 meters (Minimal - for long distance travel)</option>
+                    </select>
+                    <p class="text-xs text-ink-500 mt-1">Capture location when worker moves this distance. Triggers BEFORE time interval if movement detected.</p>
+                </div>
+
+                <div>
+                    <label class="form-label">GPS Accuracy <span class="text-rose-500">*</span></label>
+                    <select name="location_tracking_accuracy" class="form-input" required>
+                        @php $accuracy = $settings['location_tracking_accuracy']['setting_value'] ?? 'high'; @endphp
+                        <option value="high" {{ $accuracy == 'high' ? 'selected' : '' }}>High Accuracy (Most precise, higher battery usage)</option>
+                        <option value="balanced" {{ $accuracy == 'balanced' ? 'selected' : '' }}>Balanced (Good precision, moderate battery)</option>
+                        <option value="low" {{ $accuracy == 'low' ? 'selected' : '' }}>Low Power (Less precise, saves battery)</option>
+                    </select>
+                    <p class="text-xs text-ink-500 mt-1">GPS accuracy mode. High = best for route tracking but drains battery faster.</p>
+                </div>
+
+                <div>
+                    <label class="form-label">Tracking Mode <span class="text-rose-500">*</span></label>
+                    <select name="location_tracking_enabled" class="form-input" required>
+                        @php $enabled = $settings['location_tracking_enabled']['setting_value'] ?? '1'; @endphp
+                        <option value="1" {{ $enabled == '1' ? 'selected' : '' }}>Enabled - Track all field workers</option>
+                        <option value="0" {{ $enabled == '0' ? 'selected' : '' }}>Disabled - No location tracking</option>
+                    </select>
+                    <p class="text-xs text-ink-500 mt-1">Master switch to enable/disable location tracking for all field workers.</p>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 class="text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+                    <x-lucide-info class="w-4 h-4 text-blue-600" />
+                    How Location Tracking Works:
+                </h3>
+                <ul class="text-xs text-blue-800 space-y-1.5 ml-6 list-disc">
+                    <li><strong>Time-based:</strong> Location captured every <span class="font-mono bg-blue-100 px-1 rounded">Time Interval</span> seconds (e.g., 60s) even if worker is stationary.</li>
+                    <li><strong>Movement-based:</strong> Location captured immediately when worker moves <span class="font-mono bg-blue-100 px-1 rounded">Distance Interval</span> meters (e.g., 50m) - happens BEFORE time interval.</li>
+                    <li><strong>OR Logic:</strong> Whichever happens FIRST triggers location capture (time OR distance).</li>
+                    <li><strong>Background Service:</strong> Tracking continues even when app is minimized, screen is off, or worker is using other apps.</li>
+                    <li><strong>Battery Impact:</strong> Lower intervals = more frequent updates = higher battery drain. Recommended: 60s time + 50m distance.</li>
+                </ul>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-surface-border">
+                <x-button type="submit" variant="primary">
+                    <x-lucide-save class="w-4 h-4 inline mr-1" /> Save Location Tracking Settings
+                </x-button>
+            </div>
+        </form>
+    </div>
+
 </div>
 
 @endsection

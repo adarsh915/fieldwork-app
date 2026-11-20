@@ -37,6 +37,7 @@ import type {
   Area,
 } from "../api/master";
 import type { RootStackParamList } from "../navigation/RootNavigator";
+import { LocationTrackingService } from "../services/LocationTrackingService";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "DayStart">;
 type PickerKey = "tourPurpose" | "tourType" | "vehicleType";
@@ -243,6 +244,20 @@ export default function DayStartScreen() {
           .filter(([, v]) => v)
           .map(([k]) => Number(k)),
       });
+
+      // 🔥 START LOCATION TRACKING - Added for live location tracking
+      try {
+        await LocationTrackingService.startTracking();
+        console.log("✅ Location tracking started successfully");
+      } catch (locationError: any) {
+        console.error("❌ Failed to start location tracking:", locationError);
+        // Don't block Day Start if tracking fails, just notify user
+        Alert.alert(
+          "Location Tracking",
+          "Unable to start location tracking. Please enable location permissions (Always Allow) in your device settings for accurate attendance tracking.",
+          [{ text: "OK" }]
+        );
+      }
 
       Alert.alert(
         "Day Started Successfully",

@@ -41,6 +41,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('mobile-summary', [\App\Http\Controllers\Api\ReportController::class, 'mobileSummary'])->name('mobile-summary');
     });
 
+    // ── Location Tracking (Background GPS) ────────────────────────────────
+    Route::prefix('location')->name('api.location.')->group(function () {
+        Route::post('bulk-update',   [\App\Http\Controllers\Api\LocationTrackingController::class, 'bulkUpdate'])->name('bulk-update');
+        Route::post('single',        [\App\Http\Controllers\Api\LocationTrackingController::class, 'storeSingle'])->name('single');
+        Route::get('my-latest',      [\App\Http\Controllers\Api\LocationTrackingController::class, 'getMyLatest'])->name('my-latest');
+        Route::get('my-history',     [\App\Http\Controllers\Api\LocationTrackingController::class, 'getMyHistory'])->name('my-history');
+        Route::get('tracking-settings', [\App\Http\Controllers\Api\LocationTrackingController::class, 'getTrackingSettings'])->name('tracking-settings');
+    });
+
     // Master Data (dropdowns / pickers)
     Route::prefix('master')->name('api.master.')->group(function () {
         // PERFORMANCE OPTIMIZATION: Single endpoint for Start Day form (all dropdowns in one call)

@@ -25,12 +25,28 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#7367F0"
-      }
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-secure-store",
       "expo-notifications",
-      "expo-location",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow AMPL Fieldwork to use your location for tracking field visits.",
+          "locationAlwaysPermission": "Allow AMPL Fieldwork to use your location even when the app is in the background.",
+          "locationWhenInUsePermission": "Allow AMPL Fieldwork to use your location while using the app.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
       "expo-image-picker",
       "expo-image"
     ]

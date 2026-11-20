@@ -19,6 +19,7 @@ import { optimizeImageForUpload } from "../utils/imageOptimizer";
 
 import { submitDayEnd } from "../api/day";
 import type { AppStackParamList } from "../navigation/RootNavigator";
+import { LocationTrackingService } from "../services/LocationTrackingService";
 
 type Nav = NativeStackNavigationProp<AppStackParamList, "DayEnd">;
 
@@ -119,6 +120,15 @@ export default function DayEndScreen() {
         remarks: remarks || undefined,
         closing_km_image_uri: kmPhotoUri ?? undefined,
       });
+
+      // 🔥 STOP LOCATION TRACKING - Added for live location tracking
+      try {
+        await LocationTrackingService.stopTracking();
+        console.log("✅ Location tracking stopped and final upload completed");
+      } catch (locationError: any) {
+        console.error("❌ Failed to stop location tracking:", locationError);
+        // Don't block Day End if tracking stop fails
+      }
 
       Alert.alert("Day Ended Successfully", "Your day has been successfully ended.", [
         { text: "OK", onPress: () => navigation.goBack() },
